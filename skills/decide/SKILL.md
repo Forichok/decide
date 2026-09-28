@@ -139,7 +139,7 @@ answers") so the user can catch a misunderstanding early.
 | The title is a plain question a non-engineer understands. Jargon goes to `glossary`.                                                  | Glossary terms get a tooltip on first use.                        |
 | `tldr`: one line on what depends on the answer. Longer context goes to `what` / `how` / `why` / `goal`, which stay folded.            | The user reads title and tldr, and opens the rest only if needed. |
 | 2–4 real options. No filler options that exist only to lose.                                                                          | A fake choice is worse than no question.                          |
-| Exactly one option is `recommended`, and the value is the reason: `"recommended": "cheapest to undo"`.                                | Shown as ★ with the reason; unanswered questions fall back to it. |
+| Exactly one option is `recommended`, and the value is the reason: `"recommended": "cheapest to undo"`.                                | Shown as ★ with the reason; can fill questions left unanswered.   |
 | `pros` / `cons`: up to three each, concrete. `metrics` use the same labels on every option of a question; numbers 1–5 render as dots. | Side-by-side comparison only works when the axes match.           |
 | `stakes: "high"` for money, personal data, auth, production data; `reversible: false` for anything that can't be undone.              | Both show as badges, so the user slows down where it matters.     |
 | `danger: true` on an option that can break something live.                                                                            | Shown as a warning.                                               |
@@ -182,7 +182,8 @@ Then open the JSON for notes, attachments and the dialog.
 | `attachments`                        | Absolute paths to screenshots or marked-up images. Look at every one.                                                 |
 | `flag: "explain"`                    | The user still needs context. Explain in the next round; don't pick silently.                                         |
 | `flag: "delegate"`                   | "You decide." Pick (usually your recommendation) and say what you picked in your summary.                             |
-| `auto: true`                         | Left unanswered, so the recommendation was applied. List these in your summary.                                       |
+| `auto: true` + `flag: "delegate"`    | Left unanswered, and the user let your recommendation stand. List these in your summary.                              |
+| `auto: true` + `flag: "skip"`        | Left unanswered, and the user chose not to take your recommendation. Don't pick silently; ask again if it blocks.     |
 | `flag: "skip"`                       | Leave that part out or as it is. Don't bring it back unless it blocks the work.                                       |
 | `dialog`                             | What the user asked you on the page and what you answered. Their final choice already accounts for it.                |
 | `comment`, top-level `attachments`   | Context for the whole round. Read them before acting.                                                                 |

@@ -128,6 +128,10 @@ skipped. Viewports: desktop 1440×900, mobile 390×844 at 2×. Set
 }
 ```
 
+`auto: true` marks a question the user left unanswered. Before sending they
+choose what happens to those: `flag: "delegate"` means the recommendation stands
+(as in `share` above), `flag: "skip"` means it stays open.
+
 `digest` is always in English, whatever the language of the page and the
 questions. A cancelled round has `cancelled: true` and no answers. Answers go to
 `<slug>.answers.json` next to the spec; unfinished answers are kept in

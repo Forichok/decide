@@ -222,12 +222,12 @@ function review() {
   openReview({ spec: r.spec, answers: r.answers, comment: r.comment().trim(), onSend: send, onJump: go });
 }
 
-async function send() {
+async function send(fill = "recommend") {
   const r = app.round;
   if (!r || app.sending) return;
   app.sending = true;
   try {
-    const res = await submitRound(r.id, r.payload(finalizeAnswers(r.spec, r.answers, { fill: true })));
+    const res = await submitRound(r.id, r.payload(finalizeAnswers(r.spec, r.answers, { fill })));
     showDone(r.id, res.result);
   } catch (e) {
     if (e.status === 409) openRound(r.id, false);

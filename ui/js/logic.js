@@ -67,15 +67,17 @@ export function withRecommendation(q, a) {
   return { ...a, selected: q.type === "single" || q.type === "confirm" ? rec.slice(0, 1) : rec, other: "" };
 }
 
-// Build the agent-facing answers map. With fill: unresolved required questions
-// take the recommendation and are marked { flag: "delegate", auto: true }.
+// Build the agent-facing answers map. fill decides what happens to unresolved
+// required questions: "recommend" (or true) takes the recommendation and marks
+// them { flag: "delegate", auto: true }; "skip" leaves them open as
+// { flag: "skip", auto: true }.
 export function finalizeAnswers(spec, answers, { fill = false } = {}) {
   const out = {};
   for (const q of visibleQuestions(spec, answers)) {
     let a = answers[q.id] || emptyAnswer(q);
     let auto = false;
     if (fill && !isResolved(q, a)) {
-      a = { ...withRecommendation(q, a), flag: "delegate" };
+      a = fill === "skip" ? { ...a, flag: "skip" } : { ...withRecommendation(q, a), flag: "delegate" };
       auto = true;
     }
     const r = compact(q, a);
@@ -89,7 +91,7 @@ function compact(q, a) {
   const r = {};
   if (["single", "multi", "confirm"].includes(q.type)) r.selected = [...a.selected];
   if (a.other.trim()) r.other = a.other.trim();
-  if (q.type === "rank" && (a.touched || a.flag)) r.order = [...a.order];
+  if (q.type === "rank" && (a.touched || (a.flag && a.flag !== "skip"))) r.order = [...a.order];
   if (q.type === "scale" && Number.isFinite(a.value)) r.value = a.value;
   if (q.type === "text" && a.text.trim()) r.text = a.text.trim();
   if (a.note.trim()) r.note = a.note.trim();
@@ -100,22 +102,33 @@ function compact(q, a) {
 
 const label = (q, id) => q.options.find((o) => o.id === id)?.label ?? id;
 
-export function describe(q, r) {
+// The digest's wording. The page passes its own translation of the same keys.
+const WORDS = {
+  explain: `❓ ${FLAGS.explain}`,
+  skip: `⏭ ${FLAGS.skip}`,
+  delegate: `🤝 ${FLAGS.delegate}`,
+  autoSkip: "⏭ no answer, left open",
+  autoDelegate: "🤝 no answer → the recommendation",
+  against: (recs) => `(against the recommendation: ${recs})`,
+  own: (text) => `own option: "${text}"`,
+};
+
+export function describe(q, r, w = WORDS) {
   if (!r) return "—";
   const parts = [];
-  if (r.flag === "explain") parts.push(`❓ ${FLAGS.explain}`);
-  if (r.flag === "skip") parts.push(`⏭ ${FLAGS.skip}`);
-  if (r.flag === "delegate") parts.push(r.auto ? "🤝 no answer → the recommendation" : `🤝 ${FLAGS.delegate}`);
+  if (r.flag === "explain") parts.push(w.explain);
+  if (r.flag === "skip") parts.push(r.auto ? w.autoSkip : w.skip);
+  if (r.flag === "delegate") parts.push(r.auto ? w.autoDelegate : w.delegate);
   const rec = recommendedIds(q);
   if (r.selected?.length) {
     const picked = r.selected.map((id) => label(q, id)).join(", ");
     const same = rec.length && r.selected.every((id) => rec.includes(id));
     const against = rec.length && !r.selected.some((id) => rec.includes(id));
     parts.push(
-      picked + (same ? " ★" : against ? ` (against the recommendation: ${rec.map((id) => label(q, id)).join(", ")})` : ""),
+      picked + (same ? " ★" : against ? ` ${w.against(rec.map((id) => label(q, id)).join(", "))}` : ""),
     );
   }
-  if (r.other) parts.push(`own option: "${r.other}"`);
+  if (r.other) parts.push(w.own(r.other));
   if (r.order) parts.push(r.order.map((id) => label(q, id)).join(" > "));
   if (r.value != null) {
     const hint = q.scale?.labels?.[r.value];

@@ -16,14 +16,26 @@ body.locked { overflow: hidden; }
 .modal.wide { width: min(680px, 100%); }
 @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
 .modal-title { font-size: 19px; font-weight: 700; letter-spacing: -0.015em; margin: 0 0 10px; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.modal-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+@media (max-width: 560px) { .modal-actions { flex-direction: column-reverse; } .modal-actions .btn { justify-content: center; } }
 .modal-hint { text-align: right; font-size: 12px; color: var(--tx-dim); margin: 8px 0 0; }
 .confirm-cancel p { color: var(--tx-mut); margin: 0; }
 
 .rv-warn, .rv-ok { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; }
 .rv-warn { background: var(--warn-soft); color: var(--warn); }
 .rv-ok { background: var(--ok-soft); color: var(--ok); }
-.rv-warn .i, .rv-ok .i { margin-top: 2px; }
+.rv-warn .i, .rv-ok .i { margin-top: 2px; flex: none; }
+.rv-body { display: grid; gap: 10px; min-width: 0; }
+.rv-body p { margin: 0; }
+.rv-fill { display: flex; flex-wrap: wrap; gap: 6px; }
+.rv-choice {
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 10px; border-radius: 999px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); color: var(--tx); font-size: 13.5px; font-weight: 550;
+}
+.rv-choice:hover { border-color: var(--tx-dim); }
+.rv-choice:has(input:checked) { border-color: var(--warn); }
+.rv-choice:has(input:focus-visible) { outline: 2px solid var(--warn); outline-offset: 2px; }
+.rv-choice input { margin: 0; accent-color: var(--warn); }
 .rv-list { display: grid; gap: 2px; }
 .rv-row {
   display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1.1fr); gap: 12px; align-items: baseline;

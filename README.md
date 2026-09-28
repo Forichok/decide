@@ -36,7 +36,7 @@ decide moves that exchange to a page built for it.
 | Six questions at once          | A numbered wall; you reply "1b, 2 yes, 3 ?" | One card per question, one click each, or the digits 1–9                     |
 | Seeing what you choose         | Text descriptions                           | Screenshots of your running app, clickable HTML mockups, diagrams, code      |
 | "What does this mean?"         | A new message, and the other answers wait   | Ask under the question; the agent answers right there while you go on       |
-| Questions you don't care about | The agent guesses                           | The agent's recommendation, and it knows you didn't pick it yourself         |
+| Questions you don't care about | The agent guesses                           | The recommendation or no answer, you choose; it knows you didn't pick it     |
 | Next week                      | Scroll up and hope                          | Every decision is kept per project, and the agent checks before asking again |
 
 Claude Code's built-in question picker is fine for one quick choice: it takes
@@ -116,11 +116,12 @@ click around before you approve it.
 </picture>
 </td>
 <td width="50%" valign="top">
-<b>Check before sending.</b> Rows that fall back to the recommendation are
-highlighted.
+<b>Check before sending.</b> Unanswered questions are highlighted. The agent
+takes its recommendation there or leaves them open, or you go back and fill them
+in.
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screens/review-dark.webp">
-  <img src="docs/screens/review-light.webp" alt="The review dialog listing every answer, with unanswered questions highlighted">
+  <img src="docs/screens/review-light.webp" alt="The review dialog listing every answer, with unanswered questions highlighted and a choice of what the agent does with them">
 </picture>
 </td>
 </tr>

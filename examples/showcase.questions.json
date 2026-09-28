@@ -1,6 +1,6 @@
 {
   "title": "decide tour: a new home screen for a task app",
-  "intro": "A sample round that shows every feature. Pick with a click or the digits **1–9**, **J / K** move between questions, **?** lists all shortcuts.\n\nIf a question is unclear, press **E** or the button under it. When the agent is online it answers right under the question; otherwise it explains in the next round. Questions you leave open get the agent's recommendation.",
+  "intro": "A sample round that shows every feature. Pick with a click or the digits **1–9**, **J / K** move between questions, **?** lists all shortcuts.\n\nIf a question is unclear, press **E** or the button under it. When the agent is online it answers right under the question; otherwise it explains in the next round. Before sending, you choose what happens to questions you leave open: the agent takes its recommendation, or they stay unanswered.",
   "recap": "From the last round I understood:\n- the new home screen is needed this quarter, not \"some day\";\n- what matters most is that people see what's due, not just scroll;\n- the design budget is one week.",
   "context": "Right now the app opens on one long list with every task. An active user has about 140 of them, and the ones due today get lost among the rest. We read the last 50 messages in the feedback form: 31 of them are about a missed deadline.",
   "glossary": {

@@ -37,7 +37,8 @@ export function openModal(content, { wide = false, onClose } = {}) {
   document.addEventListener("keydown", onKey, true);
   root.addEventListener("click", onClick);
   closeCurrent = close;
-  requestAnimationFrame(() => (box.querySelector("[data-autofocus]") || box.querySelector("button"))?.focus());
+  // the top of a long modal stays in view; focus alone would scroll it to the button
+  requestAnimationFrame(() => (box.querySelector("[data-autofocus]") || box.querySelector("button"))?.focus({ preventScroll: true }));
   return close;
 }
 
@@ -114,38 +115,77 @@ export function openLightbox(images, start, { onAnnotate, annotate = false } = {
   if (annotate && onAnnotate && sameOrigin(images[i].src)) startMarks();
 }
 
+// What to do with unanswered questions; kept while the page is open.
+let fillMode = "recommend";
+
 export function openReview({ spec, answers, comment, onSend, onJump }) {
-  const final = finalizeAnswers(spec, answers, { fill: true });
   const visible = visibleQuestions(spec, answers);
   const open = visible.filter((q) => !isResolved(q, answers[q.id]));
-  const rows = visible.map((q, i) => {
-    const auto = !isResolved(q, answers[q.id]);
-    return h(
-      "button.rv-row",
-      { type: "button", class: auto ? "auto" : "", onclick: () => (close(), onJump(q.id)) },
-      h("span.rv-n", {}, String(i + 1)),
-      h("span.rv-q", { html: mdInline(q.title) }),
-      h("span.rv-a", {}, describe(q, final[q.id]), extrasNote(final[q.id])),
+  const words = reviewWords();
+  const list = h("div.rv-list");
+  const render = () => {
+    const final = finalizeAnswers(spec, answers, { fill: fillMode });
+    list.replaceChildren(
+      ...visible.map((q, i) =>
+        h(
+          "button.rv-row",
+          { type: "button", class: open.includes(q) ? "auto" : "", onclick: () => (close(), onJump(q.id)) },
+          h("span.rv-n", {}, String(i + 1)),
+          h("span.rv-q", { html: mdInline(q.title) }),
+          h("span.rv-a", {}, describe(q, final[q.id], words), extrasNote(final[q.id])),
+        ),
+      ),
     );
-  });
-  const send = h("button.btn.primary", { type: "button", "data-autofocus": "", html: `${t("review.send")}${icon("arrow")}`, onclick: () => (close(), onSend()) });
+  };
+  render();
+  const choice = (mode) =>
+    h(
+      "label.rv-choice",
+      {},
+      h("input", { type: "radio", name: "rv-fill", value: mode, checked: fillMode === mode, onchange: () => ((fillMode = mode), render()) }),
+      h("span", {}, t(`review.fill.${mode}`)),
+    );
+  const status = open.length
+    ? h(
+        "div.rv-warn",
+        { html: icon("alert") },
+        h(
+          "div.rv-body",
+          {},
+          h("p", { id: "rv-open" }, t("review.open", open.length)),
+          h("div.rv-fill", { role: "radiogroup", "aria-labelledby": "rv-open" }, choice("recommend"), choice("skip")),
+        ),
+      )
+    : h("p.rv-ok", { html: `${icon("check")}${t("review.ok")}` });
+  const back = open.length
+    ? h("button.btn.ghost", { type: "button", onclick: () => (close(), onJump(open[0].id)) }, t("review.fillIn"))
+    : h("button.btn.ghost", { type: "button", onclick: () => close() }, t("common.back"));
+  const send = h("button.btn.primary", { type: "button", "data-autofocus": "", html: `${t("review.send")}${icon("arrow")}`, onclick: () => (close(), onSend(fillMode)) });
   const close = openModal(
     h(
       "div.review",
       {},
       h("h2.modal-title", {}, t("review.title")),
-      open.length
-        ? h("p.rv-warn", { html: `${icon("alert")}${t("review.open", open.length)}` })
-        : h("p.rv-ok", { html: `${icon("check")}${t("review.ok")}` }),
-      h("div.rv-list", {}, rows),
+      status,
+      list,
       comment && h("p.rv-comment", {}, t("review.comment", comment)),
-      h("div.modal-actions", {}, h("button.btn.ghost", { type: "button", onclick: () => close() }, t("common.back")), send),
+      h("div.modal-actions", {}, back, send),
       h("p.modal-hint", {}, t("review.hint")),
     ),
     { wide: true },
   );
   return { send: () => send.click() };
 }
+
+const reviewWords = () => ({
+  explain: t("rv.explain"),
+  skip: t("rv.skip"),
+  delegate: t("rv.delegate"),
+  autoSkip: t("rv.autoSkip"),
+  autoDelegate: t("rv.autoDelegate"),
+  against: (recs) => t("rv.against", recs),
+  own: (text) => t("rv.own", text),
+});
 
 function extrasNote(r) {
   const bits = [r?.note && t("review.note"), r?.attachments?.length && `📎 ${r.attachments.length}`].filter(Boolean);

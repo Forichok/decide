@@ -8,6 +8,7 @@
  *   - lint warnings: several recommendations, missing asset, long flat round
  *   - resolution rules per question type and per flag (explain/delegate/skip)
  *   - conditional questions and auto-fill of unanswered questions by recommendation
+ *   - unanswered questions can instead be left open (skip), and the digest says so
  *   - agent digest marks recommended picks, overrides, flags and custom answers
  *   - markdown-lite renderer escapes HTML and marks glossary terms outside code
  * Why exists: /decide v2 answers drive agent work; wrong resolution or digest silently changes decisions.
@@ -171,6 +172,28 @@ test("hidden conditional questions are excluded and unanswered ones fall back to
   assert.equal("detail" in final, false);
   assert.deepEqual(final.mode, { selected: ["a"] });
   assert.deepEqual(final.later, { selected: ["a"], flag: "delegate", auto: true });
+});
+
+test("unanswered questions can be left open instead of taking the recommendation", () => {
+  const { spec } = normalizeSpec(
+    { questions: [choice("mode"), choice("later"), { ...choice("steps"), type: "rank" }, { id: "notes", title: "Notes", type: "text", optional: true }] },
+    { specDir: tmpdir() },
+  );
+  const answers = {
+    mode: { ...logic.emptyAnswer(spec.questions[0]), selected: ["b"] },
+    later: logic.emptyAnswer(spec.questions[1]),
+  };
+
+  assert.deepEqual(logic.finalizeAnswers(spec, answers, { fill: "recommend" }).later, { selected: ["a"], flag: "delegate", auto: true });
+  const final = logic.finalizeAnswers(spec, answers, { fill: "skip" });
+  assert.deepEqual(final.mode, { selected: ["b"] });
+  assert.deepEqual(final.later, { selected: [], flag: "skip", auto: true });
+  assert.deepEqual(final.steps, { flag: "skip", auto: true }, "an untouched ranking sends no order");
+  assert.equal("notes" in final, false, "optional text stays out");
+
+  const text = logic.digest(spec, { answers: final });
+  assert.match(text, /\[later\] Question later → ⏭ no answer, left open$/m);
+  assert.doesNotMatch(text, /\[later\].*Alpha/);
 });
 
 test("digest tells the agent what was chosen, overridden, delegated or asked", () => {
