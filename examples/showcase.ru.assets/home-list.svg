@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 420" font-family="-apple-system,Segoe UI,sans-serif">
+  <rect width="240" height="420" rx="28" fill="#fbfaf8"/>
+  <rect x="0.5" y="0.5" width="239" height="419" rx="27.5" fill="none" stroke="#e7e2dc"/>
+  <text x="20" y="44" font-size="17" font-weight="700" fill="#1d1b1a">Все задачи</text><text x="220" y="44" font-size="12" font-weight="600" fill="#8b847c" text-anchor="end">140</text>
+<circle cx="30" cy="78" r="6" fill="none" stroke="#cfc8c0" stroke-width="1.5"/><text x="44" y="82" font-size="11" fill="#1d1b1a">Позвонить арендодателю</text>
+<line x1="20" y1="95" x2="220" y2="95" stroke="#e7e2dc"/>
+<circle cx="30" cy="112" r="6" fill="none" stroke="#cfc8c0" stroke-width="1.5"/><text x="44" y="116" font-size="11" fill="#1d1b1a">Починить вход</text>
+<line x1="20" y1="129" x2="220" y2="129" stroke="#e7e2dc"/>
+<circle cx="30" cy="146" r="6" fill="none" stroke="#cfc8c0" stroke-width="1.5"/><text x="44" y="150" font-size="11" fill="#1d1b1a">Купить бумагу</text>
+<line x1="20" y1="163" x2="220" y2="163" stroke="#e7e2dc"/>
+<circle cx="30" cy="180" r="6" fill="none" stroke="#cfc8c0" stroke-width="1.5"/><text x="44" y="184" font-size="11" fill="#1d1b1a">Отправить счёт</text>
+<line x1="20" y1="197" x2="220" y2="197" stroke="#e7e2dc"/>
+<circle cx="30" cy="214" r="6" fill="none" stroke="#cfc8c0" stroke-width="1.5"/><text x="44" y="218" font-size="11" fill="#1d1b1a">Билеты в Лиссабон</text>
+<line x1="20" y1="231" x2="220" y2="231" stroke="#e7e2dc"/>
+<circle cx="30" cy="248" r="6" fill="none" stroke="#cfc8c0" stroke-width="1.5"/><text x="44" y="252" font-size="11" fill="#1d1b1a">План на третий квартал</text>
+<line x1="20" y1="265" x2="220" y2="265" stroke="#e7e2dc"/>
+<circle cx="30" cy="282" r="6" fill="none" stroke="#cfc8c0" stroke-width="1.5"/><text x="44" y="286" font-size="11" fill="#1d1b1a">Продлить домен</text>
+<line x1="20" y1="299" x2="220" y2="299" stroke="#e7e2dc"/>
+<circle cx="30" cy="316" r="6" fill="none" stroke="#cfc8c0" stroke-width="1.5"/><text x="44" y="320" font-size="11" fill="#1d1b1a">Ответить Саше</text>
+<line x1="20" y1="333" x2="220" y2="333" stroke="#e7e2dc"/>
+<circle cx="30" cy="350" r="6" fill="none" stroke="#cfc8c0" stroke-width="1.5"/><rect x="44" y="346" width="120" height="8" rx="4" fill="#e3ddd6"/>
+<circle cx="30" cy="384" r="6" fill="none" stroke="#cfc8c0" stroke-width="1.5"/><rect x="44" y="380" width="150" height="8" rx="4" fill="#e3ddd6"/>
+<circle cx="30" cy="418" r="6" fill="none" stroke="#cfc8c0" stroke-width="1.5"/><rect x="44" y="414" width="96" height="8" rx="4" fill="#e3ddd6"/></svg>

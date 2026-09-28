@@ -1,0 +1,16 @@
+{
+  "name": "forichok",
+  "description": "Forichok's plugins for Claude Code and Codex",
+  "owner": {
+    "name": "Nikita Udalov",
+    "url": "https://github.com/Forichok"
+  },
+  "plugins": [
+    {
+      "name": "decide",
+      "source": "./",
+      "description": "Decision rounds in the browser for Claude Code and Codex: the agent asks, you click through options with a recommendation, screenshots, mockups and diagrams, and can ask the agent about any question on the page.",
+      "version": "1.0.0"
+    }
+  ]
+}

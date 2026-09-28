@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 420" font-family="-apple-system,Segoe UI,sans-serif">
+  <rect width="240" height="420" rx="28" fill="#fbfaf8"/>
+  <rect x="0.5" y="0.5" width="239" height="419" rx="27.5" fill="none" stroke="#e7e2dc"/>
+  <text x="20" y="44" font-size="17" font-weight="700" fill="#1d1b1a">Today</text>
+<text x="20" y="62" font-size="11" fill="#8b847c">Tue, 14 Oct</text>
+<text x="20" y="90" font-size="10" font-weight="700" fill="#e8457a">OVERDUE · 2</text>
+<rect x="14" y="100" width="212" height="24" rx="8" fill="#fde7ee"/>
+<circle cx="28" cy="112" r="6" fill="none" stroke="#e8457a" stroke-width="1.5"/><text x="42" y="116" font-size="11" fill="#1d1b1a">Renew the domain</text>
+<text x="218" y="116" font-size="10" font-weight="600" fill="#e8457a" text-anchor="end">Mon</text>
+<rect x="14" y="126" width="212" height="24" rx="8" fill="#fde7ee"/>
+<circle cx="28" cy="138" r="6" fill="none" stroke="#e8457a" stroke-width="1.5"/><text x="42" y="142" font-size="11" fill="#1d1b1a">Reply to Sam</text>
+<text x="218" y="142" font-size="10" font-weight="600" fill="#e8457a" text-anchor="end">Sun</text>
+<text x="20" y="176" font-size="10" font-weight="700" fill="#1d1b1a">TODAY · 4</text>
+<rect x="14" y="188" width="212" height="26" rx="8" fill="#fff" stroke="#e7e2dc"/>
+<circle cx="28" cy="201" r="6" fill="none" stroke="#cfc8c0" stroke-width="1.5"/>
+<text x="42" y="205" font-size="11" fill="#1d1b1a">Send the invoice</text>
+<rect x="188" y="193" width="32" height="14" rx="7" fill="#e6efff"/><text x="204" y="203" font-size="9" font-weight="600" fill="#4a78c9" text-anchor="middle">15:00</text>
+<rect x="14" y="218" width="212" height="26" rx="8" fill="#fff" stroke="#e7e2dc"/>
+<circle cx="28" cy="231" r="6" fill="none" stroke="#cfc8c0" stroke-width="1.5"/>
+<text x="42" y="235" font-size="11" fill="#1d1b1a">Fix the login bug</text>
+<rect x="188" y="223" width="32" height="14" rx="7" fill="#e6efff"/><text x="204" y="233" font-size="9" font-weight="600" fill="#4a78c9" text-anchor="middle">11:00</text>
+<rect x="14" y="248" width="212" height="26" rx="8" fill="#fff" stroke="#e7e2dc"/>
+<circle cx="28" cy="261" r="6" fill="none" stroke="#cfc8c0" stroke-width="1.5"/>
+<text x="42" y="265" font-size="11" fill="#1d1b1a">Call the landlord</text>
+<rect x="188" y="253" width="32" height="14" rx="7" fill="#e6efff"/><text x="204" y="263" font-size="9" font-weight="600" fill="#4a78c9" text-anchor="middle">17:30</text>
+<rect x="14" y="278" width="212" height="26" rx="8" fill="#fff" stroke="#e7e2dc"/>
+<circle cx="28" cy="291" r="6" fill="#7cc9a0"/><path d="M25 291 l2 2.2 l4 -4.4" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+<text x="42" y="295" font-size="11" fill="#8b847c" text-decoration="line-through">Buy printer paper</text>
+<rect x="14" y="318" width="212" height="30" rx="10" fill="#f1ece6"/>
+<text x="26" y="337" font-size="11" font-weight="700" fill="#1d1b1a">Later</text>
+<text x="214" y="337" font-size="11" fill="#8b847c" text-anchor="end">36 tasks ›</text></svg>

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>decide</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23e8457a'/%3E%3Cpath d='M10 16.5l4 4 8-9' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/ui/css/tokens.css" />
+    <link rel="stylesheet" href="/ui/css/base.css" />
+    <link rel="stylesheet" href="/ui/css/header.css" />
+    <link rel="stylesheet" href="/ui/css/question.css" />
+    <link rel="stylesheet" href="/ui/css/inputs.css" />
+    <link rel="stylesheet" href="/ui/css/media.css" />
+    <link rel="stylesheet" href="/ui/css/chrome.css" />
+    <link rel="stylesheet" href="/ui/css/overlays.css" />
+    <link rel="stylesheet" href="/ui/css/live.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="toc" id="toc"></nav>
+      <main class="wrap" id="main">
+        <div class="boot" aria-live="polite"></div>
+      </main>
+    </div>
+    <footer class="bar" id="bar" hidden></footer>
+    <div class="overlay" id="overlay" hidden></div>
+    <div class="lightbox" id="lightbox" hidden></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/ui/js/main.js"></script>
+  </body>
+</html>

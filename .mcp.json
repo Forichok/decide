@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "decide": {
+      "command": "node",
+      "args": [
+        "-e",
+        "const fs=require(\"fs\"),p=require(\"path\"),u=require(\"url\");const a=process.argv[1]||\"\";const root=p.isAbsolute(a)&&fs.existsSync(p.join(a,\"mcp.mjs\"))?a:process.cwd();import(u.pathToFileURL(p.join(root,\"mcp.mjs\")).href)",
+        "${CLAUDE_PLUGIN_ROOT}"
+      ],
+      "cwd": ".",
+      "timeout": 900000,
+      "tool_timeout_sec": 900
+    }
+  }
+}

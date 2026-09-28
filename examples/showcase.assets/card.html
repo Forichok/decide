@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Task card: mockup</title>
+    <style>
+      :root {
+        --bg: #f6f2ee;
+        --card: #fff;
+        --tx: #1d1b1a;
+        --mut: #8b847c;
+        --accent: #e8457a;
+        --ok: #3fa877;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        font-family: -apple-system, "Segoe UI", sans-serif;
+        color: var(--tx);
+      }
+      .card {
+        width: 320px;
+        background: var(--card);
+        border-radius: 20px;
+        box-shadow: 0 18px 50px rgba(60, 40, 30, 0.14);
+        padding: 18px 18px 16px;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 4px 12px;
+      }
+      .box {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 2px solid #cfc8c0;
+        background: none;
+        cursor: pointer;
+        padding: 0;
+        margin-top: 1px;
+        display: grid;
+        place-items: center;
+        transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+      }
+      .box:active {
+        transform: scale(0.9);
+      }
+      .box svg {
+        opacity: 0;
+      }
+      .card.done .box {
+        background: var(--ok);
+        border-color: var(--ok);
+      }
+      .card.done .box svg {
+        opacity: 1;
+      }
+      .title {
+        font-weight: 700;
+        font-size: 15px;
+        line-height: 1.35;
+      }
+      .card.done .title {
+        color: var(--mut);
+        text-decoration: line-through;
+      }
+      .meta {
+        grid-column: 2;
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 6px;
+      }
+      .chip {
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: 12px;
+        font-weight: 700;
+        background: #fde7ee;
+        color: var(--accent);
+      }
+      .chip.tag {
+        background: #e6efff;
+        color: #4a78c9;
+      }
+      .sub {
+        grid-column: 2;
+        color: var(--mut);
+        font-size: 12px;
+        margin-top: 8px;
+      }
+      .row {
+        grid-column: 2;
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .row button {
+        border: 0;
+        border-radius: 12px;
+        padding: 9px 12px;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        background: #f3eee9;
+        color: var(--tx);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card" id="card">
+      <button class="box" aria-label="Mark as done" onclick="card.classList.toggle('done')">
+        <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="title">Send the invoice to Studio North</div>
+      <div class="meta"><span class="chip">Today · 15:00</span><span class="chip tag">Work</span></div>
+      <div class="sub">2 subtasks · 1 comment</div>
+      <div class="row"><button onclick="card.classList.add('done')">Done</button><button>Snooze</button></div>
+    </div>
+  </body>
+</html>

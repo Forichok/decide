@@ -1,0 +1,4 @@
+.DS_Store
+*.answers.json
+*.answers.draft.json
+*.answers.files/

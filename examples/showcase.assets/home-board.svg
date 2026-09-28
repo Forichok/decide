@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 420" font-family="-apple-system,Segoe UI,sans-serif">
+  <rect width="240" height="420" rx="28" fill="#fbfaf8"/>
+  <rect x="0.5" y="0.5" width="239" height="419" rx="27.5" fill="none" stroke="#e7e2dc"/>
+  <text x="20" y="44" font-size="17" font-weight="700" fill="#1d1b1a">Board</text>
+<rect x="14" y="62" width="68" height="340" rx="12" fill="#f1ece6"/>
+<text x="22" y="80" font-size="10" font-weight="700" fill="#8b847c">To do</text>
+<rect x="19" y="90" width="58" height="50" rx="8" fill="#fff"/>
+<rect x="19" y="90" width="4" height="50" rx="2" fill="#8fb8ff"/>
+<rect x="28" y="102" width="40" height="6" rx="3" fill="#d6cfc7"/>
+<rect x="28" y="114" width="26" height="6" rx="3" fill="#e8e2db"/>
+<rect x="19" y="148" width="58" height="50" rx="8" fill="#fff"/>
+<rect x="19" y="148" width="4" height="50" rx="2" fill="#8fb8ff"/>
+<rect x="28" y="160" width="32" height="6" rx="3" fill="#d6cfc7"/>
+<rect x="28" y="172" width="34" height="6" rx="3" fill="#e8e2db"/>
+<rect x="19" y="206" width="58" height="50" rx="8" fill="#fff"/>
+<rect x="19" y="206" width="4" height="50" rx="2" fill="#8fb8ff"/>
+<rect x="28" y="218" width="36" height="6" rx="3" fill="#d6cfc7"/>
+<rect x="28" y="230" width="22" height="6" rx="3" fill="#e8e2db"/>
+<rect x="19" y="264" width="58" height="50" rx="8" fill="#fff"/>
+<rect x="19" y="264" width="4" height="50" rx="2" fill="#8fb8ff"/>
+<rect x="28" y="276" width="28" height="6" rx="3" fill="#d6cfc7"/>
+<rect x="28" y="288" width="30" height="6" rx="3" fill="#e8e2db"/>
+<rect x="86" y="62" width="68" height="340" rx="12" fill="#f1ece6"/>
+<text x="94" y="80" font-size="10" font-weight="700" fill="#8b847c">Doing</text>
+<rect x="91" y="90" width="58" height="50" rx="8" fill="#fff"/>
+<rect x="91" y="90" width="4" height="50" rx="2" fill="#e8457a"/>
+<rect x="100" y="102" width="40" height="6" rx="3" fill="#d6cfc7"/>
+<rect x="100" y="114" width="26" height="6" rx="3" fill="#e8e2db"/>
+<rect x="91" y="148" width="58" height="50" rx="8" fill="#fff"/>
+<rect x="91" y="148" width="4" height="50" rx="2" fill="#e8457a"/>
+<rect x="100" y="160" width="32" height="6" rx="3" fill="#d6cfc7"/>
+<rect x="100" y="172" width="34" height="6" rx="3" fill="#e8e2db"/>
+<rect x="158" y="62" width="68" height="340" rx="12" fill="#f1ece6"/>
+<text x="166" y="80" font-size="10" font-weight="700" fill="#8b847c">Done</text>
+<rect x="163" y="90" width="58" height="50" rx="8" fill="#fff"/>
+<rect x="163" y="90" width="4" height="50" rx="2" fill="#7cc9a0"/>
+<rect x="172" y="102" width="40" height="6" rx="3" fill="#d6cfc7"/>
+<rect x="172" y="114" width="26" height="6" rx="3" fill="#e8e2db"/>
+<rect x="163" y="148" width="58" height="50" rx="8" fill="#fff"/>
+<rect x="163" y="148" width="4" height="50" rx="2" fill="#7cc9a0"/>
+<rect x="172" y="160" width="32" height="6" rx="3" fill="#d6cfc7"/>
+<rect x="172" y="172" width="34" height="6" rx="3" fill="#e8e2db"/>
+<rect x="163" y="206" width="58" height="50" rx="8" fill="#fff"/>
+<rect x="163" y="206" width="4" height="50" rx="2" fill="#7cc9a0"/>
+<rect x="172" y="218" width="36" height="6" rx="3" fill="#d6cfc7"/>
+<rect x="172" y="230" width="22" height="6" rx="3" fill="#e8e2db"/></svg>

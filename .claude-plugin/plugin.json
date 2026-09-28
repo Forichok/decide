@@ -1,0 +1,20 @@
+{
+  "name": "decide",
+  "version": "1.0.0",
+  "description": "Decision rounds in the browser for Claude Code and Codex: the agent asks, you click through options with a recommendation, screenshots, mockups and diagrams, and can ask the agent about any question on the page.",
+  "author": {
+    "name": "Nikita Udalov",
+    "url": "https://github.com/Forichok"
+  },
+  "homepage": "https://github.com/Forichok/decide",
+  "repository": "https://github.com/Forichok/decide",
+  "license": "MIT",
+  "keywords": [
+    "decisions",
+    "questions",
+    "interview",
+    "mcp",
+    "claude-code",
+    "codex"
+  ]
+}

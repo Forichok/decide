@@ -1,0 +1,225 @@
+{
+  "title": "decide tour: a new home screen for a task app",
+  "intro": "A sample round that shows every feature. Pick with a click or the digits **1–9**, **J / K** move between questions, **?** lists all shortcuts.\n\nIf a question is unclear, press **E** or the button under it. When the agent is online it answers right under the question; otherwise it explains in the next round. Questions you leave open get the agent's recommendation.",
+  "recap": "From the last round I understood:\n- the new home screen is needed this quarter, not \"some day\";\n- what matters most is that people see what's due, not just scroll;\n- the design budget is one week.",
+  "context": "Right now the app opens on one long list with every task. An active user has about 140 of them, and the ones due today get lost among the rest. We read the last 50 messages in the feedback form: 31 of them are about a missed deadline.",
+  "glossary": {
+    "feature flag": "A switch inside the app: only the people it's turned on for see the new feature. It can be turned off in a second, without a new release.",
+    "PR": "Pull request: a proposal to add code to the shared branch. It gets reviewed before it's merged.",
+    "migration": "A script that changes the database once, for every existing record."
+  },
+  "sections": [
+    { "id": "base", "title": "Foundations", "intro": "Three decisions everything else depends on." },
+    { "id": "details", "title": "Details", "intro": "What goes into the first version, and in what order." },
+    { "id": "ship", "title": "Release", "intro": "How to show the new screen to people safely." }
+  ],
+  "questions": [
+    {
+      "id": "goal",
+      "section": "base",
+      "title": "What matters most in the first version of the home screen?",
+      "tldr": "This decides what we build first and what waits.",
+      "what": "We pick one main goal for the release.",
+      "why": "One week of design isn't enough for everything at once.",
+      "how": "The other goals aren't dropped; they go into the next PR.",
+      "goal": "A clear test of success we can check with real users.",
+      "stakes": "high",
+      "images": [{ "src": "showcase.assets/current-list.svg", "caption": "Today: 140 tasks in one list" }],
+      "options": [
+        {
+          "id": "due",
+          "label": "People see what's due",
+          "detail": "Overdue and today's tasks on top, everything else below.",
+          "recommended": "31 of the last 50 complaints are about a missed deadline; it's the main pain.",
+          "pros": ["Hits the main complaint", "Easy to measure: missed deadlines per week"],
+          "cons": ["Works best when tasks have due dates"],
+          "metrics": { "Value": 5, "Effort": 3, "Time": "5 days" }
+        },
+        {
+          "id": "wow",
+          "label": "The screen looks stunning",
+          "detail": "Animations, large cards, striking transitions.",
+          "pros": ["Looks great in screenshots"],
+          "cons": ["Doesn't fix missed deadlines", "May stutter on older phones"],
+          "metrics": { "Value": 3, "Effort": 4, "Time": "7 days" }
+        },
+        {
+          "id": "fast",
+          "label": "The app opens instantly",
+          "detail": "Speed work without changing the look.",
+          "pros": ["Fewer drop-offs on a bad connection"],
+          "cons": ["People will hardly notice"],
+          "metrics": { "Value": 2, "Effort": 2, "Time": "3 days" }
+        }
+      ]
+    },
+    {
+      "id": "layout",
+      "section": "base",
+      "title": "Which home screen layout do we go with?",
+      "tldr": "Three mockups. Click a picture to look closer.",
+      "layout": "compare",
+      "options": [
+        {
+          "id": "list",
+          "label": "One list",
+          "image": { "src": "showcase.assets/home-list.svg", "caption": "Every task, newest first" },
+          "detail": "Everything in one scrollable list, like now but tidier.",
+          "pros": ["Nothing new to learn"],
+          "cons": ["Today's tasks still get lost"],
+          "metrics": { "Focus": 2, "Overview": 3 }
+        },
+        {
+          "id": "today",
+          "label": "Today view",
+          "image": { "src": "showcase.assets/home-today.svg", "caption": "Overdue and today on top" },
+          "detail": "Overdue and today's tasks on top, the rest folded under Later.",
+          "recommended": "Puts what's due first and keeps everything else one tap away.",
+          "pros": ["What's due is the first thing you see", "Later is one tap away"],
+          "cons": ["Tasks without a date sit in Later"],
+          "metrics": { "Focus": 5, "Overview": 3 }
+        },
+        {
+          "id": "board",
+          "label": "Board by status",
+          "image": { "src": "showcase.assets/home-board.svg", "caption": "To do, Doing, Done" },
+          "detail": "Columns by status; drag a card to move it.",
+          "pros": ["Good overview of work in progress"],
+          "cons": ["Sorted by status, not by date"],
+          "metrics": { "Focus": 3, "Overview": 5 }
+        }
+      ]
+    },
+    {
+      "id": "card",
+      "section": "base",
+      "title": "This is the task card. Do we approve it?",
+      "tldr": "It's a live mockup: tick the box.",
+      "type": "confirm",
+      "preview": "showcase.assets/card.html",
+      "previewHeight": 340,
+      "options": [
+        { "id": "yes", "label": "Yes, go with it", "recommended": true },
+        { "id": "no", "label": "No, I want something else" },
+        { "id": "change", "label": "Yes, with changes", "detail": "Describe the changes in a note or attach a screenshot." }
+      ]
+    },
+    {
+      "id": "features",
+      "section": "details",
+      "title": "What else goes into the first version?",
+      "tldr": "Pick up to three.",
+      "type": "multi",
+      "max": 3,
+      "layout": "grid",
+      "options": [
+        { "id": "remind", "label": "Reminders", "detail": "A notification 15 minutes before a task is due.", "recommended": true, "tags": ["main pain"] },
+        { "id": "repeat", "label": "Recurring tasks", "detail": "Every Monday, every month, and so on.", "recommended": true, "tags": ["quick"] },
+        { "id": "share", "label": "Shared lists", "detail": "Invite someone to a list.", "tags": ["often asked"] },
+        { "id": "comments", "label": "Comments", "detail": "Only useful with notifications.", "tags": ["slower"] }
+      ]
+    },
+    {
+      "id": "order",
+      "section": "details",
+      "title": "In what order do we build it?",
+      "tldr": "Drag, or use the arrows. Top goes first.",
+      "type": "rank",
+      "options": [
+        { "id": "today", "label": "The today view" },
+        { "id": "cards", "label": "New task cards" },
+        { "id": "remind", "label": "Reminders" },
+        { "id": "anim", "label": "Animations" }
+      ]
+    },
+    {
+      "id": "confidence",
+      "section": "details",
+      "title": "How sure are you that people plan by day rather than by project?",
+      "type": "scale",
+      "scale": { "min": 1, "max": 5, "labels": { "1": "Doubtful", "3": "Probably", "5": "Definitely" } }
+    },
+    {
+      "id": "rollout",
+      "section": "ship",
+      "title": "How do we roll it out?",
+      "tldr": "Speed against the risk of breaking the app for people who open it every morning.",
+      "stakes": "high",
+      "mermaid": "flowchart LR\n  A[Ready] --> B{Roll out how}\n  B -->|at once| C[All users]\n  B -->|gradually| D[10% of users] --> E[All users]\n  B -->|flag| F[Our team only]",
+      "options": [
+        {
+          "id": "all",
+          "label": "Everyone at once",
+          "detail": "The fastest way.",
+          "danger": true,
+          "cons": ["If it breaks, it breaks for everyone at once"],
+          "metrics": { "Risk": 5, "Speed": 5 }
+        },
+        {
+          "id": "gradual",
+          "label": "Gradually",
+          "detail": "Some users first, then everyone.",
+          "recommended": "A bug shows up for a small share of users, not all of them.",
+          "pros": ["A bug affects few people"],
+          "metrics": { "Risk": 2, "Speed": 3 }
+        },
+        {
+          "id": "flag",
+          "label": "Behind a feature flag",
+          "detail": "Turned on by hand for specific accounts.",
+          "pros": ["Full control"],
+          "cons": ["Someone has to remember to turn it on"],
+          "metrics": { "Risk": 1, "Speed": 2 }
+        }
+      ]
+    },
+    {
+      "id": "share",
+      "section": "ship",
+      "title": "What share of users do we start with?",
+      "tldr": "This question appeared because you picked a gradual rollout.",
+      "showIf": { "q": "rollout", "in": ["gradual"] },
+      "options": [
+        { "id": "p10", "label": "10%", "recommended": "Enough to catch bugs, and it affects few people." },
+        { "id": "p50", "label": "50%" }
+      ]
+    },
+    {
+      "id": "migration",
+      "section": "ship",
+      "title": "What do we do with old tasks that have no due date?",
+      "tldr": "A migration that can't be undone: afterwards we can't tell which dates were real.",
+      "stakes": "high",
+      "reversible": false,
+      "code": {
+        "lang": "sql",
+        "text": "-- gives every old task a due date\nUPDATE task\n   SET due_at = created_at\n WHERE due_at IS NULL;"
+      },
+      "options": [
+        {
+          "id": "created",
+          "label": "Use the creation date",
+          "detail": "Each old task gets the day it was created.",
+          "pros": ["Every task gets a date"],
+          "cons": ["Old forgotten tasks show up as overdue"]
+        },
+        {
+          "id": "nodate",
+          "label": "A separate \"No date\" section",
+          "detail": "We leave them as they are.",
+          "recommended": "Guessing would fill Overdue with tasks nobody meant to date, and it can't be undone.",
+          "pros": ["Honest", "Nothing to undo"],
+          "cons": ["The section may end up big"]
+        }
+      ]
+    },
+    {
+      "id": "name",
+      "section": "ship",
+      "title": "What do we call the new screen in the app?",
+      "type": "text",
+      "optional": true,
+      "placeholder": "For example: \"Today\""
+    }
+  ]
+}
