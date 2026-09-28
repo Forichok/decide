@@ -10,11 +10,19 @@
   "repository": "https://github.com/Forichok/decide",
   "license": "MIT",
   "keywords": [
+    "claude-code",
+    "claude-code-plugin",
+    "codex",
+    "codex-plugin",
+    "mcp",
+    "mcp-server",
+    "skills",
+    "human-in-the-loop",
     "decisions",
+    "decision-making",
     "questions",
     "interview",
-    "mcp",
-    "claude-code",
-    "codex"
+    "ask-user-question",
+    "mockups"
   ]
 }

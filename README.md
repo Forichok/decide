@@ -4,10 +4,10 @@
 
 **Your agent asks on a page. You answer in clicks.**
 
-A plugin for Claude Code and Codex. When the agent needs you to choose,
-you get a page with the questions, the options, the agent's pick with its
-reason, and pictures of what you're choosing between. No more walls of
-numbered questions in chat.
+A plugin for Claude Code and OpenAI Codex: a skill plus a local MCP server.
+When the agent needs you to choose, you get a page with the questions, the
+options, the agent's pick with its reason, and pictures of what you're choosing
+between. No more walls of numbered questions in chat.
 
 [![test](https://github.com/Forichok/decide/actions/workflows/test.yml/badge.svg)](https://github.com/Forichok/decide/actions/workflows/test.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
@@ -39,9 +39,9 @@ decide moves that exchange to a page built for it.
 | Questions you don't care about | The agent guesses                           | The recommendation or no answer, you choose; it knows you didn't pick it     |
 | Next week                      | Scroll up and hope                          | Every decision is kept per project, and the agent checks before asking again |
 
-Claude Code's built-in question picker is fine for one quick choice: it takes
-up to four questions with two to four options each. decide is for the rounds
-that need more than that.
+Claude Code's built-in question picker (`AskUserQuestion`) is fine for one
+quick choice: it takes up to four questions with two to four options each.
+decide is for the rounds that need more than that.
 
 ## When to use it
 
