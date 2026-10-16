@@ -91,6 +91,7 @@ done, and on that message call `wait {project, round, timeoutSec: 5}` first.
 | `cards[].left`, `right`       | `{label, detail?, image?, images?}` or a bare string. Both are required; there is never a third option.                |
 | `recommended`, `reason`       | The side you would pick and why. Shown as ★ and a faint highlight. Leave it out when you truly have no view.            |
 | `section`, `tldr`, `stakes`   | A small heading, one line on what depends on the answer, `"high"` for money, data and anything hard to undo.             |
+| `from`                        | On a follow-up: the id of the card whose answer brought it up. The card shows "Because you answered: …".                |
 | `images`, `mermaid`, `preview`, `code`, `links` | A picture, a diagram, a clickable HTML mockup, a snippet, links. Same formats as in `/decide`.          |
 
 Relative image paths resolve against `project`, or against the deck file's
@@ -127,9 +128,9 @@ Send one `push` with all of it:
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `brief`              | The whole brief, rewritten (it replaces the old one). Merge answers into short points; don't list every card.                       |
 | `confidence`         | Raise it as the picture firms up; lower it when an answer surprises you.                                                            |
-| `add` + `position`   | Follow-ups. `position: "next"` puts them ahead of the other open cards, for when an answer opens a fork that matters now.            |
-| `replace`            | Rewrite an open card the answers made unclear or one-sided. Answered cards can't be changed.                                       |
-| `remove`             | Drop open cards that became moot ("which online mode?" after "local only").                                                         |
+| `add` + `position`   | Follow-ups, with `from` set. `position: "next"` puts them right behind the card on the user's screen, for a fork that matters now.   |
+| `replace`            | Rewrite an open card the answers made unclear or one-sided. Answered cards and the card on screen can't be changed.               |
+| `remove`             | Drop open cards that became moot ("which online mode?" after "local only"). The card on screen stays.                              |
 | `batch`              | Change the batch size.                                                                                                              |
 | `done: true`         | No important question left. The page tells the user and offers to finish. Adding cards later reopens the deck.                      |
 
@@ -147,6 +148,12 @@ Brief points, by `kind`:
 
 Until your push arrives, new answers show in the brief as raw lines. Keep
 pushes quick; the user is still answering.
+
+New cards slide into the deck behind the one the user is reading, so they
+never lose their place. A batch also comes early when three cards or fewer
+are left: that is your cue to add follow-ups before the deck runs dry, or to
+push `done: true`. If it does run dry, the user sees you thinking until your
+push arrives.
 
 Reading answers:
 

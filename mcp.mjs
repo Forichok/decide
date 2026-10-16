@@ -41,7 +41,7 @@ const TOOLS = [
       type: "object",
       properties: {
         project: PROJECT,
-        spec: { type: "object", description: "The deck: {title, goal, cards: [{id, title, tldr?, left, right, recommended?, reason?, images?, mermaid?, preview?}], brief?, confidence?, batch?}", additionalProperties: true },
+        spec: { type: "object", description: "The deck: {title, goal, cards: [{id, title, tldr?, left, right, recommended?, reason?, from?, images?, mermaid?, preview?}], brief?, confidence?, batch?}", additionalProperties: true },
         specPath: { type: "string", description: "Path to a deck file instead of spec; answers and the brief are written next to it." },
         open: { type: "boolean", description: "Open or focus the browser page (default true)." },
       },
@@ -67,7 +67,7 @@ const TOOLS = [
         project: PROJECT,
         round: ROUND,
         add: { type: "array", items: { type: "object", additionalProperties: true }, description: "New cards, same shape as in swipe." },
-        position: { type: "string", enum: ["next", "end"], description: "Where new cards go: next (before the other open cards) or end (default)." },
+        position: { type: "string", enum: ["next", "end"], description: "Where new cards go: next (right behind the card on the user's screen) or end (default)." },
         replace: { type: "array", items: { type: "object", additionalProperties: true }, description: "Open cards to rewrite, matched by id." },
         remove: { type: "array", items: { type: "string" }, description: "Ids of open cards that became moot." },
         brief: {

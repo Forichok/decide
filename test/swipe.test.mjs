@@ -5,8 +5,10 @@
  * Covers:
  *   - A card has exactly two sides; options, missing sides and bad ids are lint errors
  *   - push adds (next / end), replaces and removes only open cards; answered cards stay as they were
+ *   - The card on the user's screen stays put: new "next" cards go behind it, it can't be replaced or removed
+ *   - A batch comes early when the deck runs low, so the agent refills it before the user runs out
  *   - Batches carry only what changed since the last one: a re-answer counts once, an undo of an unseen answer not at all
- *   - A batch comes early when the deck runs out; the brief and new cards reach the page; done marks the deck finished
+ *   - The brief and new cards reach the page; done marks the deck finished
  *   - Finishing writes the answers JSON, a markdown brief and a journal entry
  * Why exists: the agent steers the whole interview through these batches; a lost or doubled answer derails it.
  */
@@ -76,6 +78,24 @@ test("push touches only open cards", () => {
   assert.match(batchDigest(res.deck, [{ card: "land", side: "right" }]), /\(against the recommendation\)/);
 });
 
+test("the card on the user's screen stays put", () => {
+  const { deck } = normalizeDeck(deckRaw);
+  const answered = new Set(["turns"]);
+  const { patch } = normalizePatch({
+    add: [{ ...card("weapons", "Своё оружие?"), from: "turns" }],
+    position: "next",
+    replace: [card("land", "Другой текст")],
+    remove: ["land"],
+  });
+  const res = applyPatch(deck, answered, patch, { front: "land" });
+  assert.deepEqual(res.deck.cards.map((c) => c.id), ["turns", "land", "weapons", "online"], "next goes right behind the front card");
+  assert.equal(res.deck.cards[1].title, "Акулы ходят по суше?");
+  assert.equal(res.deck.cards[2].from, "turns");
+  const warned = res.issues.map((i) => i.message).join("\n");
+  assert.match(warned, /replace: "land" is on the user's screen/);
+  assert.match(warned, /remove: "land" is on the user's screen/);
+});
+
 function rpcClient(child) {
   const pending = new Map();
   let buf = "";
@@ -114,7 +134,8 @@ test("MCP: swipe → batches → push → finish", async (context) => {
   assert.equal(bad.isError, true);
   assert.match(text(bad), /needs a right side/);
 
-  const opened = await call("swipe", { project: dir, spec: deckRaw, open: false });
+  const extra = [card("wind", "Ветер есть?"), card("timer", "Таймер хода?"), card("team", "3 акулы в команде?"), card("crate", "Ящики падают?")];
+  const opened = await call("swipe", { project: dir, spec: { ...deckRaw, cards: [...deckRaw.cards, ...extra] }, open: false });
   assert.equal(opened.isError, undefined, text(opened));
   const [, round, url] = text(opened).match(/Swipe round (\S+) .+: (http:\/\/127\.0\.0\.1:\d+\/)/);
   const swipe = (body) => post(url, `api/rounds/${round}/swipe`, body);
@@ -135,48 +156,61 @@ test("MCP: swipe → batches → push → finish", async (context) => {
   assert.match(text(await call("wait", { project: dir, round, timeoutSec: 1 })), /Still waiting/, "one real answer is under the batch size");
   await swipe({ card: "online", side: "skip" });
   const first = text(await call("wait", { project: dir, round, timeoutSec: 5 }));
-  assert.match(first, /Batch 1 .+: 2 new answers; 2 answered, 1 left in the deck of 3/);
+  assert.match(first, /Batch 1 .+: 2 new answers; 2 answered, 5 left in the deck of 7/);
   assert.match(first, /1\. \[turns\] Ходы по очереди\? → turns-R \(right\) \(against the recommendation\)/);
   assert.match(first, /2\. \[online\] Играть онлайн\? → skipped/);
   assert.doesNotMatch(first, /\[land\]/);
   assert.equal((await view()).swipe.thinking, true, "the page shows the agent thinking");
 
+  // land came back by undo, so it is on the user's screen: new cards go behind it and it can't be rewritten.
   const pushed = text(
     await call("push", {
       project: dir,
       round,
-      add: [card("weapons", "Своё акулье оружие?")],
+      add: [{ ...card("weapons", "Своё акулье оружие?"), from: "turns" }],
       position: "next",
+      replace: [card("land", "Совсем другой вопрос"), card("wind", "Ветер сносит снаряды?")],
       remove: ["turns"],
       brief: [{ kind: "decision", text: "Ходы в реальном времени" }, { kind: "open", text: "Онлайн отложен" }],
       confidence: 40,
+      batch: 10,
     }),
   );
-  assert.match(pushed, /1 card added; 2 answered, 2 left of 4/);
+  assert.match(pushed, /1 card added; 2 answered, 6 left of 8/);
   assert.match(pushed, /remove: "turns" is already answered/);
-  // The page showed land before the push replaced it: that answer is refused, not pinned to the new text.
-  await call("push", { project: dir, round, replace: [card("land", "Акулы ходят по суше?", "right")] });
-  assert.equal((await swipe({ card: "land", side: "left", rev: 0 })).status, 412);
+  assert.match(pushed, /replace: "land" is on the user's screen/);
   const after = await view();
-  assert.deepEqual(after.spec.cards.map((c) => c.id), ["turns", "weapons", "land", "online"]);
+  assert.deepEqual(after.spec.cards.map((c) => c.id), ["turns", "land", "weapons", "online", "wind", "timer", "team", "crate"]);
   assert.deepEqual([after.spec.confidence, after.spec.brief.length, after.swipe.thinking, after.swipe.fresh], [40, 2, false, []]);
-  assert.equal(after.spec.cards[2].rev, 1);
+  assert.equal(after.spec.cards[1].title, "Акулы ходят по суше?");
+  assert.equal(after.spec.cards[2].from, "turns");
+  // The page showed wind before the push rewrote it: that answer is refused, not pinned to the new text.
+  assert.equal(after.spec.cards[4].rev, 1);
+  assert.equal((await swipe({ card: "wind", side: "left", rev: 0 })).status, 412);
 
-  // Two cards left: answering both empties the deck, and that batch comes at once.
+  await swipe({ card: "land", side: "right" });
   await swipe({ card: "weapons", side: "left" });
   await call("push", { project: dir, round, brief: [{ kind: "decision", text: "Ходы в реальном времени" }] });
-  assert.deepEqual((await view()).swipe.fresh, ["weapons"], "a brief covers only answers the agent has seen");
+  assert.deepEqual((await view()).swipe.fresh, ["land", "weapons"], "a brief covers only answers the agent has seen");
+  assert.match(text(await call("wait", { project: dir, round, timeoutSec: 1 })), /Still waiting/, "4 cards left: not low yet");
+
+  // Three cards left: the batch comes before the batch size, so the agent can refill the deck in time.
   const waiting = call("wait", { project: dir, round, timeoutSec: 10 });
-  await swipe({ card: "land", side: "right" });
+  await swipe({ card: "wind", side: "left", rev: 1 });
   const second = text(await waiting);
-  assert.match(second, /Batch 2 .+: 2 new answers; 4 answered, 0 left/);
-  assert.match(second, /The deck is empty/);
+  assert.match(second, /Batch 2 .+: 3 new answers; 5 answered, 3 left/);
+  assert.match(second, /Only 3 cards left/);
+
+  await swipe({ card: "timer", side: "left" });
+  assert.match(text(await call("wait", { project: dir, round, timeoutSec: 1 })), /Still waiting/, "one early batch per refill, not one per answer");
+  for (const id of ["team", "crate"]) await swipe({ card: id, side: "left" });
+  assert.match(text(await call("wait", { project: dir, round, timeoutSec: 5 })), /Batch 3 [\s\S]+The deck is empty/);
 
   assert.match(text(await call("push", { project: dir, round, done: true, confidence: 90 })), /marked the interview done/);
   assert.equal((await view()).spec.done, true);
   await post(url, `api/rounds/${round}/submit`, {});
   const done = text(await call("wait", { project: dir, round, timeoutSec: 5 }));
-  assert.match(done, /finished by the agent: 4 of 4 cards answered \(1 skipped\), confidence 90%/);
+  assert.match(done, /finished by the agent: 8 of 8 cards answered \(1 skipped\), confidence 90%/);
   assert.match(done, /\[land\] Акулы ходят по суше\? → land-R \(right\) ★/);
   const briefFile = done.match(/Brief \(markdown\): (.+)/)[1];
   const md = await readFile(briefFile, "utf8");

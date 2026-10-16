@@ -37,6 +37,8 @@ export function mountSwipe(round, env) {
   let firstPaint = true;
   let frontSig = null; // the front card is rebuilt only when what it shows changes
   let askDraft = "";
+  let arrived = new Set(); // cards the agent just added: they slide into the stack
+  let deltaTimer = null;
 
   const answers = () => {
     const out = { ...server.answers };
@@ -66,6 +68,7 @@ export function mountSwipe(round, env) {
   const counter = h("span.chip.static.sw-count");
   const presence = h("span.chip.static.presence");
   const status = h("div.sw-status", { "aria-live": "polite" });
+  const delta = h("span.chip.static.sw-delta", { hidden: true, "aria-live": "polite" });
   const stack = h("div.sw-stack");
   const doneBanner = h("div.sw-banner", { hidden: true });
   const keys = h(
@@ -88,7 +91,7 @@ export function mountSwipe(round, env) {
       {},
       h("h1.sw-title", {}, deck.title),
       h("div.sw-conf", { title: t("sw.confTitle") }, h("span.sw-conf-label", {}, t("sw.conf")), h("div.sw-conf-track", {}, confFill), confNum),
-      h("div.meta-row.sw-meta", {}, counter, presence, status),
+      h("div.meta-row.sw-meta", {}, counter, delta, presence, status),
     ),
     doneBanner,
     stack,
@@ -180,7 +183,7 @@ export function mountSwipe(round, env) {
       frontSig = null;
       return stack.replaceChildren(endCard());
     }
-    const back = q.slice(1, 3).map((c, i) => h(`div.sw-card.back.b${i + 1}`, { "aria-hidden": "true" }, h("div.sw-q", {}, c.title)));
+    const back = q.slice(1, 3).map((c, i) => h(`div.sw-card.back.b${i + 1}${arrived.has(c.id) ? ".arrive" : ""}`, { "aria-hidden": "true" }, h("div.sw-q", {}, c.title)));
     const sig = JSON.stringify([top, dialog.filter((d) => d.qid === top.id), asking === top.id, deck.glossary]);
     const old = $(".sw-card.front", stack);
     let front = old;
@@ -189,7 +192,14 @@ export function mountSwipe(round, env) {
       if (old?.dataset.card !== top.id) front.classList.add("enter");
     }
     frontSig = sig;
-    $(".sw-left-n", front).textContent = t("sw.leftN", q.length);
+    const left = $(".sw-left-n", front);
+    left.textContent = t("sw.leftN", q.length);
+    if (arrived.size) {
+      left.classList.remove("bump");
+      void left.offsetWidth;
+      left.classList.add("bump");
+      arrived = new Set(); // slide in once, not on every repaint
+    }
     stack.replaceChildren(...back.reverse(), front);
   }
 
@@ -234,6 +244,7 @@ export function mountSwipe(round, env) {
         c.stakes === "high" && h("span.badge.warn", { html: `${icon("alert")}${t("sw.high")}` }),
         h("span.sw-left-n", {}, t("sw.leftN", queue().length)),
       ),
+      fromLine(c),
       h("h2.sw-q", { html: md(c.title, deck.glossary).replace(/^<p>|<\/p>$/g, "") }),
       c.tldr && h("div.sw-tldr.rich", { html: md(c.tldr, deck.glossary) }),
       renderMedia(c, ctx, c.id),
@@ -245,6 +256,28 @@ export function mountSwipe(round, env) {
     );
     bindDrag(card);
     return card;
+  }
+
+  // A follow-up says which answer brought it up.
+  function fromLine(c) {
+    const src = c.from && byId().get(c.from);
+    const a = src && answers()[src.id];
+    if (!a || a.side === "skip") return null;
+    return h("div.sw-from", {}, h("span.arr", {}, "↳"), h("span", {}, t("sw.from")), h("b", {}, src[a.side].label));
+  }
+
+  // New and dropped cards show for a moment next to the counter; new ones slide in behind the front card.
+  function announce(added, removed) {
+    arrived = new Set(added);
+    const parts = [added.length && t("sw.added", added.length), removed && t("sw.removed", removed)].filter(Boolean);
+    delta.textContent = parts.join(" · ");
+    delta.classList.toggle("minus", !added.length);
+    delta.hidden = false;
+    delta.classList.remove("pop");
+    void delta.offsetWidth;
+    delta.classList.add("pop");
+    clearTimeout(deltaTimer);
+    deltaTimer = setTimeout(() => (delta.hidden = true), 4000);
   }
 
   function sideBtn(c, side) {
@@ -310,10 +343,13 @@ export function mountSwipe(round, env) {
     if (pinned === c.id) pinned = null;
     inflight.set(c.id, { side, at: Date.now() });
     trail.push(c.id);
+    // Sent before the card flies off, so the daemon knows which card is on screen next as soon as possible.
+    const sent = swipeCard(round.id, { card: c.id, side, rev: c.rev || 0 });
+    sent.catch(() => {});
     await fly(side);
     paint();
     try {
-      await swipeCard(round.id, { card: c.id, side, rev: c.rev || 0 });
+      await sent;
     } catch (e) {
       inflight.delete(c.id);
       trail.pop();
@@ -480,9 +516,18 @@ export function mountSwipe(round, env) {
       paint();
     },
     setDeck(next, view) {
+      const a = answers();
+      const shown = queue()[0]?.id;
+      const before = new Set(deck.cards.map((c) => c.id));
+      const after = new Set(next.cards.map((c) => c.id));
+      const added = next.cards.filter((c) => !before.has(c.id)).map((c) => c.id);
+      const removed = [...before].filter((id) => !after.has(id) && !a[id]).length;
       deck = next;
       server = view || server;
-      paint();
+      // The card the user is reading stays in front, even if the push landed before the daemon heard the last answer.
+      if (shown && queue().some((c) => c.id === shown) && queue()[0].id !== shown) pinned = shown;
+      if (added.length || removed) announce(added, removed);
+      if (!flying) paint(); // answer() repaints once the card has flown off
     },
     setListening(on) {
       listening = on;

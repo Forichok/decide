@@ -241,3 +241,18 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 20px; }
 
 /* ---- the done screen of a swipe round lists the brief */
 .done-brief { list-style: none; width: 100%; margin: 14px 0 0; padding: 0; display: grid; gap: 6px; text-align: left; }
+
+/* the agent adds cards while the user answers: they slide in behind the front card */
+.sw-card.back.arrive.b1 { animation: sw-arrive1 0.6s var(--ease-out); }
+.sw-card.back.arrive.b2 { animation: sw-arrive2 0.6s var(--ease-out) 0.08s backwards; }
+@keyframes sw-arrive1 { from { transform: translateY(64px) scale(0.86); opacity: 0; } }
+@keyframes sw-arrive2 { from { transform: translateY(74px) scale(0.8); opacity: 0; } }
+.sw-left-n.bump { animation: sw-bump 0.6s var(--ease-out); color: var(--accent-tx); }
+@keyframes sw-bump { 30% { transform: scale(1.18); } }
+.sw-delta { color: var(--accent-tx); background: var(--accent-soft, var(--surface-2)); border-color: transparent; font-weight: 600; }
+.sw-delta.minus { color: var(--tx-mut); background: var(--surface-2); }
+.sw-delta.pop { animation: sw-pop 0.35s var(--ease-out); }
+@keyframes sw-pop { from { transform: scale(0.7); opacity: 0; } }
+.sw-from { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; color: var(--tx-mut); margin-bottom: -6px; }
+.sw-from .arr { color: var(--accent-tx); }
+.sw-from b { color: var(--tx); font-weight: 600; }
