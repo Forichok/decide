@@ -7,7 +7,8 @@
 A plugin for Claude Code and OpenAI Codex: a skill plus a local MCP server.
 When the agent needs you to choose, you get a page with the questions, the
 options, the agent's pick with its reason, and pictures of what you're choosing
-between. No more walls of numbered questions in chat.
+between. For a longer interview, `/decide:swipe` deals a deck of two-answer
+cards you clear with the arrow keys. No more walls of numbered questions in chat.
 
 [![test](https://github.com/Forichok/decide/actions/workflows/test.yml/badge.svg)](https://github.com/Forichok/decide/actions/workflows/test.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
@@ -15,7 +16,7 @@ between. No more walls of numbered questions in chat.
 ![Codex plugin](https://img.shields.io/badge/Codex-plugin-111111)
 ![dependencies: 0](https://img.shields.io/badge/dependencies-0-2ea44f)
 
-[Install](#install) · [When to use it](#when-to-use-it) · [Screens](#screens) · [How it works](#how-it-works) · [FAQ](#faq)
+[Install](#install) · [When to use it](#when-to-use-it) · [Screens](#screens) · [Swipe interview](#swipe-interview) · [How it works](#how-it-works) · [FAQ](#faq)
 
 <img src="docs/demo.gif" alt="The agent asks six questions in the terminal, decide opens them as a page, the user picks options, asks the agent about one of them, presses Done, and the agent carries on with the exact answers" width="100%">
 
@@ -51,7 +52,8 @@ decide is for the rounds that need more than that.
 - Something is hard to undo, like a migration, a public API or pricing, and
   you want the agent's reasoning next to every option.
 - The request is still vague, and the agent should interview you before it
-  writes code.
+  writes code. For a short interview, `/decide <topic>`; for a thorough one
+  with dozens of small questions, `/decide:swipe`.
 
 Keep a single yes/no in chat. decide is for two or more choices that change
 the result.
@@ -142,6 +144,46 @@ Follow-up rounds open in the same tab. The page also shows whether the agent
 is still listening: if it stepped away, your answers are saved and the page
 gives you a one-line message to send it.
 
+## Swipe interview
+
+`/decide:swipe <task>` is for the start of a bigger piece of work, when the
+agent needs many small answers rather than a few big ones. Every card is one
+plain question with two answers, and you go through them with the keyboard:
+
+| Key         | Does                                   |
+| ----------- | -------------------------------------- |
+| `←` / `→`   | Picks the left or the right answer     |
+| `↑`         | Skips the card                         |
+| `↓`         | Asks the agent to explain the card     |
+| `Backspace` | Takes the last answer back             |
+| `Esc`       | Stops and builds the brief             |
+
+To the left of the deck the agent keeps a brief: the goal, then decisions,
+risks, conflicts and open questions. The bar on top shows how well the agent
+thinks it understands what you want.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screens/swipe-dark.webp">
+  <img src="docs/screens/swipe-light.webp" alt="A swipe card asking which home screen to build, with a list and a board mockup as the two answers; on the left, the brief with three decisions, one risk and one open question">
+</picture>
+
+The agent reads your answers in batches of a few while you keep going. After
+each batch it rewrites the brief and changes the deck: it drops cards your
+answers made moot, rewrites unclear ones and adds follow-ups. A follow-up
+goes right behind the card you're on and says which answer brought it up.
+The card in front of you never changes under your hands, and answers the
+agent hasn't read yet show in the brief as "Not in the brief yet".
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screens/swipe-followup-dark.webp">
+  <img src="docs/screens/swipe-followup-light.webp" alt="A follow-up card, 'Because you answered: Yes, sync later', asks which edit wins when a task changes on two phones offline; the last answer waits in the brief under 'Not in the brief yet'">
+</picture>
+
+Cards can carry the same pictures as a round: screenshots, mockups, diagrams
+and code. When the deck runs low, the agent adds more or tells you it has
+enough. Then it shows you the brief in chat and asks whether to start. The
+decisions go into the project journal, so `/decide history` finds them later.
+
 ## Install
 
 You need Node.js 20 or newer. Screenshots of running pages use a local
@@ -186,11 +228,8 @@ command in your setup already uses `/decide`, type the full `/decide:decide`.
 | `/decide x.questions.json` | Runs a spec you or the agent wrote                      |
 | `/decide:swipe <task>`     | A thorough interview: many two-answer cards, arrow keys |
 
-`/decide:swipe` deals a deck of simple questions, each with two answers. You
-press `←` or `→`, `↑` to skip and `↓` to ask the agent to explain. Every few
-answers the agent rewrites the brief beside the deck (decisions, risks, open
-questions) and adds or drops cards. When it has enough, it shows you the brief
-and asks whether to start.
+`/decide:swipe` also takes a path to a deck JSON, or nothing to interview
+you about the current task. See [Swipe interview](#swipe-interview).
 
 ## How it works
 
@@ -247,6 +286,11 @@ Your answers are saved as you go. Open the same link again and carry on.
 Codex can end its turn while you're still answering. The page says so and
 keeps your answers. Send the agent the message the page gives you, and it
 picks them up.
+
+**`/decide` or `/decide:swipe`?**
+`/decide` when there are a few real choices with three or more options, or
+mockups to compare side by side. `/decide:swipe` when the task is still vague
+and needs many quick two-answer questions before anyone writes code.
 
 **Can I use it with another agent?**
 Anything that can run a shell command can use the CLI:
