@@ -396,7 +396,7 @@ export function mountSwipe(round, env) {
     } catch (e) {
       inflight.delete(c.id);
       trail.pop();
-      if (side === "own" && e.status !== 409) {
+      if (side === "own" && e.status !== 409 && !writing) {
         // Keep what the user typed: the card comes back with the box open.
         writing = queue()[0]?.id === c.id ? c.id : null;
         ownDraft = writing ? text : "";
@@ -416,6 +416,8 @@ export function mountSwipe(round, env) {
     const id = trail.pop();
     if (!id) return toast(t("sw.nothingToUndo"));
     asking = null;
+    writing = null;
+    ownDraft = "";
     pinned = id;
     inflight.set(id, { undo: true });
     paint();

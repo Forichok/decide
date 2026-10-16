@@ -205,10 +205,10 @@ test("MCP: swipe → batches → push → finish", async (context) => {
   assert.match(text(await call("wait", { project: dir, round, timeoutSec: 1 })), /Still waiting/, "one early batch per refill, not one per answer");
   // Neither side fits: the user types an own answer. Blank text is refused.
   assert.equal((await swipe({ card: "team", side: "own", text: "   " })).status, 400);
-  await swipe({ card: "team", side: "own", text: "  Пять, но мельче " });
+  await swipe({ card: "team", side: "own", text: "  Пять,\n но мельче " });
   await swipe({ card: "crate", side: "left" });
   const third = text(await call("wait", { project: dir, round, timeoutSec: 5 }));
-  assert.match(third, /Batch 3 [\s\S]+\[team\] 3 акулы в команде\? → their own answer, neither side: «Пять, но мельче»/);
+  assert.match(third, /Batch 3 [\s\S]+\[team\] 3 акулы в команде\? → their own answer, neither side: «Пять, \/ но мельче»/, "one line per answer");
   assert.match(third, /An own answer means neither side fit[\s\S]+The deck is empty/);
 
   assert.match(text(await call("push", { project: dir, round, done: true, confidence: 90 })), /marked the interview done/);
@@ -223,9 +223,9 @@ test("MCP: swipe → batches → push → finish", async (context) => {
   assert.match(md, /## Решения\n\n- Ходы в реальном времени/);
   const json = JSON.parse(await readFile(done.match(/Full JSON: (.+)/)[1], "utf8"));
   assert.deepEqual(json.answers.weapons, { side: "left", label: "weapons-L" });
-  assert.deepEqual(json.answers.team, { side: "own", label: "Пять, но мельче" });
-  assert.match(md, /- 3 акулы в команде\? → «Пять, но мельче»/);
-  assert.match(done, /\[team\] .+ → their own answer, neither side: «Пять, но мельче»/);
+  assert.deepEqual(json.answers.team, { side: "own", label: "Пять,\n но мельче" });
+  assert.match(md, /- 3 акулы в команде\? → «Пять, \/ но мельче»/);
+  assert.match(done, /\[team\] .+ → their own answer, neither side: «Пять, \/ но мельче»/);
   assert.deepEqual(json.dialog, [{ question: "land", ask: "А что за суша?", answer: "Острова посреди моря." }]);
   assert.match(text(await call("history", { project: dir, query: "worms" })), /Акулы ходят по суше/);
   assert.equal((await call("push", { project: dir, round, done: true })).isError, true, "push after the end is refused");
