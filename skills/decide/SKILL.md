@@ -40,8 +40,9 @@ user what the code already says wastes their time.
 
 ### With the decide tools (preferred)
 
-The plugin ships an MCP server with five tools: `ask`, `wait`, `explain`,
-`screenshot`, `history`. **Always pass `project`**, the absolute path of the
+Rounds use five tools of the plugin's MCP server: `ask`, `wait`, `explain`,
+`screenshot`, `history` (`swipe` and `push` belong to the card interview,
+see the decide:swipe skill). **Always pass `project`**, the absolute path of the
 project you work in. Codex starts the server outside your project, and without
 it the tools can't tell where to keep the journal and screenshots.
 

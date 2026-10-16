@@ -1,11 +1,12 @@
 // main.js — page bootstrap: picks the round to show, follows the daemon over
 // SSE (new rounds arrive in this same tab), wires keys, theme, file drops and
-// the review → submit flow.
+// the review → submit flow. Swipe rounds mount their own screen (swipe.js).
 
 import { $, $$, icon } from "./dom.js";
 import { lang, t } from "./i18n.js";
 import { cancelRound, getRound, getState, listen, submitRound } from "./net.js";
 import { hideBar, mountRound } from "./round.js";
+import { mountSwipe } from "./swipe.js";
 import { renderDone, renderIdle, roundTabs, updatePresence } from "./header.js";
 import { bindKeys } from "./nav.js";
 import { confirmCancel, openHelp, openReview, toast } from "./overlays.js";
@@ -61,6 +62,7 @@ function env() {
     isDark,
     toggleTheme,
     switchTo: (id) => openRound(id),
+    finished: (id, result) => showDone(id, result),
     go,
     submit: review,
     cancel,
@@ -89,7 +91,7 @@ function showRound(data) {
   app.round?.stop();
   app.view = "round";
   app.done = null;
-  app.round = mountRound(data, env());
+  app.round = data.mode === "swipe" ? mountSwipe(data, env()) : mountRound(data, env());
   window.scrollTo({ top: 0 });
 }
 
@@ -180,7 +182,8 @@ function onState(st) {
   if (app.view === "round") {
     const current = st.rounds.find((r) => r.id === app.round.id);
     if (!current) return openRound(app.round.id, false);
-    updatePresence(current.listening !== false);
+    if (app.round.mode === "swipe") app.round.setListening(current.listening !== false);
+    else updatePresence(current.listening !== false);
     refreshTabs();
     for (const r of fresh) toast(t("toast.newRound", r.title));
     return;
@@ -192,6 +195,10 @@ function onState(st) {
 
 function onDialog(d) {
   if (app.view === "round" && app.round.id === d.round) app.round.setDialog(d.dialog);
+}
+
+function onDeck(d) {
+  if (app.view === "round" && app.round.id === d.round && app.round.mode === "swipe") app.round.setDeck(d.deck, d.swipe);
 }
 
 function onStatus(ok) {
@@ -216,6 +223,7 @@ function rerenderStatic() {
 // ---- review, submit, cancel
 function review() {
   if (app.view !== "round" || app.sending) return;
+  if (app.round.mode === "swipe") return app.round.finish();
   const open = $("#overlay .review .btn.primary");
   if (open) return open.click();
   const r = app.round;
@@ -266,7 +274,10 @@ function go(qid) {
   c.classList.add("flash");
 }
 
+const swiping = () => app.round?.mode === "swipe";
+
 function step(delta) {
+  if (swiping()) return;
   const ids = visibleIds();
   if (!ids.length) return;
   const i = ids.indexOf(app.round.current());
@@ -275,7 +286,7 @@ function step(delta) {
 
 function nextOpen() {
   const r = app.round;
-  if (!r) return;
+  if (!r || swiping()) return;
   const ids = visibleIds();
   const i = ids.indexOf(r.current());
   const next = [...ids.slice(i + 1), ...ids.slice(0, i + 1)].find((id) => !isResolved(r.question(id), r.answers[id]));
@@ -290,6 +301,7 @@ function currentQuestion() {
 }
 
 function act(kind) {
+  if (swiping()) return;
   const q = currentQuestion();
   if (!q) return;
   const { ctx } = app.round;
@@ -300,6 +312,7 @@ function act(kind) {
 }
 
 function pick(n) {
+  if (swiping()) return;
   const q = currentQuestion();
   if (!q) return;
   const { ctx, answers } = app.round;
@@ -327,7 +340,7 @@ function bindDrop() {
   document.addEventListener("dragover", (e) => {
     if (!hasFiles(e)) return;
     e.preventDefault();
-    if (app.view === "round") mark(e.target.closest?.(".card") || $("#final"));
+    if (app.view === "round" && !swiping()) mark(e.target.closest?.(".card") || $("#final"));
   });
   document.addEventListener("dragleave", (e) => {
     if (!e.relatedTarget) mark(null);
@@ -336,7 +349,7 @@ function bindDrop() {
     if (!hasFiles(e)) return;
     e.preventDefault();
     mark(null);
-    if (app.view !== "round") return;
+    if (app.view !== "round" || swiping()) return;
     const qid = e.target.closest?.(".card")?.dataset.qid || null;
     [...e.dataTransfer.files].forEach((f) => app.round.ctx.attach(qid, f));
   });
@@ -347,7 +360,7 @@ async function boot() {
   $("#toc").setAttribute("aria-label", t("toc"));
   $(".boot").textContent = t("boot");
   loadTheme();
-  bindKeys({ submit: review, step: (d) => app.round && step(d), nextOpen, act, help: openHelp, pick });
+  bindKeys({ submit: review, step: (d) => app.round && step(d), nextOpen, act, help: () => swiping() || openHelp(), pick });
   bindDrop();
   try {
     app.state = await getState();
@@ -360,7 +373,7 @@ async function boot() {
   if (id) await openRound(id);
   else if (app.state.rounds.length) await openRound(app.state.rounds.at(-1).id);
   else if (app.view === "boot") showIdle();
-  listen(onState, onStatus, onDialog);
+  listen(onState, onStatus, onDialog, onDeck);
 }
 
 boot();

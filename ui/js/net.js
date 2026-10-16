@@ -37,16 +37,20 @@ export function saveDraft(id, draft) {
   }, 400);
 }
 
+export const swipeCard = (id, body) =>
+  fetch(`/api/rounds/${id}/swipe`, { method: "POST", headers: WRITE, body: JSON.stringify(body) }).then(json);
+
 export const askAgent = (id, question, text) =>
   fetch(`/api/rounds/${id}/ask`, { method: "POST", headers: WRITE, body: JSON.stringify({ question, text }) }).then(json);
 
 export const getJournal = (q = "", limit = 30) =>
   fetch(`/api/journal?limit=${limit}&q=${encodeURIComponent(q)}`, { cache: "no-store" }).then(json);
 
-export function listen(onState, onStatus, onDialog) {
+export function listen(onState, onStatus, onDialog, onDeck) {
   const es = new EventSource("/api/events");
   es.addEventListener("state", (e) => onState(JSON.parse(e.data)));
   es.addEventListener("dialog", (e) => onDialog(JSON.parse(e.data)));
+  es.addEventListener("deck", (e) => onDeck(JSON.parse(e.data)));
   es.onopen = () => onStatus(true);
   es.onerror = () => onStatus(false);
   return es;

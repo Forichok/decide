@@ -15,7 +15,8 @@ const INSTRUCTIONS = `decide opens a browser page where the user answers your qu
 Use it when the user has to choose, confirm a plan, rank, rate or explain intent — instead of long questions in chat. Load the decide skill for the spec format.
 Flow: ask {project, spec} → wait {project, round} (repeat while it says "still waiting") → if wait returns a question from the user, answer it with explain and wait again → act on the answers.
 Don't end your turn while a round is open: the answers reach you only through wait.
-screenshot captures a running page (desktop / mobile) to put real screens into a spec. history lists what was already decided in this project.`;
+screenshot captures a running page (desktop / mobile) to put real screens into a spec. history lists what was already decided in this project.
+swipe runs a thorough interview instead: a deck of two-sided cards the user answers with the arrow keys. wait returns the answers in batches; after each, push the rewritten brief and new cards, then wait again. Load the decide:swipe skill for the deck format.`;
 
 const TOOLS = [
   {
@@ -33,12 +34,52 @@ const TOOLS = [
     },
   },
   {
+    name: "swipe",
+    description:
+      "Start a swipe interview: a deck of cards, each a simple question with exactly two answers (left / right), answered with the arrow keys, with the brief growing beside the deck. Pass spec {title, goal, cards: [{id, title, left: {label}, right: {label}, recommended?: \"left\"|\"right\"}], brief?, confidence?, batch?} or specPath. Then call wait: it returns batches of answers; answer each with push.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: PROJECT,
+        spec: { type: "object", description: "The deck: {title, goal, cards: [{id, title, tldr?, left, right, recommended?, reason?, images?, mermaid?, preview?}], brief?, confidence?, batch?}", additionalProperties: true },
+        specPath: { type: "string", description: "Path to a deck file instead of spec; answers and the brief are written next to it." },
+        open: { type: "boolean", description: "Open or focus the browser page (default true)." },
+      },
+    },
+  },
+  {
     name: "wait",
     description:
       "Wait for the user on a round. Returns the answers digest, or a question the user asked you (answer it with explain, then wait again), or \"still waiting\" after timeoutSec: then call wait again at once. Don't end your turn while the round is open, or the answers never reach you.",
     inputSchema: {
       type: "object",
       properties: { project: PROJECT, round: ROUND, timeoutSec: { type: "number", description: "How long to block, default 600, max 840." } },
+      required: ["round"],
+    },
+  },
+  {
+    name: "push",
+    description:
+      "Update an open swipe round after a batch: rewrite the brief, set your confidence, add follow-up cards, replace or remove cards the user hasn't answered. done: true tells the user you have no more questions. The user keeps answering while you push.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: PROJECT,
+        round: ROUND,
+        add: { type: "array", items: { type: "object", additionalProperties: true }, description: "New cards, same shape as in swipe." },
+        position: { type: "string", enum: ["next", "end"], description: "Where new cards go: next (before the other open cards) or end (default)." },
+        replace: { type: "array", items: { type: "object", additionalProperties: true }, description: "Open cards to rewrite, matched by id." },
+        remove: { type: "array", items: { type: "string" }, description: "Ids of open cards that became moot." },
+        brief: {
+          type: "array",
+          items: { type: "object", properties: { kind: { type: "string", enum: ["decision", "risk", "problem", "open", "note"] }, text: { type: "string" }, cards: { type: "array", items: { type: "string" } } }, required: ["text"] },
+          description: "The whole brief, rewritten: short points, each a decision, risk, problem, open question or note. Replaces the previous brief.",
+        },
+        goal: { type: "string", description: "One line on what the interview is about, if it changed." },
+        confidence: { type: "number", description: "How well you now understand what the user wants, 0–100." },
+        batch: { type: "number", description: "Answers per batch from now on." },
+        done: { type: "boolean", description: "No important question left: the page shows the brief and asks the user to finish." },
+      },
       required: ["round"],
     },
   },

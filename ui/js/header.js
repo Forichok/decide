@@ -138,7 +138,9 @@ export function renderDone(result, env) {
       h("h2", {}, t(`done.${state}`)),
       h("p.done-sub", {}, t(`done.${state}Sub`)),
       next,
-      result?.digest && h("pre.done-digest", {}, result.digest),
+      result?.mode === "swipe" && result.brief?.length
+        ? h("ul.done-brief", {}, result.brief.map((b) => h(`li.sw-item.k-${b.kind}`, {}, b.text)))
+        : result?.digest && h("pre.done-digest", {}, result.digest),
     ),
     journalPanel({ skip: env.currentId }),
     credit(),

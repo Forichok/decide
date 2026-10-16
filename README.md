@@ -184,13 +184,21 @@ command in your setup already uses `/decide`, type the full `/decide:decide`.
 | `/decide demo`             | The feature tour                                        |
 | `/decide history`          | What was already decided in this project                |
 | `/decide x.questions.json` | Runs a spec you or the agent wrote                      |
+| `/decide:swipe <task>`     | A thorough interview: many two-answer cards, arrow keys |
+
+`/decide:swipe` deals a deck of simple questions, each with two answers. You
+press `←` or `→`, `↑` to skip and `↓` to ask the agent to explain. Every few
+answers the agent rewrites the brief beside the deck (decisions, risks, open
+questions) and adds or drops cards. When it has enough, it shows you the brief
+and asks whether to start.
 
 ## How it works
 
-The plugin ships an MCP server with five tools: `ask` opens a round, `wait`
-blocks until you answer or ask something, `explain` puts the agent's answer
-on the page, `screenshot` captures a running page, and `history` searches
-past decisions. Agents without MCP can run the same engine as a CLI
+The plugin ships an MCP server with seven tools: `ask` opens a round, `swipe`
+opens a card interview, `wait` blocks until you answer or ask something,
+`push` updates the deck and brief of a card interview, `explain` puts the
+agent's answer on the page, `screenshot` captures a running page, and
+`history` searches past decisions. Agents without MCP can run the same engine as a CLI
 (`node decide.mjs --help`).
 
 A small server per project serves the page on 127.0.0.1. It starts on demand
@@ -198,7 +206,8 @@ and stops after 30 idle minutes. Its state, the decision journal and
 screenshots live in `~/.decide/projects/<project>/` (set `DECIDE_HOME` to
 move them). There are no dependencies, no build step and no telemetry.
 
-The agent's guide is [skills/decide/SKILL.md](skills/decide/SKILL.md), and
+The agent's guides are [skills/decide/SKILL.md](skills/decide/SKILL.md) and
+[skills/swipe/SKILL.md](skills/swipe/SKILL.md), and
 the full spec and answers format is in
 [skills/decide/spec.md](skills/decide/spec.md). The smallest round looks like
 this:

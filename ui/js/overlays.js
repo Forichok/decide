@@ -19,7 +19,9 @@ export function openModal(content, { wide = false, onClose } = {}) {
   root.hidden = false;
   document.body.classList.add("locked");
   const onKey = (e) => {
-    if (e.key === "Escape") close();
+    if (e.key !== "Escape") return;
+    e.stopPropagation();
+    close();
   };
   const onClick = (e) => {
     if (e.target === root) close();

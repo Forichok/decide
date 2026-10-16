@@ -1,0 +1,45 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+:root{--bg:#0f1115;--panel:#171a21;--card:#1f232c;--txt:#e8eaf0;--mute:#8b91a1;--l:#ff6b6b;--r:#4ade80;--acc:#7c9cff;--warn:#fbbf24}
+*{box-sizing:border-box}body{margin:0;font:14px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--txt);height:100vh;display:grid;grid-template-columns:300px 1fr;overflow:hidden}
+aside{background:var(--panel);padding:16px;overflow:auto;border-right:1px solid #262a33}
+h3{margin:0 0 4px;font-size:13px;color:var(--mute);text-transform:uppercase;letter-spacing:.06em}
+.goal{font-weight:600;margin-bottom:14px}
+.grp{margin:12px 0 4px;font-size:11px;color:var(--mute);text-transform:uppercase}
+.it{padding:6px 8px;border-radius:8px;margin:4px 0;background:#1d2129;border-left:3px solid var(--acc);animation:in .45s ease both}
+.it.risk{border-color:var(--warn)}.it.prob{border-color:var(--l)}
+@keyframes in{from{opacity:0;transform:translateX(-20px);background:#2a3350}to{opacity:1}}
+main{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;position:relative}
+.bar{position:absolute;top:14px;left:20px;right:20px;display:flex;justify-content:space-between;color:var(--mute);font-size:12px}
+.prog{height:4px;background:#262a33;border-radius:2px;width:200px;overflow:hidden}.prog i{display:block;height:100%;background:var(--acc);transition:width .3s}
+.stack{position:relative;width:420px;height:300px}
+.card{position:absolute;inset:0;background:var(--card);border-radius:18px;padding:22px;box-shadow:0 20px 50px #0008;transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .35s;display:flex;flex-direction:column}
+.card.back{transform:scale(.94) translateY(14px);opacity:.5}
+.q{font-size:20px;font-weight:600;margin:6px 0 auto}
+.sec{font-size:11px;color:var(--acc);text-transform:uppercase}
+.opts{display:flex;gap:10px}.o{flex:1;padding:12px;border-radius:12px;border:1px solid #333a47;text-align:center}
+.o.L{color:var(--l)}.o.R{color:var(--r)}
+.keys{color:var(--mute);font-size:12px;display:flex;gap:18px}
+kbd{background:#262a33;border-radius:4px;padding:1px 6px;font-size:11px}
+.think{position:absolute;bottom:18px;color:var(--mute);font-size:12px;opacity:0;transition:opacity .3s}.think.on{opacity:1}
+</style></head><body>
+<aside><h3>Бриф</h3><div class="goal">Worms с акулами hexhaven</div><div id="brief"></div></aside>
+<main><div class="bar"><span id="cnt">Вопрос 1 · пачка 1</span><div class="prog"><i id="pg" style="width:0"></i></div></div>
+<div class="stack" id="stack"></div>
+<div class="keys"><span><kbd>←</kbd> левый</span><span><kbd>↑</kbd> пропустить</span><span><kbd>→</kbd> правый</span></div>
+<div class="think" id="think">Агент пересматривает ответы и добавляет вопросы…</div></main>
+<script>
+const Q=[["Механика","Ходы по очереди, как в оригинале?","Пошагово","В реальном времени",["d","Пошаговый бой","d","Бой в реальном времени"]],
+["Персонажи","Акулы ходят по суше?","Только в воде","И по суше",["d","Арена — вода, акулы плавают","r","Риск: ходьба по суше нужна новая анимация"]],
+["Оружие","Оружие уникальное для акул?","Своё, акулье","Классика Worms",["d","Свой арсенал (зубы, торпеды)","p","Проблема: баланс оружия с нуля"]],
+["Платформа","Сначала телефон или ПК?","Телефон","ПК",["d","Мобайл первым","r","Риск: тач-прицеливание"]],
+["Мультиплеер","Играть с другом онлайн?","Только локально","Онлайн",["d","Hot-seat на одном устройстве","p","Онлайн отложен"]]];
+let i=0;const st=document.getElementById('stack'),br=document.getElementById('brief');
+function render(){st.innerHTML='';[i+1,i].forEach((k,j)=>{if(!Q[k])return;const c=document.createElement('div');c.className='card'+(j==0?' back':'');c.innerHTML=`<div class=sec>${Q[k][0]}</div><div class=q>${Q[k][1]}</div><div class=opts><div class="o L">← ${Q[k][2]}</div><div class="o R">${Q[k][3]} →</div></div>`;st.appendChild(c)});
+document.getElementById('cnt').textContent=Q[i]?`Вопрос ${i+1} из ${Q.length} · пачка 1`:'Вопросов больше нет — бриф готов';document.getElementById('pg').style.width=(i/Q.length*100)+'%'}
+function add(t,x){const d=document.createElement('div');d.className='it '+(t=='r'?'risk':t=='p'?'prob':'');d.textContent=(t=='r'?'⚠ ':t=='p'?'✖ ':'✓ ')+x;br.appendChild(d)}
+function go(dir){if(!Q[i])return;const c=st.lastChild;c.style.transform=dir=='L'?'translateX(-520px) rotate(-18deg)':dir=='R'?'translateX(520px) rotate(18deg)':'translateY(-400px)';c.style.opacity=0;
+const a=Q[i][4];if(dir=='L')add(a[0],a[1]);else if(dir=='R')add(a[2],a[3]);else add('p','Пропущено: '+Q[i][1]);i++;
+if(i==3){const t=document.getElementById('think');t.classList.add('on');setTimeout(()=>t.classList.remove('on'),1600)}setTimeout(render,300)}
+addEventListener('keydown',e=>{if(e.key=='ArrowLeft')go('L');if(e.key=='ArrowRight')go('R');if(e.key=='ArrowUp')go('U')});
+st.addEventListener('click',e=>go(e.offsetX<210?'L':'R'));render();
+</script></body></html>
