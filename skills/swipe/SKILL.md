@@ -7,8 +7,9 @@ description: Run a thorough interview as a deck of two-sided cards the user answ
 
 You open a deck of cards on a local page. Each card is a simple question
 with exactly two answers. The user presses `←` or `→` to pick a side, `↑` to
-skip, `↓` to ask you to explain, `Backspace` to take the last answer back,
-and `Esc` or the "Enough, build the brief" button to stop. To the left of the deck you keep a
+skip, `↓` to ask you to explain, `Enter` to type their own answer when
+neither side fits, `Backspace` to take the last answer back, and `Esc` or the
+"Enough, build the brief" button to stop. To the left of the deck you keep a
 brief: the goal, then short points grouped as decisions, risks, problems
 and open questions.
 
@@ -44,7 +45,8 @@ Always pass `project`, the absolute path of the project you work in.
      add `images` or `mermaid` when a picture explains it faster, then `wait`.
    - **A batch**: the answers since the last batch, one line each, with ★ when
      the user agreed with your recommendation and "against the
-     recommendation" when they didn't. An answer the user took back shows
+     recommendation" when they didn't. "Their own answer, neither side:
+     «…»" is text the user typed instead of picking a side. An answer the user took back shows
      as "taken back"; that card is open again.
    - **The end**: the user pressed "Enough" or finished after you said
      you were done. You get every answer, the brief file and the JSON.
@@ -88,7 +90,7 @@ done, and on that message call `wait {project, round, timeoutSec: 5}` first.
 | `confidence`                  | 0–100: how well you understand what the user wants. Shown at the top instead of a progress bar.                         |
 | `brief`                       | Optional starting points, same shape as in `push`.                                                                      |
 | `cards[].id`                  | Short, stable, unique. Batches and the final answers use it.                                                            |
-| `cards[].left`, `right`       | `{label, detail?, image?, images?}` or a bare string. Both are required; there is never a third option.                |
+| `cards[].left`, `right`       | `{label, detail?, image?, images?}` or a bare string. Both are required; don't write a third side. The user can always type their own answer. |
 | `recommended`, `reason`       | The side you would pick and why. Shown as ★ and a faint highlight. Leave it out when you truly have no view.            |
 | `section`, `tldr`, `stakes`   | A small heading, one line on what depends on the answer, `"high"` for money, data and anything hard to undo.             |
 | `from`                        | On a follow-up: the id of the card whose answer brought it up. The card shows "Because you answered: …".                |
@@ -159,6 +161,10 @@ Reading answers:
 
 - Against your recommendation: not a mistake. If it has a cost the user may
   not see, add a `risk` and, when it matters, one card that names the cost.
+- Own answer: neither side fit, so the user wrote what they want. Take it
+  at its word in the brief. If it is unclear or opens new forks, add a
+  follow-up with `from` set to that card. A deck that draws many own answers
+  has sides that miss what the user cares about: rethink the open cards.
 - Skipped: leave it out. Ask again only if it blocks the work, and then put it
   differently.
 - Taken back: the card is open again; don't count the old answer.

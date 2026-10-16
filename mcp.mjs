@@ -36,7 +36,7 @@ const TOOLS = [
   {
     name: "swipe",
     description:
-      "Start a swipe interview: a deck of cards, each a simple question with exactly two answers (left / right), answered with the arrow keys, with the brief growing beside the deck. Pass spec {title, goal, cards: [{id, title, left: {label}, right: {label}, recommended?: \"left\"|\"right\"}], brief?, confidence?, batch?} or specPath. Then call wait: it returns batches of answers; answer each with push.",
+      "Start a swipe interview: a deck of cards, each a simple question with exactly two answers (left / right), answered with the arrow keys (or with the user's own typed answer when neither fits), with the brief growing beside the deck. Pass spec {title, goal, cards: [{id, title, left: {label}, right: {label}, recommended?: \"left\"|\"right\"}], brief?, confidence?, batch?} or specPath. Then call wait: it returns batches of answers; answer each with push.",
     inputSchema: {
       type: "object",
       properties: {

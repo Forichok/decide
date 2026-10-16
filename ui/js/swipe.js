@@ -1,6 +1,6 @@
 // swipe.js — the swipe interview on screen: the deck in the middle (← → pick a
-// side, ↑ skips, ↓ asks the agent to explain, Backspace takes the last answer
-// back), the brief the agent keeps rewriting on the left, and its confidence
+// side, ↑ skips, ↓ asks the agent to explain, Enter types an own answer,
+// Backspace takes the last answer back), the brief the agent keeps rewriting on the left, and its confidence
 // on top. Answers go out one by one; the agent's pushes come back as "deck".
 
 import { h, icon, $ } from "./dom.js";
@@ -31,6 +31,8 @@ export function mountSwipe(round, env) {
     .map(([id]) => id);
   let pinned = null; // a card brought back by undo goes first
   let asking = null; // card id with the "explain" box open
+  let writing = null; // card id with the "own answer" box open
+  let ownDraft = "";
   let flying = false;
   let finishing = false;
   const shownBrief = new Set();
@@ -77,6 +79,7 @@ export function mountSwipe(round, env) {
     keyBtn("left", "←", t("sw.keyLeft"), () => answer("left")),
     keyBtn("up", "↑", t("sw.keySkip"), () => answer("skip")),
     keyBtn("down", "↓", t("sw.keyExplain"), () => openAsk()),
+    keyBtn("own", "↵", t("sw.keyOwn"), () => openOwn()),
     keyBtn("undo", "⌫", t("sw.keyUndo"), () => undo()),
     keyBtn("right", "→", t("sw.keyRight"), () => answer("right")),
   );
@@ -145,8 +148,7 @@ export function mountSwipe(round, env) {
             {},
             freshIds.map((id) => {
               const c = cards.get(id);
-              const side = a[id].side;
-              return h("li.sw-item.raw", {}, h("span.t", {}, c?.title || id), h("span.ans", {}, side === "skip" ? t("sw.skipped") : c?.[side]?.label));
+              return h("li.sw-item.raw", {}, h("span.t", {}, c?.title || id), h("span.ans", {}, answerText(c, a[id])));
             }),
           ),
         )
@@ -184,7 +186,7 @@ export function mountSwipe(round, env) {
       return stack.replaceChildren(endCard());
     }
     const back = q.slice(1, 3).map((c, i) => h(`div.sw-card.back.b${i + 1}${arrived.has(c.id) ? ".arrive" : ""}`, { "aria-hidden": "true" }, h("div.sw-q", {}, c.title)));
-    const sig = JSON.stringify([top, dialog.filter((d) => d.qid === top.id), asking === top.id, deck.glossary]);
+    const sig = JSON.stringify([top, dialog.filter((d) => d.qid === top.id), asking === top.id, writing === top.id, deck.glossary]);
     const old = $(".sw-card.front", stack);
     let front = old;
     if (!old || sig !== frontSig || old.dataset.card !== top.id || old.matches(".fly-left, .fly-right, .fly-up")) {
@@ -252,6 +254,9 @@ export function mountSwipe(round, env) {
       waitingReply && h("div.sw-explain.wait", {}, h("span.sw-dots", {}, h("i"), h("i"), h("i")), t("sw.explaining")),
       asking === c.id && askBox(c),
       h("div.sw-sides", {}, sideBtn(c, "left"), sideBtn(c, "right")),
+      writing === c.id
+        ? ownBox(c)
+        : h("button.sw-own", { type: "button", onclick: () => openOwn() }, h("span", { html: icon("note") }), h("span", {}, t("sw.own")), h("kbd", {}, "↵")),
       c.recommended && c.reason && h("div.sw-reason", { html: `${icon("star")}${md(c.reason, deck.glossary).replace(/^<p>|<\/p>$/g, "")}` }),
     );
     bindDrag(card);
@@ -263,7 +268,14 @@ export function mountSwipe(round, env) {
     const src = c.from && byId().get(c.from);
     const a = src && answers()[src.id];
     if (!a || a.side === "skip") return null;
-    return h("div.sw-from", {}, h("span.arr", {}, "↳"), h("span", {}, t("sw.from")), h("b", {}, src[a.side].label));
+    return h("div.sw-from", {}, h("span.arr", {}, "↳"), h("span", {}, t("sw.from")), h("b", {}, answerText(src, a)));
+  }
+
+  // How an answer reads back: a side's label, the user's own words, or "skipped".
+  function answerText(c, a) {
+    if (a.side === "skip") return t("sw.skipped");
+    if (a.side === "own") return `«${a.text}»`;
+    return c?.[a.side]?.label;
   }
 
   // New and dropped cards show for a moment next to the counter; new ones slide in behind the front card.
@@ -334,17 +346,48 @@ export function mountSwipe(round, env) {
     );
   }
 
+  // The user's own answer when neither side fits: Enter sends, Shift+Enter breaks the line, Esc closes.
+  function ownBox(c) {
+    const input = h("textarea.sw-ask-input.sw-own-input", { rows: 2, maxlength: 2000, placeholder: t("sw.ownPlaceholder"), oninput: () => (ownDraft = input.value) });
+    input.value = ownDraft;
+    const send = () => {
+      const text = input.value.trim();
+      if (!text) return input.focus();
+      answer("own", text);
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        send();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        writing = null;
+        paint();
+      }
+    });
+    requestAnimationFrame(() => input.focus());
+    return h(
+      "div.sw-ask.sw-own-box",
+      {},
+      input,
+      h("div.sw-ask-row", {}, h("span.sw-ask-hint", {}, t("sw.ownHint")), h("button.btn.primary.sm", { type: "button", onclick: send }, t("sw.ownSend"))),
+    );
+  }
+
   // ---- actions
-  async function answer(side) {
+  async function answer(side, text) {
     const c = queue()[0];
     if (!c || flying || finishing) return;
     asking = null;
     askDraft = "";
+    writing = null;
+    ownDraft = "";
     if (pinned === c.id) pinned = null;
-    inflight.set(c.id, { side, at: Date.now() });
+    inflight.set(c.id, side === "own" ? { side, text, at: Date.now() } : { side, at: Date.now() });
     trail.push(c.id);
     // Sent before the card flies off, so the daemon knows which card is on screen next as soon as possible.
-    const sent = swipeCard(round.id, { card: c.id, side, rev: c.rev || 0 });
+    const sent = swipeCard(round.id, { card: c.id, side, ...(side === "own" ? { text } : {}), rev: c.rev || 0 });
     sent.catch(() => {});
     await fly(side);
     paint();
@@ -353,6 +396,11 @@ export function mountSwipe(round, env) {
     } catch (e) {
       inflight.delete(c.id);
       trail.pop();
+      if (side === "own" && e.status !== 409) {
+        // Keep what the user typed: the card comes back with the box open.
+        writing = queue()[0]?.id === c.id ? c.id : null;
+        ownDraft = writing ? text : "";
+      }
       // 412: the agent rewrote the card mid-flight; 400: it removed it.
       toast(t(e.status === 409 ? "sw.closed" : e.status === 412 || e.status === 400 ? "sw.changed" : "sw.offline"));
       paint();
@@ -387,6 +435,15 @@ export function mountSwipe(round, env) {
     const c = queue()[0];
     if (!c || !round.live) return;
     asking = asking === c.id ? null : c.id;
+    writing = null;
+    paint();
+  }
+
+  function openOwn() {
+    const c = queue()[0];
+    if (!c || flying || finishing) return;
+    writing = writing === c.id ? null : c.id;
+    asking = null;
     paint();
   }
 
@@ -406,7 +463,7 @@ export function mountSwipe(round, env) {
     const card = $(".sw-card.front", stack);
     if (!card || reduced.matches) return Promise.resolve();
     flying = true;
-    card.classList.add(`fly-${side === "skip" ? "up" : side}`);
+    card.classList.add(`fly-${side === "skip" || side === "own" ? "up" : side}`);
     return new Promise((resolve) =>
       setTimeout(() => {
         flying = false;
@@ -493,7 +550,7 @@ export function mountSwipe(round, env) {
       ArrowDown: () => openAsk(),
       Backspace: () => undo(),
       Escape: () => confirmFinish(),
-      Enter: () => deck.done && !queue().length && finish(),
+      Enter: () => (queue().length ? openOwn() : deck.done && finish()),
       "?": () => openSwipeHelp(),
     }[e.key];
     if (!act) return;
@@ -550,6 +607,7 @@ const SWIPE_KEYS = [
   ["←  →", "sw.helpPick"],
   ["↑", "sw.helpSkip"],
   ["↓", "sw.helpExplain"],
+  ["↵", "sw.helpOwn"],
   ["⌫", "sw.helpUndo"],
   ["Esc", "sw.helpEnough"],
 ];

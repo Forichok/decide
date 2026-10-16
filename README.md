@@ -155,12 +155,22 @@ plain question with two answers, and you go through them with the keyboard:
 | `←` / `→`   | Picks the left or the right answer     |
 | `↑`         | Skips the card                         |
 | `↓`         | Asks the agent to explain the card     |
+| `Enter`     | Opens a box for your own answer        |
 | `Backspace` | Takes the last answer back             |
 | `Esc`       | Stops and builds the brief             |
 
 To the left of the deck the agent keeps a brief: the goal, then decisions,
 risks, conflicts and open questions. The bar on top shows how well the agent
 thinks it understands what you want.
+
+When neither answer fits, press `Enter` or click "Neither — my own answer"
+under the two sides, and type what you want. The agent gets your words with
+the next batch.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screens/swipe-own-dark.webp">
+  <img src="docs/screens/swipe-own-light.webp" alt="A card asking who the first version is for, with the user's own answer typed under the two sides: 'Both: one person now, sharing later without a rewrite'">
+</picture>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screens/swipe-dark.webp">
