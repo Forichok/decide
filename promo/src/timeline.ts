@@ -101,6 +101,11 @@ export const SWIPE_BEATS = [
   38.4, // end: the done card
 ];
 if (SWIPE_BEATS.length !== SWIPE_STEPS.length) throw new Error(`SWIPE_BEATS has ${SWIPE_BEATS.length} beats for ${SWIPE_STEPS.length} captured steps`);
+// the beats above are written for this act sequence; a recapture that moves a push keeps the length but breaks the timing
+const ACT_CODE: Record<string, string> = {start: 'S', answer: 'a', undo: 'u', push: 'p', 'ask-open': 'A', 'ask-typed': 'T', 'ask-wait': 'W', explained: 'E', 'own-open': 'O', 'own-typed': 'Y', end: 'Z'};
+const SWIPE_SHAPE = 'S aaa u aap aaa ATWE ap aaaap aaa OYap aaaap aaap aaap Z'.replace(/ /g, '');
+const shape = SWIPE_STEPS.map((s) => ACT_CODE[s.act]).join('');
+if (shape !== SWIPE_SHAPE) throw new Error(`SWIPE_BEATS are timed for ${SWIPE_SHAPE}, the capture gave ${shape}: retime them`);
 /** Typed strings: their per-character timing drives both the picture and the key sounds. */
 export const TYPED = {
   wall: '1b 2 yes 3 idk',

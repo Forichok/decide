@@ -61,15 +61,22 @@ export const Swipe: React.FC = () => {
   const since = f - at(i);
   const prev = i > 0 ? SWIPE_STEPS[i - 1] : step;
 
-  // a card in flight: an answer sends the previous front card off toward its side; ⌫ brings the card back
-  const answering = step.act === 'answer' && i > 0 && since < FLY;
+  // a card in flight: an answer sends the previous front card off toward its side; ⌫ brings the card back.
+  // The flight runs from the answer's own step, so a push half a beat later doesn't cut it short.
+  const lastAnswer = [...SWIPE_STEPS.slice(0, i + 1)].reverse().find((s) => s.act === 'answer');
+  const lastIdx = lastAnswer ? SWIPE_STEPS.lastIndexOf(lastAnswer) : -1;
+  const answering = lastIdx > 0 && step.act !== 'undo' && f - at(lastIdx) < FLY;
+  const fly = answering ? lastIdx : i;
   const undoing = step.act === 'undo' && since < FLY + 2;
   const undoneSide = step.act === 'undo' ? [...SWIPE_STEPS.slice(0, i)].reverse().find((s) => s.act === 'answer')?.side : undefined;
   const base = undoing ? prev.name : step.name;
-  const leaving = cardOf(i - 1), toBox = cardOf(i);
-  const dir = step.side === 'own' || step.side === 'skip' ? 0 : step.side === 'left' ? -1 : 1;
-  const t = answering ? range(f, at(i), at(i) + FLY, easeIn) : 0;
-  const rise = answering ? range(f, at(i), at(i) + FLY + 2, expoOut) : 1;
+  const leaving = cardOf(fly - 1), toBox = cardOf(fly);
+  const flySide = SWIPE_STEPS[fly].side;
+  const dir = flySide === 'own' || flySide === 'skip' ? 0 : flySide === 'left' ? -1 : 1;
+  const t = answering ? range(f, at(fly), at(fly) + FLY, easeIn) : 0;
+  const rise = answering ? range(f, at(fly), at(fly) + FLY + 2, expoOut) : 1;
+  // gone by the flight's last frame, not cut while still opaque
+  const flyOut = answering ? 1 - range(f, at(fly) + FLY - 5, at(fly) + FLY - 1) : 1;
   const back = undoing ? range(f, at(i), at(i) + FLY + 2, expoOut) : 1;
   const bdir = undoneSide === 'left' ? -1 : 1;
 
@@ -91,13 +98,11 @@ export const Swipe: React.FC = () => {
   const fromOn = fromBox ? range(f, at(i) + 6, at(i) + 14) * (1 - range(f, at(i + 1) - 6, at(i + 1))) : 0;
 
   // captions: one at a time; the arrows light on their key
-  const lastAnswer = [...SWIPE_STEPS.slice(0, i + 1)].reverse().find((s) => s.act === 'answer');
-  const lastIdx = lastAnswer ? SWIPE_STEPS.lastIndexOf(lastAnswer) : -1;
   const keyLit = lastIdx >= 0 ? 1 - range(f, at(lastIdx), at(lastIdx) + 10) : 0;
   const arrow = (s: 'left' | 'right') => ({color: lastAnswer?.side === s && keyLit > 0 ? `rgba(255,93,143,${0.35 + 0.65 * keyLit})` : C.text});
   const special: [number, number, React.ReactNode, React.ReactNode?][] = [
     [ev.undo, ev.undo + 2.6, <>Changed your mind? <Pink>⌫</Pink></>],
-    [ev.ask, ev.follow - 0.6, <>Not sure? <Pink>↓</Pink> Ask.</>],
+    [ev.ask, ev.follow, <>Not sure? <Pink>↓</Pink> Ask.</>],
     [ev.follow, ev.follow + 5, <>It asks <Pink>back.</Pink></>, 'Three new questions from one answer.'],
     [ev.own, ev.own + 3.5, <>Neither? <Pink>Type your own.</Pink></>],
     [ev.risks, ev.skip - 0.35, <>Risks show up <Pink>too.</Pink></>, 'And conflicts between your answers.'],
@@ -123,8 +128,8 @@ export const Swipe: React.FC = () => {
         <>
           {/* the next card comes up from under the one leaving */}
           {toBox && <Cover b={leaving} />}
-          {toBox && <Panel state={step.name} cam={DECK_CAM} clip={toBox} radius={18 * DECK_CAM.s} shadow={false} opacity={Math.min(1, rise * 2.5)} transform={`scale(${0.92 + 0.08 * rise})`} />}
-          <Panel state={prev.name} cam={DECK_CAM} clip={leaving} radius={18 * DECK_CAM.s} opacity={1 - range(t, 0.6, 1, (x) => x)}
+          {toBox && <Panel state={SWIPE_STEPS[fly].name} cam={DECK_CAM} clip={toBox} radius={18 * DECK_CAM.s} shadow={false} opacity={Math.min(1, rise * 2.5)} transform={`scale(${0.92 + 0.08 * rise})`} />}
+          <Panel state={SWIPE_STEPS[fly - 1].name} cam={DECK_CAM} clip={leaving} radius={18 * DECK_CAM.s} opacity={flyOut}
             transform={dir === 0 ? `translateY(${-t * 500}px) scale(${1 - 0.1 * t})` : `translateX(${dir * t * 1100}px) translateY(${t * 60}px) rotate(${dir * t * 14}deg)`} />
         </>
       )}
