@@ -1,0 +1,9 @@
+node_modules/
+out/
+public/*.wav
+public/*.mp3
+public/audio/
+public/frames/
+public/blender/
+frames/
+research/**/music-*

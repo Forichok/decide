@@ -1,0 +1,106 @@
+{
+  "title": "Фильм decide · гейт 0: калибровка",
+  "lang": "ru",
+  "intro": "Прежде чем писать сюжет, сверяю вкус: музыка, градус провокации, язык титров, длина. Эталон — фильм Agent Notch v7 (раунд 6, 75.7 с). Старый ролик decide (29 с, тур по функциям) — то, от чего уходим.",
+  "context": "**Что я посмотрел.** Agent Notch v7 r6: крючок «12 agents. One bottleneck. You.», дроп на «You.», дальше одна функция на шот, 3D-ноутбук + реальный UI в 2D, финал с командой установки. Старый brag.mp4 decide: 29 с, терминал → страница → Done; спокойный, без истории и без эскалации.\n\n**Музыка.** Все дубли Suno из папки Agent Notch. Отрывки — первые 32 с каждого, выровнены по громкости. Agent Notch играет `suno-v2-4`; чтобы два фильма не звучали одинаково, советую дубль, которого там нет.\n\n**Что дальше.** После этого раунда — гейт 1: одна страница сюжета с шот-листом в битах, 2D или 3D, и что не делаем.",
+  "sections": [
+    { "id": "ref", "title": "Эталон и референсы" },
+    { "id": "music", "title": "Музыка" },
+    { "id": "tone", "title": "Тон и формат" }
+  ],
+  "questions": [
+    {
+      "id": "anchor",
+      "section": "ref",
+      "title": "Что из Agent Notch v7 берём в фильм decide?",
+      "tldr": "«Такой же» — уточняю, что именно должно совпасть.",
+      "type": "multi",
+      "images": [
+        { "src": "gate0.assets/agent-notch-v7r6-sheet.jpg", "caption": "Agent Notch v7 r6, кадр каждые 2.5 с" },
+        { "src": "gate0.assets/brag-sheet.jpg", "caption": "Старый ролик decide, 29 с — от этого уходим" }
+      ],
+      "default": ["hook", "drop", "realui", "endcard", "length"],
+      "options": [
+        { "id": "hook", "label": "Крючок-обвинение за 3 секунды", "detail": "Как «12 agents. One bottleneck. You.» — короткие фразы на бит, жёсткий стоп на одном слове." },
+        { "id": "drop", "label": "Тишина перед дропом, продукт появляется на дропе" },
+        { "id": "realui", "label": "Только настоящий UI, крупно, с выделениями" },
+        { "id": "camera", "label": "3D-ноутбук и движение камеры", "detail": "Для decide (плотный текст на странице) я бы ушёл в 2D: крупные куски страницы, «полёт» по ней, крупные титры. Решим на гейте 1." },
+        { "id": "endcard", "label": "Финал: имя, одна строка, команды установки" },
+        { "id": "length", "label": "Длина 70–75 с" }
+      ]
+    },
+    {
+      "id": "refs",
+      "section": "ref",
+      "title": "Какие чужие запуски ближе к тому, что вы хотите? Можно не смотреть — тогда пропустите.",
+      "tldr": "Это калибровка темпа и подачи, не копирование.",
+      "type": "multi",
+      "optional": true,
+      "links": [
+        { "label": "Arc — Meet Act II (заявление → демо)", "url": "https://www.youtube.com/watch?v=WIeJF3kL5ng" },
+        { "label": "Cursor 2.0 (чистый анонс, держит результат)", "url": "https://www.youtube.com/watch?v=An8IM-kPyms" },
+        { "label": "Raycast Glaze (материал + UI, свой звук)", "url": "https://www.youtube.com/watch?v=2s_NbPY_XuY" },
+        { "label": "Raycast Pro (личное обращение + UI)", "url": "https://www.youtube.com/watch?v=Ho4JNQMEgSA" }
+      ],
+      "options": [
+        { "id": "arc", "label": "Arc Act II", "detail": "Мнение о вашей боли, потом альтернатива. Крупная типографика." },
+        { "id": "cursor", "label": "Cursor 2.0", "detail": "Светлый, спокойный, держит каждый результат." },
+        { "id": "glaze", "label": "Raycast Glaze", "detail": "Быстрый, материал течёт, UI в нём." },
+        { "id": "raycastpro", "label": "Raycast Pro", "detail": "Человек в кадре, вставки UI." }
+      ]
+    },
+    {
+      "id": "music",
+      "section": "music",
+      "title": "Какой дубль берём?",
+      "tldr": "От музыки зависит сетка битов всего фильма. Отрывки — первые 32 секунды.",
+      "what": "Полные дубли 160–190 с, нужно ~72 с: режу только по 8-битным фразам, с кроссфейдом 40 мс, без повторов в пределах 16 битов. Финальный удар трека ложится в концовку.",
+      "layout": "list",
+      "options": [
+        { "id": "heist-2", "label": "Heist techno, дубль 2", "preview": "gate0.assets/music-v5-heist-2.html", "previewHeight": 60, "recommended": "дроп уже на 4-й секунде — крючок встаёт без монтажа; сухой и угрожающий, как раз под провокацию; в Agent Notch не звучит", "pros": ["~123 BPM, ровная сетка", "самый плотный и громкий"], "cons": ["плотный — титрам нужно больше воздуха"] },
+        { "id": "breakbeat-2", "label": "Breakbeat electro, дубль 2", "preview": "gate0.assets/music-v5-breakbeat-2.html", "previewHeight": 60, "pros": ["больше характера, дерзкий"], "cons": ["вступление 16 с — крючок придётся собирать монтажом"] },
+        { "id": "house-1", "label": "Filter house, дубль 1", "preview": "gate0.assets/music-v5-house-1.html", "previewHeight": 60, "pros": ["самый дружелюбный"], "cons": ["мягкий для провокации", "длинное вступление"] },
+        { "id": "heist-1", "label": "Heist techno, дубль 1", "preview": "gate0.assets/music-v5-heist-1.html", "previewHeight": 60, "pros": ["энергия с 4-й секунды"], "cons": ["ритм рваный, сетку надо мерить отдельно"] },
+        { "id": "v2-4", "label": "Та же, что в Agent Notch (Keep Them Moving v2, дубль 4)", "preview": "gate0.assets/music-suno-v2-4.html", "previewHeight": 60, "pros": ["проверена, вы её одобрили"], "cons": ["два фильма будут звучать одинаково", "64.8 с — придётся тянуть повтором"] }
+      ]
+    },
+    {
+      "id": "provoke",
+      "section": "tone",
+      "title": "Насколько провокационно?",
+      "tldr": "От этого зависит крючок и все титры.",
+      "type": "scale",
+      "scale": { "min": 1, "max": 5, "labels": ["спокойно", "дерзко"] },
+      "default": [4],
+      "what": "Примеры крючка по уровням (черновики, финальные строки — на гейте 1):\n\n- **2:** «Your agent has six questions.»\n- **3:** «Your agent asked six questions. You answered “1b, idk”.»\n- **4:** «Your agent writes code in seconds. Then waits for “idk”.» → стоп на «You.»\n- **5:** «Your agent isn’t dumb. Your answers are.»\n\nВ v5 Agent Notch получил «слишком агрессивно» за быстрые склейки и тряску, а не за слова. Здесь дерзость — в словах, монтаж остаётся спокойным."
+    },
+    {
+      "id": "lang",
+      "section": "tone",
+      "title": "На каком языке титры?",
+      "tldr": "Репозиторий и README на английском; страница decide умеет и по-русски.",
+      "options": [
+        { "id": "en", "label": "Английский", "recommended": "аудитория плагина — GitHub, X, HN; как Agent Notch" },
+        { "id": "ru", "label": "Русский", "detail": "Страницы decide тоже на русском (у примера есть RU-версия)." },
+        { "id": "both", "label": "Две версии", "detail": "Один таймлайн, две сборки. Плюс ~20 % работы на титры и снимки UI." }
+      ]
+    },
+    {
+      "id": "vo",
+      "section": "tone",
+      "title": "Голос за кадром?",
+      "options": [
+        { "id": "none", "label": "Нет, только титры и звук", "recommended": "фильм смотрят без звука в ленте; так же, как Agent Notch" },
+        { "id": "yes", "label": "Да, синтезированный голос", "detail": "Нужен сервис TTS (платный) или ваш голос." }
+      ]
+    },
+    {
+      "id": "extra",
+      "section": "tone",
+      "title": "Что обязательно показать или чего точно не делать?",
+      "type": "text",
+      "optional": true,
+      "placeholder": "Например: обязательно Swipe; без слова «AI»…"
+    }
+  ]
+}
