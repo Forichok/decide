@@ -6,7 +6,7 @@
 import React from 'react';
 import {AbsoluteFill} from 'remotion';
 import {BODY, CODE, DISPLAY} from '../fonts';
-import {C, Caption, Mark, Pink, easeIO, expoOut, lerp, range, useShot} from '../lib';
+import {C, Caption, Mark, Pink, Wordmark, easeIO, expoOut, lerp, range, useShot} from '../lib';
 import {Keycap, Term, pressAt, typed, type Line} from '../kit';
 import {BUILD_FILES, EV, HIT_BEAT, TYPED, shot} from '../timeline';
 import {Panel, box, toScreen} from '../ui';
@@ -57,7 +57,7 @@ const FINISH = {x: 863, y: 467, w: 100, h: 44};
 export const Build: React.FC = () => {
   const {f, ev, b, len} = useShot('build');
   const out = range(f, ev.brief - 6, ev.brief + 8, easeIO);
-  const lines: Line[] = [{k: 'head', text: 'Brief received.'}, {k: 'agent', text: '23 decisions · 2 risks · 0 open questions'}];
+  const lines: Line[] = [{k: 'head', text: 'Brief received.'}, {k: 'agent', text: '26 decisions · 2 risks · 1 conflict flagged'}];
   if (f >= b(EV.build.brief + 1)) lines.push({k: 'head', text: 'Building the Today screen:'});
   BUILD_FILES.forEach((file, i) => { if (f >= b(EV.build.files + i * 0.5)) lines.push({k: 'ok', text: file, a: range(f, b(EV.build.files + i * 0.5), b(EV.build.files + i * 0.5) + 4)}); });
   const tin = range(f, ev.brief, ev.brief + 14, expoOut);
@@ -81,7 +81,7 @@ export const Build: React.FC = () => {
       </div>
       <Term x={640} y={70} w={1200} h={640} lines={lines} size={30} lh={1.5} f={f} opacity={tin * exit} transform={`translateX(${(1 - tin) * 200}px)`} title="agent — task-app" />
       <Caption f={f} from={ev.caption} to={len + 1} x={640} y={820} w={1200} size={104}>
-        31 answers. <Pink>0 guesses.</Pink>
+        34 answers. <Pink>0 guesses.</Pink>
       </Caption>
     </AbsoluteFill>
   );
@@ -105,14 +105,14 @@ export const End: React.FC = () => {
     <AbsoluteFill style={{alignItems: 'center'}}>
       <AbsoluteFill style={{background: 'rgba(5,5,7,0.45)', opacity: range(f, 0, 8)}} />
       <Caption f={f} from={-30} to={6} x={640} y={820} w={1200} size={104}>
-        31 answers. <Pink>0 guesses.</Pink>
+        34 answers. <Pink>0 guesses.</Pink>
       </Caption>
       <div style={{position: 'absolute', top: 110, display: 'flex', alignItems: 'center', gap: 36, opacity: mark, transform: `translateY(${(1 - mark) * 30}px) scale(${1 + 0.04 * pulse})`}}>
         <div style={{position: 'relative'}}>
           <div style={{position: 'absolute', left: -120, top: -120, width: 380, height: 380, borderRadius: '50%', background: 'radial-gradient(closest-side, rgba(255,93,143,0.5), rgba(255,93,143,0))', opacity: 0.4 + 0.6 * pulse}} />
           <Mark size={140} />
         </div>
-        <div style={{fontFamily: DISPLAY, fontWeight: 650, fontSize: 150, letterSpacing: -6, color: C.text, lineHeight: 1}}>decide</div>
+        <Wordmark size={150} />
       </div>
       <div style={{position: 'absolute', top: 330, width: '100%', textAlign: 'center', opacity: line, transform: `translateY(${(1 - line) * 16}px)`,
         fontFamily: DISPLAY, fontWeight: 600, fontSize: 60, letterSpacing: -2, color: C.text, lineHeight: 1.15}}>

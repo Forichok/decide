@@ -5,7 +5,7 @@
 import React from 'react';
 import {AbsoluteFill} from 'remotion';
 import {DISPLAY} from '../fonts';
-import {C, Caption, Mark, Pink, easeIO, expoOut, lerp, range, useShot} from '../lib';
+import {C, Caption, MARK_DOT, Mark, Pink, easeIO, expoOut, lerp, range, useShot} from '../lib';
 import {Panel} from '../ui';
 
 /* "Your answers are." is right-aligned so its period sits at a known point. */
@@ -38,23 +38,22 @@ export const Are: React.FC = () => {
   );
 };
 
-/* where the mark settles: beside the caption, left column */
-const MARK_END = {x: 110 + 56, y: 380 + 56, size: 112};
+/* where the mark settles: beside the caption, left column (x, y: the dot's centre; size: the mark's box) */
+const MARK_END = {x: 110 + 112 * MARK_DOT.x, y: 380 + 112 * MARK_DOT.y, size: 112};
 export const DROP_CAM = {s: 0.8, fx: 720, fy: 450, ax: 1250, ay: 560};
 
 export const Drop: React.FC = () => {
   const {f, ev, b, len} = useShot('drop');
   const end = 1 - range(f, len - 8, len);
-  // 1. the period turns pink and grows to a big mark at its own spot
+  // 1. the period turns pink and grows into the dot of the mark at its own spot; the stem draws up beside it: a "d"
   const grow = range(f, ev.bloom, ev.bloom + 9, expoOut);
   // 2. the mark travels to the caption column while the page rises
   const go = range(f, ev.rise + 2, ev.rise + 20, easeIO);
   const big = 300;
-  const size = lerp(lerp(DOT, big, grow), MARK_END.size, go);
-  const cx = lerp(lerp(DOT_X, 960, grow), MARK_END.x, go);
-  const cy = lerp(lerp(DOT_Y, 520, grow), MARK_END.y, go);
-  const round = lerp(0.5, 9 / 32, range(f, 0, 6));
-  const check = range(f, 5, 14, expoOut);
+  const size = lerp(lerp(DOT / (2 * MARK_DOT.r), big, grow), MARK_END.size, go);
+  const cx = lerp(lerp(DOT_X, 940, grow), MARK_END.x, go);
+  const cy = lerp(lerp(DOT_Y, 540, grow), MARK_END.y, go);
+  const stem = range(f, 4, 13, expoOut);
   const glow = 1.2 * Math.exp(-f / 10) + 0.25;
   // the line leaves left, out of focus
   const leave = range(f, 0, 9, expoOut);
@@ -69,13 +68,13 @@ export const Drop: React.FC = () => {
       {/* one soft ring leaves the mark on the drop */}
       {f < 26 && (() => {
         const r = lerp(40, 1100, range(f, 1, 26, expoOut));
-        return <div style={{position: 'absolute', left: 960 - r, top: 520 - r, width: r * 2, height: r * 2, borderRadius: '50%', border: '3px solid rgba(255,93,143,0.8)',
+        return <div style={{position: 'absolute', left: 940 - r, top: 540 - r, width: r * 2, height: r * 2, borderRadius: '50%', border: '3px solid rgba(255,93,143,0.8)',
           opacity: range(f, 0, 2) * (1 - range(f, 4, 26, (t) => t)), boxShadow: '0 0 60px rgba(255,93,143,0.5), inset 0 0 60px rgba(255,93,143,0.3)'}} />;
       })()}
       <div style={{position: 'absolute', left: cx - size * 1.6, top: cy - size * 1.6, width: size * 3.2, height: size * 3.2, borderRadius: '50%', opacity: Math.min(1, glow) * end,
         background: 'radial-gradient(closest-side, rgba(255,93,143,0.55), rgba(255,93,143,0))'}} />
-      <div style={{position: 'absolute', left: cx - size / 2, top: cy - size / 2, opacity: end}}>
-        <Mark size={size} round={round} check={check} />
+      <div style={{position: 'absolute', left: cx - size * MARK_DOT.x, top: cy - size * MARK_DOT.y, opacity: end}}>
+        <Mark size={size} stem={stem} />
       </div>
       <Caption f={f} from={ev.caption} to={len - 6} x={110} y={MARK_END.y + MARK_END.size / 2 + 40} w={540} size={80}>
         Answer like<br />you <Pink>mean it.</Pink>

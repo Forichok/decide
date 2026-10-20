@@ -55,14 +55,35 @@ export const camAt = (frame: number, keys: CamKey[]): Cam => {
 };
 
 /* ---------- the decide mark (the app's favicon: pink rounded square, white check) ---------- */
-export const Mark: React.FC<{size: number; round?: number; check?: number; glow?: number}> = ({size, round = 9 / 32, check = 1, glow = 0}) => (
-  <div style={{width: size, height: size, borderRadius: size * round, background: `linear-gradient(160deg, ${C.pink}, ${C.pinkDeep})`, position: 'relative',
-    boxShadow: glow > 0 ? `0 0 ${size * 0.9 * glow}px ${size * 0.15 * glow}px rgba(255,93,143,${0.55 * glow})` : undefined}}>
-    {check > 0 && (
-      <svg viewBox="0 0 32 32" width={size} height={size} style={{position: 'absolute', inset: 0}}>
-        <path d="M10 16.5l4 4 8-9" fill="none" stroke="white" strokeWidth={3.2} strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - check} />
-      </svg>
-    )}
+/**
+ * The decide mark (logo A, owner's pick at gate 3r): a pink dot and a white stem make a "d". The dot is the period
+ * of "Your answers are." On a 64-unit box the dot sits at (27, 40), r 17; stem draws up from its foot (stem 0..1).
+ */
+export const MARK_DOT = {x: 27 / 64, y: 40 / 64, r: 17 / 64};
+export const Mark: React.FC<{size: number; stem?: number; glow?: number}> = ({size, stem = 1, glow = 0}) => {
+  const h = 51 * stem;
+  return (
+    <svg viewBox="0 0 64 64" width={size} height={size} style={{display: 'block', overflow: 'visible',
+      filter: glow > 0 ? `drop-shadow(0 0 ${size * 0.25 * glow}px rgba(255,93,143,${0.6 * glow}))` : undefined}}>
+      <defs>
+        <linearGradient id="mark-g" x1="0" y1="0" x2="0.4" y2="1">
+          <stop offset="0" stopColor={C.pink} />
+          <stop offset="1" stopColor={C.pinkDeep} />
+        </linearGradient>
+      </defs>
+      {stem > 0.001 && <rect x={40} y={57 - h} width={11} height={h} rx={Math.min(5.5, h / 2)} fill={C.text} />}
+      <circle cx={27} cy={40} r={17} fill="url(#mark-g)" />
+    </svg>
+  );
+};
+
+/** "decide" in Geist with a pink dot over the i (the dot of the mark). */
+export const Wordmark: React.FC<{size: number; color?: string}> = ({size, color = C.text}) => (
+  <div style={{fontFamily: DISPLAY, fontWeight: 650, fontSize: size, letterSpacing: -size * 0.045, color, lineHeight: 1, whiteSpace: 'nowrap'}}>
+    dec<span style={{position: 'relative', display: 'inline-block'}}>
+      ı
+      <span style={{position: 'absolute', left: '50%', top: '0.085em', width: '0.19em', height: '0.19em', marginLeft: '-0.095em', borderRadius: '50%', background: C.pink}} />
+    </span>de
   </div>
 );
 

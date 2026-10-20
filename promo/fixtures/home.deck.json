@@ -89,6 +89,33 @@
       "topic": "Undo"
     },
     {
+      "id": "offline",
+      "section": "Data",
+      "title": "Does the Today view work offline?",
+      "left": {
+        "label": "Yes, from the local copy"
+      },
+      "right": {
+        "label": "Shows a spinner"
+      },
+      "recommended": "left",
+      "reason": "people check it on the subway",
+      "topic": "Offline"
+    },
+    {
+      "id": "sync",
+      "section": "Data",
+      "title": "Sync conflicts: which edit wins?",
+      "left": {
+        "label": "The latest edit"
+      },
+      "right": {
+        "label": "Ask the user"
+      },
+      "recommended": "left",
+      "topic": "Sync"
+    },
+    {
       "id": "snooze",
       "section": "Tasks",
       "title": "Snooze a task to tomorrow with one tap?",
@@ -220,33 +247,6 @@
       },
       "recommended": "left",
       "topic": "Motion"
-    },
-    {
-      "id": "offline",
-      "section": "Data",
-      "title": "Does the Today view work offline?",
-      "left": {
-        "label": "Yes, from the local copy"
-      },
-      "right": {
-        "label": "Shows a spinner"
-      },
-      "recommended": "left",
-      "reason": "people check it on the subway",
-      "topic": "Offline"
-    },
-    {
-      "id": "sync",
-      "section": "Data",
-      "title": "Sync conflicts: which edit wins?",
-      "left": {
-        "label": "The latest edit"
-      },
-      "right": {
-        "label": "Ask the user"
-      },
-      "recommended": "left",
-      "topic": "Sync"
     },
     {
       "id": "beta",

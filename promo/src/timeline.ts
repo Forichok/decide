@@ -5,8 +5,11 @@
  * Music: music-suno-v2-4.wav (the Agent Notch track, owner's pick at gate 0). Its grid was measured for Agent Notch
  * (promo/src/timeline.ts and src/v7/timeline7.ts there): 123.05 BPM, the drop's attack at 3.968 s, the final hit at
  * 55.07565 s. Film beat 10 (the drop) lands at exactly 5.0 s. The track plays its intro under beats 0-8, stops dead for
- * "Your answers are." (8-10) and then runs straight from the drop to its own ending: no loops, no joins.
+ * "Your answers are." (8-10), runs from the drop to track beat 80, repeats its groove phrase 32-48 once (film 90-106,
+ * for the longer swipe) and goes on from track beat 80 to its own ending. Joins sit on 8-beat phrase lines.
  */
+import {SWIPE_STEPS} from './swipe-steps.ts';
+
 export const FPS = 30;
 export const BPM = 123.05;
 export const OFFSET_FRAMES = 150 - (10 * FPS * 60) / BPM;
@@ -19,13 +22,17 @@ export const TRACK_DROP_S = 3.968;
 export const TRACK_BPM = BPM;
 export type MusicSeg = {from: number; to: number; src: number; rate?: number};
 /** src: track beat from the drop; rate: source seconds per film second (measured for Agent Notch v7, MUSIC7). */
+const R = 1.007907851474;
 export const MUSIC: MusicSeg[] = [
   {from: 0, to: 8, src: -8.081064603175, rate: 1.01181420068},
   // 8-10: dead stop
-  {from: 10, to: 122, src: 0.013449002268, rate: 1.007907851474},
+  // track beat n sits at src 0.013449 + n * R
+  {from: 10, to: 90, src: 0.013449002268, rate: R},
+  {from: 90, to: 106, src: 0.013449002268 + 32 * R, rate: R}, // the groove phrase after breakdown 1, once more
+  {from: 106, to: 138, src: 0.013449002268 + 80 * R, rate: R},
 ];
-/** The track's own final hit (55.07565 s) in film beats: 10 + (track beat 104.81 - 0.0134) / 1.0079. */
-export const HIT_BEAT = 10 + ((55.07565 - TRACK_DROP_S) / (60 / TRACK_BPM) - 0.013449002268) / 1.007907851474;
+/** The track's own final hit (55.07565 s) in film beats: 10 + (track beat 104.81 - 0.0134) / R, plus the 16 inserted beats. */
+export const HIT_BEAT = 26 + ((55.07565 - TRACK_DROP_S) / (60 / TRACK_BPM) - 0.013449002268) / R;
 
 export type ShotId = 'wall' | 'are' | 'drop' | 'pick' | 'see' | 'live' | 'ask' | 'reply' | 'done' | 'turn' | 'swipe' | 'build' | 'end';
 export type Shot = {id: ShotId; beats: number};
@@ -40,7 +47,7 @@ export const SHOTS: Shot[] = [
   {id: 'reply', beats: 8}, // groove back on the reply
   {id: 'done', beats: 16},
   {id: 'turn', beats: 8}, // breakdown 2 (track 56-64)
-  {id: 'swipe', beats: 26}, // the last, biggest groove
+  {id: 'swipe', beats: 42}, // the last, biggest groove (16 beats of it inserted)
   {id: 'build', beats: 13},
   {id: 'end', beats: 9}, // the final hit lands ~1 beat in
 ];
@@ -69,32 +76,37 @@ export const EV = {
   reply: {land: 0, pick: 5},
   done: {features: 1, order: 2.5, confidence: 4, migration: 5.5, done: 8, send: 10.5, received: 12},
   turn: {type: 1.5, enter: 5.5, deal: 6},
-  // swipe: 23 answers from beat 1, one per beat at first, then faster; the own answer is card 11
-  swipe: {first: 1, ownAt: 10, ownType: 10.5, ownSend: 13.5},
+  // swipe: the beat of every captured step is in SWIPE_BEATS; these are the typed spans and the captions
+  swipe: {undo: 3.75, ask: 8.75, askType: [9.25, 10.75], explained: 12, follow: 16.5, own: 24.5, ownType: [25, 27], risks: 31.5},
   build: {stop: 0.5, brief: 1.5, files: 4, caption: 6},
   end: {mark: 0, line: 1, install: 2, url: 2.5},
 } as const;
 
 /* ---------- swipe schedule (shared by the shot and the sound) ---------- */
-/** In-shot beat at which deck card k (1-based) is answered: one per beat, the own answer, then faster. */
-export const swipeBeat = (k: number) => {
-  const ev = EV.swipe;
-  if (k <= 10) return ev.first + (k - 1) * 0.95;
-  if (k === 11) return ev.ownSend;
-  return ev.ownSend + 0.5 + (k - 12) * 0.75;
-};
-/** Answers after which the agent pushed a rewritten brief (capture/swipe.mjs: every 4, and the last). */
-export const SWIPE_PUSHED = [4, 8, 12, 16, 20, 23];
-/** Side of each answer, in deck order ('own' for the typed one); mirrors capture/swipe.mjs. */
-export const SWIPE_SIDES: ('left' | 'right' | 'own')[] = [
-  'right', 'left', 'right', 'left', 'left', 'left', 'left', 'left', 'left', 'left', 'own', 'left',
-  'left', 'left', 'left', 'right', 'left', 'left', 'left', 'left', 'left', 'right', 'right',
+/** In-shot beat of each captured step in SWIPE_STEPS (src/swipe-steps.ts, written by capture/swipe.mjs). */
+export const SWIPE_BEATS = [
+  0, // start
+  1, 2, 3, // empty, overdue, count (against the pick)
+  3.75, // ⌫ count comes back
+  4.5, 5.25, 5.75, // count the other way, later, push 50 %
+  6.5, 7.25, 8, // swipe-done, undo, offline: sync in front
+  8.75, 9.25, 11, 12, // ↓ ask opens, typed, waiting, the agent's reply on the card
+  16, 16.5, // sync → Ask the user (the groove comes back), push: +3 follow-ups
+  17.5, 19, 20, 21, 21.5, // snooze, then the three follow-ups, push 70 %
+  22.25, 23, 23.75, // subtasks, time, week: nodate in front
+  24.5, 25, 27.5, 28, // ↵ own answer, typed, sent, push 78 %
+  28.75, 29.5, 30.25, 31, 31.5, // default, quiet, dark, density, push 86 %: the conflict
+  32.4, 33.2, 34, 34.5, // motion, beta, feedback, push 92 %
+  35.3, 36.1, 36.9, 37.4, // old, search, widget, push 96 %
+  38.4, // end: the done card
 ];
+if (SWIPE_BEATS.length !== SWIPE_STEPS.length) throw new Error(`SWIPE_BEATS has ${SWIPE_BEATS.length} beats for ${SWIPE_STEPS.length} captured steps`);
 /** Typed strings: their per-character timing drives both the picture and the key sounds. */
 export const TYPED = {
   wall: '1b 2 yes 3 idk',
   ask: "what's a feature flag?",
   turn: '/decide:swipe',
+  explain: 'both phones offline?',
   own: 'Pin them to the top of Later',
 };
 /** Build log: one file per half beat from EV.build.files. */
@@ -142,14 +154,22 @@ export const cues = (): AbsCue[] => {
   at('done', [...[d.features, d.order, d.confidence, d.migration, d.done].map((b): Cue => ({b, s: 'click', v: 0.9})), {b: d.send, s: 'click'}, {b: d.received, s: 'approve', v: 0.8}]);
   at('turn', [...typing(EV.turn.type, EV.turn.enter - 0.5, TYPED.turn), {b: EV.turn.enter, s: 'key'}, {b: EV.turn.deal, s: 'whoosh', d: 16, v: 0.5}]);
   const sw: Cue[] = [];
-  for (let k = 1; k <= 23; k++) {
-    const side = SWIPE_SIDES[k - 1];
-    sw.push({b: swipeBeat(k), s: side === 'own' ? 'key' : 'whoosh', d: 7, v: side === 'own' ? 0.9 : 0.4, p: side === 'left' ? 0.9 : 1.1});
-    sw.push({b: swipeBeat(k), s: 'tick', v: 0.45, p: 0.8 + (k / 23) * 0.7});
-    if (SWIPE_PUSHED.includes(k)) sw.push({b: swipeBeat(k) + 0.5, s: 'pop', v: 0.6, p: 1.2});
-  }
-  sw.push({b: EV.swipe.ownAt, s: 'key', v: 0.8});
-  sw.push(...typing(EV.swipe.ownType, EV.swipe.ownSend - 0.4, TYPED.own, 0.55));
+  const E = EV.swipe;
+  SWIPE_STEPS.forEach((st, i) => {
+    const b = SWIPE_BEATS[i];
+    if (st.act === 'answer' && st.side !== 'own') {
+      sw.push({b, s: 'whoosh', d: 7, v: 0.4, p: st.side === 'left' ? 0.9 : 1.1});
+      sw.push({b, s: 'tick', v: 0.45, p: 0.8 + (i / SWIPE_STEPS.length) * 0.7});
+    }
+    if (st.act === 'answer' && st.side === 'own') sw.push({b, s: 'key', v: 0.9});
+    if (st.act === 'undo') sw.push({b, s: 'key', v: 0.8, p: 0.9}, {b: b + 0.05, s: 'whoosh', d: 9, v: 0.35, p: 0.8});
+    if (st.act === 'ask-open' || st.act === 'own-open') sw.push({b, s: 'key', v: 0.8});
+    if (st.act === 'ask-wait') sw.push({b, s: 'key', v: 0.9});
+    if (st.act === 'explained') sw.push({b, s: 'chime', v: 0.6});
+    if (st.act === 'push') sw.push({b, s: 'pop', v: 0.6, p: 1.2});
+    if (st.added) for (let k = 0; k < st.added; k++) sw.push({b: b + 0.25 + k * 0.2, s: 'tick', v: 0.55, p: 1.3 + k * 0.12});
+  });
+  sw.push(...typing(E.askType[0], E.askType[1], TYPED.explain, 0.55), ...typing(E.ownType[0], E.ownType[1], TYPED.own, 0.55));
   at('swipe', sw);
   at('build', [{b: EV.build.stop, s: 'key'}, {b: EV.build.brief, s: 'chime', v: 0.7},
     ...BUILD_FILES.map((_, i) => ({b: EV.build.files + i * 0.5, s: 'tick' as Sfx, v: 0.5, p: 1 + i * 0.05}))]);
