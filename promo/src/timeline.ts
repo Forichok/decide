@@ -75,7 +75,83 @@ export const EV = {
   end: {mark: 0, line: 1.5, install: 3, url: 4.5},
 } as const;
 
+/* ---------- swipe schedule (shared by the shot and the sound) ---------- */
+/** In-shot beat at which deck card k (1-based) is answered: one per beat, the own answer, then faster. */
+export const swipeBeat = (k: number) => {
+  const ev = EV.swipe;
+  if (k <= 10) return ev.first + (k - 1) * 0.95;
+  if (k === 11) return ev.ownSend;
+  return ev.ownSend + 0.5 + (k - 12) * 0.75;
+};
+/** Answers after which the agent pushed a rewritten brief (capture/swipe.mjs: every 4, and the last). */
+export const SWIPE_PUSHED = [4, 8, 12, 16, 20, 23];
+/** Side of each answer, in deck order ('own' for the typed one); mirrors capture/swipe.mjs. */
+export const SWIPE_SIDES: ('left' | 'right' | 'own')[] = [
+  'right', 'left', 'right', 'left', 'left', 'left', 'left', 'left', 'left', 'left', 'own', 'left',
+  'left', 'left', 'left', 'right', 'left', 'left', 'left', 'left', 'left', 'right', 'right',
+];
+/** Typed strings: their per-character timing drives both the picture and the key sounds. */
+export const TYPED = {
+  wall: '1b 2 yes 3 idk',
+  ask: "what's a feature flag?",
+  turn: '/decide:swipe',
+  own: 'Pin them to the top of Later',
+};
+/** Build log: one file per half beat from EV.build.files. */
+export const BUILD_FILES = [
+  'src/screens/Today.tsx',
+  'src/components/TaskCard.tsx',
+  'src/components/LaterSection.tsx',
+  'src/lib/snooze.ts',
+  'src/lib/reminders.ts',
+  'src/lib/offline-cache.ts',
+  'tests/today.test.tsx',
+];
+
 /* ---------- sound ---------- */
-export type Sfx = 'click' | 'key' | 'keyclick' | 'tick' | 'whoosh' | 'impact' | 'boom' | 'sub' | 'chime' | 'type' | 'approve' | 'pop' | 'swish';
+export type Sfx = 'click' | 'key' | 'keyclick' | 'tick' | 'whoosh' | 'impact' | 'boom' | 'sub' | 'chime' | 'pop' | 'approve' | 'riser';
 export type Cue = {b: number; s: Sfx; d?: number; v?: number; p?: number};
 export type AbsCue = {f: number; s: Sfx; d: number; v: number; p: number};
+
+/** Character k of a typed string (n chars) typed between beats a and b: its beat. */
+export const typeBeat = (a: number, b: number, n: number, k: number) => a + ((b - a) * k) / n;
+
+/** Every sound cue of the film, in film frames (exact, not rounded). */
+export const cues = (): AbsCue[] => {
+  const out: AbsCue[] = [];
+  const at = (id: ShotId, list: Cue[]) => {
+    const p = shot(id);
+    for (const c of list) out.push({f: OFFSET_FRAMES + (p.start + c.b) * FPB, s: c.s, d: c.d ?? 8, v: c.v ?? 1, p: c.p ?? 1});
+  };
+  const typing = (a: number, b: number, text: string, v = 0.7): Cue[] =>
+    [...text].map((ch, k) => ({b: typeBeat(a, b, text.length, k), s: 'keyclick' as Sfx, v: ch === ' ' ? v * 0.6 : v, p: 0.9 + ((k * 7) % 5) * 0.05}));
+  // wall: a tick per question that lands (6 at the start, 14 by beat 2, 31 by beat 4), then the lazy reply
+  const wall: Cue[] = [];
+  for (let q = 7; q <= 31; q++) {
+    const b = q <= 14 ? ((q - 6) / 8) * 2 : 2 + ((q - 14) / 17) * 2;
+    wall.push({b, s: 'tick', v: 0.35, p: 0.8 + (q / 31) * 0.6});
+  }
+  at('wall', [...wall, ...typing(EV.wall.reply, EV.wall.reply + 2, TYPED.wall, 0.8)]);
+  at('drop', [{b: 0, s: 'sub', v: 1}, {b: 0, s: 'impact', v: 0.7}, {b: EV.drop.rise, s: 'whoosh', d: 18, v: 0.5}]);
+  at('pick', [{b: EV.pick.key, s: 'keyclick', v: 1.1}, {b: EV.pick.key + 0.05, s: 'pop', v: 0.5}]);
+  at('see', [{b: EV.see.click, s: 'click'}, {b: EV.see.click + 0.6, s: 'whoosh', d: 14, v: 0.35}]);
+  at('live', [{b: EV.live.tick, s: 'click'}, {b: EV.live.tick + 0.1, s: 'pop', v: 0.5, p: 1.3}]);
+  at('ask', [{b: 0.6, s: 'click', v: 0.8}, ...typing(EV.ask.type, EV.ask.typed, TYPED.ask), {b: EV.ask.send, s: 'key', v: 0.9}]);
+  at('reply', [{b: EV.reply.land, s: 'chime', v: 0.8}, {b: EV.reply.pick, s: 'click'}]);
+  const d = EV.done;
+  at('done', [...[d.features, d.order, d.confidence, d.migration, d.done].map((b): Cue => ({b, s: 'click', v: 0.9})), {b: d.send, s: 'click'}, {b: d.received, s: 'approve', v: 0.8}]);
+  at('turn', [...typing(EV.turn.type, EV.turn.enter - 0.5, TYPED.turn), {b: EV.turn.enter, s: 'key'}, {b: EV.turn.deal, s: 'whoosh', d: 16, v: 0.5}]);
+  const sw: Cue[] = [];
+  for (let k = 1; k <= 23; k++) {
+    const side = SWIPE_SIDES[k - 1];
+    sw.push({b: swipeBeat(k), s: side === 'own' ? 'key' : 'whoosh', d: 7, v: side === 'own' ? 0.9 : 0.4, p: side === 'left' ? 0.9 : 1.1});
+    sw.push({b: swipeBeat(k), s: 'tick', v: 0.45, p: 0.8 + (k / 23) * 0.7});
+    if (SWIPE_PUSHED.includes(k)) sw.push({b: swipeBeat(k) + 0.5, s: 'pop', v: 0.6, p: 1.2});
+  }
+  sw.push({b: EV.swipe.ownAt, s: 'key', v: 0.8});
+  sw.push(...typing(EV.swipe.ownType, EV.swipe.ownSend - 0.4, TYPED.own, 0.55));
+  at('swipe', sw);
+  at('build', [{b: EV.build.stop, s: 'key'}, {b: EV.build.brief, s: 'chime', v: 0.7},
+    ...BUILD_FILES.map((_, i) => ({b: EV.build.files + i * 0.5, s: 'tick' as Sfx, v: 0.5, p: 1 + i * 0.05}))]);
+  return out.sort((a, b) => a.f - b.f);
+};

@@ -56,8 +56,13 @@ await shot("p-top", { title: "h1.title", goal: "#q-goal", bar: ".bar-count" });
 // q1: the agent's pick and its reason; the digit 1 picks it
 await center("#q-goal .opt-reason", "center");
 await shot("p-goal", { card: "#q-goal", rec: "#q-goal .badge.rec", reason: "#q-goal .opt-reason", opt1: "#q-goal .opt" });
-await page.click("#q-goal h3.q-title");
-await page.keyboard.press("1");
+{
+  // clicking the title to focus the card scrolls it; put the page back where p-goal was, so the pick shows in place
+  const y0 = await page.evaluate(() => window.scrollY);
+  await page.click("#q-goal h3.q-title");
+  await page.keyboard.press("1");
+  await scrollTo(y0);
+}
 await shot("p-goal-picked", { card: "#q-goal", rec: "#q-goal .badge.rec", reason: "#q-goal .opt-reason", opt1: "#q-goal .opt", bar: ".bar-count" });
 
 // q2: three mockups side by side, the Today view picked

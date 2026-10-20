@@ -43,7 +43,8 @@ const MARK_END = {x: 110 + 56, y: 380 + 56, size: 112};
 export const DROP_CAM = {s: 0.8, fx: 720, fy: 450, ax: 1250, ay: 560};
 
 export const Drop: React.FC = () => {
-  const {f, ev, b} = useShot('drop');
+  const {f, ev, b, len} = useShot('drop');
+  const end = 1 - range(f, len - 8, len);
   // 1. the period turns pink and grows to a big mark at its own spot
   const grow = range(f, ev.bloom, ev.bloom + 9, expoOut);
   // 2. the mark travels to the caption column while the page rises
@@ -71,12 +72,12 @@ export const Drop: React.FC = () => {
         return <div style={{position: 'absolute', left: 960 - r, top: 520 - r, width: r * 2, height: r * 2, borderRadius: '50%', border: '3px solid rgba(255,93,143,0.8)',
           opacity: range(f, 0, 2) * (1 - range(f, 4, 26, (t) => t)), boxShadow: '0 0 60px rgba(255,93,143,0.5), inset 0 0 60px rgba(255,93,143,0.3)'}} />;
       })()}
-      <div style={{position: 'absolute', left: cx - size * 1.6, top: cy - size * 1.6, width: size * 3.2, height: size * 3.2, borderRadius: '50%', opacity: Math.min(1, glow),
+      <div style={{position: 'absolute', left: cx - size * 1.6, top: cy - size * 1.6, width: size * 3.2, height: size * 3.2, borderRadius: '50%', opacity: Math.min(1, glow) * end,
         background: 'radial-gradient(closest-side, rgba(255,93,143,0.55), rgba(255,93,143,0))'}} />
-      <div style={{position: 'absolute', left: cx - size / 2, top: cy - size / 2}}>
+      <div style={{position: 'absolute', left: cx - size / 2, top: cy - size / 2, opacity: end}}>
         <Mark size={size} round={round} check={check} />
       </div>
-      <Caption f={f} from={ev.caption} to={1e6} x={110} y={MARK_END.y + MARK_END.size / 2 + 40} w={540} size={80}>
+      <Caption f={f} from={ev.caption} to={len - 6} x={110} y={MARK_END.y + MARK_END.size / 2 + 40} w={540} size={80}>
         Answer like<br />you <Pink>mean it.</Pink>
       </Caption>
     </AbsoluteFill>

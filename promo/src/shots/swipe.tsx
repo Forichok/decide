@@ -5,40 +5,27 @@
  */
 import React from 'react';
 import {AbsoluteFill} from 'remotion';
-import deck from '../../fixtures/home.deck.json';
 import {BODY, DISPLAY} from '../fonts';
 import {C, Caption, Dramatisation, type Cam, easeIn, expoOut, range, useShot} from '../lib';
-import {Panel, box} from '../ui';
+import {Panel, box, toScreen} from '../ui';
+import {typed} from '../kit';
+import {EV, SWIPE_PUSHED, SWIPE_SIDES, TYPED, swipeBeat} from '../timeline';
 
 type Side = 'left' | 'right';
-type Card = {id: string; recommended?: Side; left: unknown; right: unknown};
-const CARDS = (deck as {cards: Card[]}).cards;
-// same picks as capture/swipe.mjs
-const AGAINST = new Set(['count', 'motion', 'beta']);
-const OWN = new Set(['nodate']);
-const sideOf = (c: Card): Side => (AGAINST.has(c.id) ? (c.recommended === 'left' ? 'right' : 'left') : c.recommended || 'left');
-const PUSHED = new Set([4, 8, 12, 16, 20, 23]);
+const PUSHED = new Set(SWIPE_PUSHED);
 const nn = (k: number) => String(k).padStart(2, '0');
 
-/** In-shot beat at which card k (1-based) is answered. */
-export const answerBeat = (k: number, ev: {first: number; ownAt: number; ownSend: number}) => {
-  if (k <= 10) return ev.first + (k - 1) * 0.95;
-  if (k === 11) return ev.ownSend;
-  return ev.ownSend + 0.5 + (k - 12) * 0.75;
-};
-export const SWIPE_EV = {first: 0.5, ownAt: 10, ownType: 10.5, ownSend: 13.5};
-
 // layout: the deck column, big; the brief beside it
-const DECK_CLIP = {x: 585, y: 80, w: 636, h: 600};
-const DECK_CAM: Cam = {s: 1.5, fx: 585, fy: 80, ax: 600, ay: 36};
-const BRIEF_CAM: Cam = {s: 1.12, fx: 120, fy: 16, ax: 110, ay: 54};
+export const DECK_CLIP = {x: 585, y: 80, w: 636, h: 600};
+export const DECK_CAM: Cam = {s: 1.5, fx: 585, fy: 80, ax: 600, ay: 36};
+export const BRIEF_CAM: Cam = {s: 1.12, fx: 120, fy: 16, ax: 110, ay: 54};
 const CARD_REGION = {x: 592, y: 229, w: 622, h: 304};
 const FLY = 8; // frames a card is in flight
 
 export const Swipe: React.FC = () => {
   const {f, b, len} = useShot('swipe');
-  const ev = SWIPE_EV;
-  const at = (k: number) => b(answerBeat(k, ev));
+  const ev = EV.swipe;
+  const at = (k: number) => b(swipeBeat(k));
   // which card is answered last, and the state on screen
   let k = 0;
   while (k < 23 && f >= at(k + 1)) k++;
@@ -46,12 +33,19 @@ export const Swipe: React.FC = () => {
   if (k > 0 && PUSHED.has(k) && f >= at(k) + b(0.5) - b(0)) state = `s-${nn(k)}-pushed`;
   if (k === 23 && f >= at(23) + b(1.25) - b(0)) state = 's-end';
   // the own answer: Enter opens the field, the text is typed in two captured steps
-  if (k === 10 && f >= b(ev.ownAt)) state = f >= b(ev.ownType + 1.5) ? 's-11-own-b' : f >= b(ev.ownType) ? 's-11-own-a' : state;
+  // the own answer: Enter opens the field; the captured full text is revealed char by char (same timing as the keys)
+  const owningInput = k === 10 && f >= b(ev.ownAt);
+  if (owningInput) state = 's-11-own-b';
+  const ownText = typed(f, b, ev.ownType, ev.ownSend - 0.4, TYPED.own);
+  const OWN_TEXT = {x0: 630, x1: 810, y0: 436, y1: 459};
+  const rx = OWN_TEXT.x0 + (OWN_TEXT.x1 - 4 - OWN_TEXT.x0) * (ownText.length / TYPED.own.length);
+  const q0 = toScreen(DECK_CAM, ownText.length ? rx : OWN_TEXT.x0, OWN_TEXT.y0), q1 = toScreen(DECK_CAM, OWN_TEXT.x1, OWN_TEXT.y1);
   // the card in flight: the previous state's card, toward its side
   const flying = k > 0 && f < at(k) + FLY ? k : 0;
   const prev = flying ? (flying === 1 ? 's-00' : PUSHED.has(flying - 1) ? `s-${nn(flying - 1)}-pushed` : `s-${nn(flying - 1)}`) : '';
   const flyFrom = flying === 11 ? 's-11-own-b' : prev;
-  const dir = flying ? (OWN.has(CARDS[flying - 1].id) ? 0 : sideOf(CARDS[flying - 1]) === 'left' ? -1 : 1) : 0;
+  const fs = flying ? SWIPE_SIDES[flying - 1] : 'own';
+  const dir = fs === 'own' ? 0 : fs === 'left' ? -1 : 1;
   const t = flying ? range(f, at(flying), at(flying) + FLY, easeIn) : 0;
   const rise = flying ? range(f, at(flying), at(flying) + FLY + 2, expoOut) : 1;
   // brief: lights when the agent pushes a rewrite
@@ -59,13 +53,20 @@ export const Swipe: React.FC = () => {
   const lastPush = pushedAt.filter((p) => f >= p).pop();
   const rim = lastPush === undefined ? 0 : 1 - range(f, lastPush, lastPush + 24);
   // arrows in the caption light on their key
-  const lastSide = k > 0 && !OWN.has(CARDS[k - 1].id) ? sideOf(CARDS[k - 1]) : null;
+  const ls = k > 0 ? SWIPE_SIDES[k - 1] : 'own';
+  const lastSide: Side | null = ls === 'own' ? null : ls;
   const keyLit = k > 0 ? 1 - range(f, at(k), at(k) + 10) : 0;
   const owning = f >= b(ev.ownAt) && f < b(ev.ownSend + 1.5);
   const arrow = (s: Side) => ({color: lastSide === s && keyLit > 0 ? `rgba(255,93,143,${0.35 + 0.65 * keyLit})` : C.text});
   return (
     <AbsoluteFill>
       <Panel state={state} cam={DECK_CAM} clip={DECK_CLIP} radius={22} />
+      {owningInput && (
+        <>
+          <div style={{position: 'absolute', left: q0.x, top: q0.y, width: Math.max(0, q1.x - q0.x), height: q1.y - q0.y, background: '#15151a'}} />
+          <div style={{position: 'absolute', left: q0.x + 1, top: q0.y + 2, width: 3, height: q1.y - q0.y - 4, background: Math.floor(f / 8) % 2 ? 'transparent' : C.text}} />
+        </>
+      )}
       {flying > 0 && (
         <>
           {/* the next card comes up from under the one leaving */}
@@ -94,7 +95,7 @@ export const Swipe: React.FC = () => {
 };
 
 /** The through-line count: questions left, big, right of the deck. */
-const Counter: React.FC<{f: number; left: number; x: number; y: number}> = ({f, left, x, y}) => (
+export const Counter: React.FC<{f: number; left: number; x: number; y: number}> = ({f, left, x, y}) => (
   <div style={{position: 'absolute', left: x, top: y, opacity: range(f, 0, 10), textAlign: 'left'}}>
     <div style={{fontFamily: DISPLAY, fontWeight: 650, fontSize: 150, letterSpacing: -6, lineHeight: 1, color: left === 0 ? C.green : C.text, fontVariantNumeric: 'tabular-nums'}}>{left}</div>
     <div style={{fontFamily: BODY, fontWeight: 500, fontSize: 30, color: C.sub, marginTop: 8}}>questions<br />left</div>
