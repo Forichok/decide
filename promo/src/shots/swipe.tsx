@@ -8,6 +8,7 @@ import React from 'react';
 import {AbsoluteFill} from 'remotion';
 import {BODY, DISPLAY} from '../fonts';
 import {C, Caption, Dramatisation, Pink, type Cam, easeIn, expoOut, range, useShot} from '../lib';
+import {FPB} from '../timeline';
 import {Halo, Panel, box, toScreen, type Box} from '../ui';
 import {typed} from '../kit';
 import {EV, SWIPE_BEATS, TYPED} from '../timeline';
@@ -104,6 +105,14 @@ export const Swipe: React.FC = () => {
   const cap = special.find(([a, z]) => f >= b(a) && f < b(z));
   const gaps: [number, number][] = [[0.25, special[0][0]], ...special.map(([, z], k): [number, number] => [z, special[k + 1]?.[0] ?? SWIPE_BEATS[SWIPE_BEATS.length - 1]])];
 
+  // the keys the person presses, on their steps' beats
+  const presses: Press[] = [];
+  SWIPE_STEPS.forEach((st, k) => {
+    const key: Key | null = st.act === 'answer' ? (st.side === 'own' ? 'enter' : st.side === 'left' ? 'left' : 'right')
+      : st.act === 'undo' ? 'back' : st.act === 'ask-open' ? 'down' : st.act === 'ask-wait' || st.act === 'own-open' ? 'enter' : null;
+    if (key) presses.push({key, at: at(k)});
+  });
+
   return (
     <AbsoluteFill>
       <Panel state={base} cam={DECK_CAM} clip={DECK_CLIP} radius={22} />
@@ -137,8 +146,53 @@ export const Swipe: React.FC = () => {
           </Caption>
         ))
       )}
-      <Counter f={f} left={step.left} x={1640} y={560} pop={pop} added={SWIPE_STEPS[addedAt]?.added} />
+      <Counter f={f} left={step.left} x={1640} y={COUNTER_Y} pop={pop} added={SWIPE_STEPS[addedAt]?.added} />
+      <KeyPad f={f} beat={(f - b(0)) / FPB} presses={presses} opacity={range(f, 4, 14)} />
     </AbsoluteFill>
+  );
+};
+
+export const COUNTER_Y = 380;
+
+/* ---------- the keys, pressed on the beat ---------- */
+export type Key = 'back' | 'enter' | 'up' | 'left' | 'down' | 'right';
+export type Press = {key: Key; at: number};
+const KEY = 78, GAP = 10, PAD_X = 1610, PAD_Y = 650;
+const LAYOUT: [Key, string, number, number, number][] = [
+  // key, glyph, column (in key units), row, width (in key units)
+  ['back', '⌫', 0, 0, 1.5], ['enter', '↵', 1.5, 0, 1.5],
+  ['up', '↑', 1, 1, 1],
+  ['left', '←', 0, 2, 1], ['down', '↓', 1, 2, 1], ['right', '→', 2, 2, 1],
+];
+/** An inverted-T cluster under the counter: each key sinks, fills pink and sends a ring out when its action lands; the cluster breathes on every beat. */
+export const KeyPad: React.FC<{f: number; beat: number; presses: Press[]; opacity?: number}> = ({f, beat, presses, opacity = 1}) => {
+  if (opacity <= 0.001) return null;
+  const breathe = Math.exp(-((beat % 1 + 1) % 1) * FPB / 5);
+  return (
+    <div style={{position: 'absolute', left: PAD_X, top: PAD_Y, opacity}}>
+      {LAYOUT.map(([key, glyph, col, row, w]) => {
+        const mine = presses.filter((p) => p.key === key && f >= p.at - 3);
+        const last = mine[mine.length - 1];
+        const since = last ? f - last.at : 99;
+        const down = last ? range(f, last.at - 3, last.at) * (1 - range(f, last.at + 4, last.at + 9)) : 0;
+        const lit = since >= -3 ? Math.exp(-Math.max(0, since) / 9) : 0;
+        const ring = since >= 0 && since < 16 ? since / 16 : -1;
+        const x = col * (KEY + GAP), y = row * (KEY + GAP);
+        const width = w * KEY + (w - 1) * GAP;
+        return (
+          <div key={key} style={{position: 'absolute', left: x + (key === 'enter' ? GAP / 2 : 0), top: y, width: key === 'back' || key === 'enter' ? width - GAP / 2 : width, height: KEY}}>
+            {ring >= 0 && (
+              <div style={{position: 'absolute', inset: -ring * 40, borderRadius: KEY * 0.24 + ring * 40, border: `${3 * (1 - ring)}px solid rgba(255,93,143,${0.9 * (1 - ring)})`}} />
+            )}
+            <div style={{position: 'absolute', inset: 0, borderRadius: KEY * 0.24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: BODY, fontWeight: 600, fontSize: KEY * 0.44, color: lit > 0.3 ? '#fff' : C.text,
+              background: `linear-gradient(rgba(255,93,143,${0.95 * lit}), rgba(232,69,122,${0.95 * lit})), linear-gradient(#36363c, #26262b)`,
+              boxShadow: `0 ${7 * (1 - down)}px 0 #0b0b0d, 0 0 0 1px rgba(255,255,255,${0.12 + 0.1 * breathe}) inset, 0 0 ${50 * lit}px rgba(255,93,143,${0.6 * lit})`,
+              transform: `translateY(${down * 6}px) scale(${1 - 0.06 * down + 0.025 * breathe})`}}>{glyph}</div>
+          </div>
+        );
+      })}
+    </div>
   );
 };
 

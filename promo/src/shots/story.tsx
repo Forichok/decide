@@ -10,7 +10,7 @@ import {C, Caption, Mark, Pink, Wordmark, easeIO, expoOut, lerp, range, useShot}
 import {Keycap, Term, pressAt, typed, type Line} from '../kit';
 import {BUILD_FILES, EV, HIT_BEAT, TYPED, shot} from '../timeline';
 import {Panel, box, toScreen} from '../ui';
-import {BRIEF_CAM, Counter, DECK_CAM, DECK_CLIP} from './swipe';
+import {BRIEF_CAM, COUNTER_Y, Counter, DECK_CAM, DECK_CLIP, KeyPad} from './swipe';
 
 /* ---------- turn ---------- */
 export const Turn: React.FC = () => {
@@ -55,7 +55,7 @@ export const Turn: React.FC = () => {
 /* ---------- build ---------- */
 const FINISH = {x: 863, y: 467, w: 100, h: 44};
 export const Build: React.FC = () => {
-  const {f, ev, b, len} = useShot('build');
+  const {f, ev, b, len, fpb} = useShot('build');
   const out = range(f, ev.brief - 6, ev.brief + 8, easeIO);
   const lines: Line[] = [{k: 'head', text: 'Brief received.'}, {k: 'agent', text: '26 decisions · 2 risks · 1 conflict flagged'}];
   if (f >= b(EV.build.brief + 1)) lines.push({k: 'head', text: 'Building the Today screen:'});
@@ -74,11 +74,10 @@ export const Build: React.FC = () => {
           boxShadow: `0 0 0 3px rgba(255,93,143,${0.95 * a}), 0 0 50px rgba(255,93,143,${0.5 * a})`}} />;
       })()}
       <div style={{position: 'absolute', inset: 0, opacity: 1 - range(f, 0, 10)}}>
-        <Counter f={30} left={0} x={1640} y={560} />
+        <Counter f={30} left={0} x={1640} y={COUNTER_Y} />
       </div>
-      <div style={{position: 'absolute', left: 1680, top: 860, opacity: range(f, ev.stop - 10, ev.stop - 3) * (1 - range(f, ev.brief, ev.brief + 6))}}>
-        <Keycap pressed={pressAt(f, ev.stop)} size={84}>↵</Keycap>
-      </div>
+      {/* the swipe's keys carry over: ↵ presses Finish, then they leave with the deck */}
+      <KeyPad f={f} beat={(f - b(0)) / fpb} presses={[{key: 'enter', at: ev.stop}]} opacity={1 - range(f, ev.brief, ev.brief + 8)} />
       <Term x={640} y={70} w={1200} h={640} lines={lines} size={30} lh={1.5} f={f} opacity={tin * exit} transform={`translateX(${(1 - tin) * 200}px)`} title="agent — task-app" />
       <Caption f={f} from={ev.caption} to={len + 1} x={640} y={820} w={1200} size={104}>
         34 answers. <Pink>0 guesses.</Pink>
