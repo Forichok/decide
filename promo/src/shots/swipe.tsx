@@ -67,7 +67,7 @@ export const Swipe: React.FC = () => {
   const undoneSide = step.act === 'undo' ? [...SWIPE_STEPS.slice(0, i)].reverse().find((s) => s.act === 'answer')?.side : undefined;
   const base = undoing ? prev.name : step.name;
   const leaving = cardOf(i - 1), toBox = cardOf(i);
-  const dir = step.side === 'own' ? 0 : step.side === 'left' ? -1 : 1;
+  const dir = step.side === 'own' || step.side === 'skip' ? 0 : step.side === 'left' ? -1 : 1;
   const t = answering ? range(f, at(i), at(i) + FLY, easeIn) : 0;
   const rise = answering ? range(f, at(i), at(i) + FLY + 2, expoOut) : 1;
   const back = undoing ? range(f, at(i), at(i) + FLY + 2, expoOut) : 1;
@@ -83,7 +83,7 @@ export const Swipe: React.FC = () => {
   const addedAt = SWIPE_STEPS.findIndex((s) => s.added);
   const pop = addedAt >= 0 && i >= addedAt ? Math.exp(-(f - at(addedAt)) / 10) : 0;
   // risks: a ring on the risk and conflict groups once the conflict is in
-  const risksOn = range(f, b(ev.risks) + 4, b(ev.risks) + 14) * (1 - range(f, b(ev.risks + 4.5), b(ev.risks + 5)));
+  const risksOn = range(f, b(ev.risks) + 4, b(ev.risks) + 14) * (1 - range(f, b(ev.skip - 0.8), b(ev.skip - 0.3)));
   const riskBox = boxOrNull(step.name, 'risk'), problemBox = boxOrNull(step.name, 'problem');
   // the first follow-up: its "Because you answered" line lights once
   const firstFrom = SWIPE_STEPS.findIndex((s) => s.act === 'answer' && boxOrNull(s.name, 'from'));
@@ -100,7 +100,8 @@ export const Swipe: React.FC = () => {
     [ev.ask, ev.follow - 0.6, <>Not sure? <Pink>↓</Pink> Ask.</>],
     [ev.follow, ev.follow + 5, <>It asks <Pink>back.</Pink></>, 'Three new questions from one answer.'],
     [ev.own, ev.own + 3.5, <>Neither? <Pink>Type your own.</Pink></>],
-    [ev.risks, ev.risks + 4.5, <>Risks show up <Pink>too.</Pink></>, 'And conflicts between your answers.'],
+    [ev.risks, ev.skip - 0.35, <>Risks show up <Pink>too.</Pink></>, 'And conflicts between your answers.'],
+    [ev.skip - 0.3, SWIPE_BEATS[SWIPE_BEATS.length - 1] + 0.5, <>Don't care? <Pink>↑</Pink> Skip.</>],
   ];
   const cap = special.find(([a, z]) => f >= b(a) && f < b(z));
   const gaps: [number, number][] = [[0.25, special[0][0]], ...special.map(([, z], k): [number, number] => [z, special[k + 1]?.[0] ?? SWIPE_BEATS[SWIPE_BEATS.length - 1]])];
@@ -108,7 +109,7 @@ export const Swipe: React.FC = () => {
   // the keys the person presses, on their steps' beats
   const presses: Press[] = [];
   SWIPE_STEPS.forEach((st, k) => {
-    const key: Key | null = st.act === 'answer' ? (st.side === 'own' ? 'enter' : st.side === 'left' ? 'left' : 'right')
+    const key: Key | null = st.act === 'answer' ? (st.side === 'own' ? 'enter' : st.side === 'skip' ? 'up' : st.side === 'left' ? 'left' : 'right')
       : st.act === 'undo' ? 'back' : st.act === 'ask-open' ? 'down' : st.act === 'ask-wait' || st.act === 'own-open' ? 'enter' : null;
     if (key) presses.push({key, at: at(k)});
   });

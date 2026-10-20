@@ -77,7 +77,7 @@ export const EV = {
   done: {features: 1, order: 2.5, confidence: 4, migration: 5.5, done: 8, send: 10.5, received: 12},
   turn: {type: 1.5, enter: 5.5, deal: 6},
   // swipe: the beat of every captured step is in SWIPE_BEATS; these are the typed spans and the captions
-  swipe: {undo: 3.75, ask: 8.75, askType: [9.25, 10.75], explained: 12, follow: 16.5, own: 24.5, ownType: [25, 27], risks: 31.5},
+  swipe: {undo: 3.75, ask: 8.75, askType: [9.25, 10.75], explained: 12, follow: 16.5, own: 24.5, ownType: [25, 27], risks: 31.5, skip: 36.1},
   build: {stop: 0.5, brief: 1.5, files: 4, caption: 6},
   end: {mark: 0, line: 1, install: 2, url: 2.5},
 } as const;
@@ -97,7 +97,7 @@ export const SWIPE_BEATS = [
   24.5, 25, 27.5, 28, // ↵ own answer, typed, sent, push 78 %
   28.75, 29.5, 30.25, 31, 31.5, // default, quiet, dark, density, push 86 %: the conflict
   32.4, 33.2, 34, 34.5, // motion, beta, feedback, push 92 %
-  35.3, 36.1, 36.9, 37.4, // old, search, widget, push 96 %
+  35.3, 36.1, 36.9, 37.4, // old, ↑ search skipped, widget, push 96 %
   38.4, // end: the done card
 ];
 if (SWIPE_BEATS.length !== SWIPE_STEPS.length) throw new Error(`SWIPE_BEATS has ${SWIPE_BEATS.length} beats for ${SWIPE_STEPS.length} captured steps`);
@@ -158,7 +158,7 @@ export const cues = (): AbsCue[] => {
   SWIPE_STEPS.forEach((st, i) => {
     const b = SWIPE_BEATS[i];
     if (st.act === 'answer' && st.side !== 'own') {
-      sw.push({b, s: 'whoosh', d: 7, v: 0.4, p: st.side === 'left' ? 0.9 : 1.1});
+      sw.push({b, s: 'whoosh', d: 7, v: 0.4, p: st.side === 'left' ? 0.9 : st.side === 'skip' ? 1.35 : 1.1});
       sw.push({b, s: 'tick', v: 0.45, p: 0.8 + (i / SWIPE_STEPS.length) * 0.7});
     }
     if (st.act === 'answer' && st.side === 'own') sw.push({b, s: 'key', v: 0.9});

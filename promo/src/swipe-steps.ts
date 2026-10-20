@@ -1,6 +1,6 @@
 /* Written by capture/swipe.mjs: every captured swipe state in order (public/ui/<name>.png). Do not edit. */
 export type SwipeAct = 'start' | 'answer' | 'undo' | 'push' | 'ask-open' | 'ask-typed' | 'ask-wait' | 'explained' | 'own-open' | 'own-typed' | 'end';
-export type SwipeStep = {name: string; act: SwipeAct; side?: 'left' | 'right' | 'own'; left: number; conf: number; added?: number};
+export type SwipeStep = {name: string; act: SwipeAct; side?: 'left' | 'right' | 'own' | 'skip'; left: number; conf: number; added?: number};
 export const SWIPE_STEPS: SwipeStep[] = [
   {name: 's-00', act: 'start', left: 23, conf: 40},
   {name: 'sw-01', act: 'answer', side: 'right', left: 22, conf: 40},
@@ -41,7 +41,7 @@ export const SWIPE_STEPS: SwipeStep[] = [
   {name: 'sw-36', act: 'answer', side: 'left', left: 3, conf: 86},
   {name: 'sw-37', act: 'push', left: 3, conf: 92},
   {name: 'sw-38', act: 'answer', side: 'left', left: 2, conf: 92},
-  {name: 'sw-39', act: 'answer', side: 'right', left: 1, conf: 92},
+  {name: 'sw-39', act: 'answer', side: 'skip', left: 1, conf: 92},
   {name: 'sw-40', act: 'answer', side: 'right', left: 0, conf: 92},
   {name: 'sw-41', act: 'push', left: 0, conf: 96},
   {name: 's-end', act: 'end', left: 0, conf: 96},

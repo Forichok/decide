@@ -57,7 +57,7 @@ const FINISH = {x: 863, y: 467, w: 100, h: 44};
 export const Build: React.FC = () => {
   const {f, ev, b, len, fpb} = useShot('build');
   const out = range(f, ev.brief - 6, ev.brief + 8, easeIO);
-  const lines: Line[] = [{k: 'head', text: 'Brief received.'}, {k: 'agent', text: '26 decisions · 2 risks · 1 conflict flagged'}];
+  const lines: Line[] = [{k: 'head', text: 'Brief received.'}, {k: 'agent', text: '25 decisions · 1 skipped · 2 risks · 1 conflict flagged'}];
   if (f >= b(EV.build.brief + 1)) lines.push({k: 'head', text: 'Building the Today screen:'});
   BUILD_FILES.forEach((file, i) => { if (f >= b(EV.build.files + i * 0.5)) lines.push({k: 'ok', text: file, a: range(f, b(EV.build.files + i * 0.5), b(EV.build.files + i * 0.5) + 4)}); });
   const tin = range(f, ev.brief, ev.brief + 14, expoOut);
@@ -80,7 +80,7 @@ export const Build: React.FC = () => {
       <KeyPad f={f} beat={(f - b(0)) / fpb} presses={[{key: 'enter', at: ev.stop}]} opacity={1 - range(f, ev.brief, ev.brief + 8)} />
       <Term x={640} y={70} w={1200} h={640} lines={lines} size={30} lh={1.5} f={f} opacity={tin * exit} transform={`translateX(${(1 - tin) * 200}px)`} title="agent — task-app" />
       <Caption f={f} from={ev.caption} to={len + 1} x={640} y={820} w={1200} size={104}>
-        34 answers. <Pink>0 guesses.</Pink>
+        33 answers. <Pink>0 guesses.</Pink>
       </Caption>
     </AbsoluteFill>
   );
@@ -104,7 +104,7 @@ export const End: React.FC = () => {
     <AbsoluteFill style={{alignItems: 'center'}}>
       <AbsoluteFill style={{background: 'rgba(5,5,7,0.45)', opacity: range(f, 0, 8)}} />
       <Caption f={f} from={-30} to={6} x={640} y={820} w={1200} size={104}>
-        34 answers. <Pink>0 guesses.</Pink>
+        33 answers. <Pink>0 guesses.</Pink>
       </Caption>
       <div style={{position: 'absolute', top: 110, display: 'flex', alignItems: 'center', gap: 36, opacity: mark, transform: `translateY(${(1 - mark) * 30}px) scale(${1 + 0.04 * pulse})`}}>
         <div style={{position: 'relative'}}>

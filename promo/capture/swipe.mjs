@@ -77,16 +77,18 @@ const PLAN = [
   ["subtasks", "left"], ["time", "left"], ["week", "left"], ["nodate", "own"],
   ["default", "left"], ["quiet", "left"], ["dark", "left"], ["density", "left"],
   ["motion", "right"], ["beta", "left"], ["feedback", "left"], ["old", "left"],
-  ["search", "right"], ["widget", "right"],
+  ["search", "skip"], ["widget", "right"],
 ];
 
 const answered = new Map();
+const skipped = new Set();
 const has = (id) => answered.has(id);
 const brief = () => {
   const pts = [...answered].map(([id, text]) => ({ kind: "decision", text: `${byId(id).topic}: ${text}`, cards: [id] }));
   if (has("offline")) pts.push({ kind: "risk", text: "Offline edits from two phones can collide", cards: ["offline", "sync"] });
   if (has("nodate")) pts.push({ kind: "risk", text: "Pinned no-date tasks can push today's below the fold", cards: ["nodate"] });
   if (has("default") && has("quiet")) pts.push({ kind: "problem", text: "Conflict: a 7:30 task's 15-minute reminder falls in quiet hours", cards: ["default", "quiet"] });
+  if (skipped.has("search")) pts.push({ kind: "note", text: "Search: skipped, so it stays out of the first version", cards: ["search"] });
   if (!has("sync")) pts.push({ kind: "open", text: "Which edit wins when two phones change the same task" });
   return pts;
 };
@@ -141,6 +143,10 @@ for (const [id, key] of PLAN) {
     await page.keyboard.press("Enter");
     answered.set(id, OWN[id]);
     await shot("answer", { card: id, side: "own" });
+  } else if (key === "skip") {
+    await page.keyboard.press("ArrowUp");
+    skipped.add(id);
+    await shot("answer", { card: id, side: "skip" });
   } else {
     await page.keyboard.press(key === "left" ? "ArrowLeft" : "ArrowRight");
     answered.set(id, label(c, key));
@@ -157,7 +163,7 @@ writeFileSync(`${OUT}/swipe.json`, JSON.stringify(steps, null, 1));
 const row = (s) => `  {name: '${s.name}', act: '${s.act}'${s.side ? `, side: '${s.side}'` : ""}, left: ${s.left}, conf: ${s.conf}${s.added ? `, added: ${s.added}` : ""}},`;
 writeFileSync(resolve(PROMO, "src/swipe-steps.ts"), `/* Written by capture/swipe.mjs: every captured swipe state in order (public/ui/<name>.png). Do not edit. */
 export type SwipeAct = 'start' | 'answer' | 'undo' | 'push' | 'ask-open' | 'ask-typed' | 'ask-wait' | 'explained' | 'own-open' | 'own-typed' | 'end';
-export type SwipeStep = {name: string; act: SwipeAct; side?: 'left' | 'right' | 'own'; left: number; conf: number; added?: number};
+export type SwipeStep = {name: string; act: SwipeAct; side?: 'left' | 'right' | 'own' | 'skip'; left: number; conf: number; added?: number};
 export const SWIPE_STEPS: SwipeStep[] = [
 ${steps.map(row).join("\n")}
 ];
