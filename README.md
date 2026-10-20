@@ -1,5 +1,10 @@
 <div align="center">
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.svg">
+  <img src="docs/logo-light.svg" alt="" width="72">
+</picture>
+
 # decide
 
 **Your agent asks on a page. You answer in clicks.**
@@ -18,9 +23,9 @@ cards you clear with the arrow keys. No more walls of numbered questions in chat
 
 [Install](#install) · [When to use it](#when-to-use-it) · [Screens](#screens) · [Swipe interview](#swipe-interview) · [How it works](#how-it-works) · [FAQ](#faq)
 
-<img src="docs/demo.gif" alt="The agent asks six questions in the terminal, decide opens them as a page, the user picks options, asks the agent about one of them, presses Done, and the agent carries on with the exact answers" width="100%">
-
 </div>
+
+https://github.com/user-attachments/assets/00b0ef15-06af-41a0-9ac2-9587f890b694
 
 ## The problem
 
@@ -59,6 +64,8 @@ Keep a single yes/no in chat. decide is for two or more choices that change
 the result.
 
 ## How
+
+<img src="docs/demo.gif" alt="The agent asks six questions in the terminal, decide opens them as a page, the user picks options, asks the agent about one of them, presses Done, and the agent carries on with the exact answers" width="100%">
 
 1. Type `/decide` in Claude Code or `$decide` in Codex. Most of the time you
    don't have to: the agent opens decide on its own when a task has open

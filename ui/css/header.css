@@ -15,16 +15,16 @@
 .eyebrow .logo {
   width: 20px;
   height: 20px;
-  border-radius: 6px;
-  background: var(--accent);
-  color: var(--on-accent);
+  color: var(--tx);
   display: grid;
   place-items: center;
 }
-.eyebrow .logo .i {
-  width: 13px;
-  height: 13px;
-  stroke-width: 3;
+.eyebrow .logo svg {
+  width: 20px;
+  height: 20px;
+}
+.eyebrow .logo .dot {
+  fill: var(--accent);
 }
 .eyebrow .spacer {
   flex: 1;
