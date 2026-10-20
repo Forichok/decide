@@ -61,7 +61,7 @@ export const shot = (id: ShotId) => PLACED.find((p) => p.id === id)!;
 export const EV = {
   wall: {n6: 0, n14: 2, n31: 4, reply: 5, caption: 0.5},
   are: {},
-  drop: {bloom: 0, rise: 0.5, caption: 1.5},
+  drop: {bloom: 0, rise: 0.5, caption: 1.2},
   pick: {key: 3},
   see: {click: 3.5},
   live: {tick: 3},
@@ -72,7 +72,7 @@ export const EV = {
   // swipe: 23 answers from beat 1, one per beat at first, then faster; the own answer is card 11
   swipe: {first: 1, ownAt: 10, ownType: 10.5, ownSend: 13.5},
   build: {stop: 0.5, brief: 1.5, files: 4, caption: 6},
-  end: {mark: 0, line: 1.5, install: 3, url: 4.5},
+  end: {mark: 0, line: 1, install: 2, url: 2.5},
 } as const;
 
 /* ---------- swipe schedule (shared by the shot and the sound) ---------- */
@@ -153,5 +153,7 @@ export const cues = (): AbsCue[] => {
   at('swipe', sw);
   at('build', [{b: EV.build.stop, s: 'key'}, {b: EV.build.brief, s: 'chime', v: 0.7},
     ...BUILD_FILES.map((_, i) => ({b: EV.build.files + i * 0.5, s: 'tick' as Sfx, v: 0.5, p: 1 + i * 0.05}))]);
+  // a soft bell under the URL, so the card does not sit in the track's fade-out alone
+  at('end', [{b: EV.end.url, s: 'chime', v: 0.45, p: 0.75}]);
   return out.sort((a, b) => a.f - b.f);
 };

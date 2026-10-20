@@ -9,7 +9,7 @@ import {BODY, CODE, DISPLAY} from '../fonts';
 import {C, Caption, Mark, Pink, easeIO, expoOut, lerp, range, useShot} from '../lib';
 import {Keycap, Term, pressAt, typed, type Line} from '../kit';
 import {BUILD_FILES, EV, HIT_BEAT, TYPED, shot} from '../timeline';
-import {Panel, box} from '../ui';
+import {Panel, box, toScreen} from '../ui';
 import {BRIEF_CAM, Counter, DECK_CAM, DECK_CLIP} from './swipe';
 
 /* ---------- turn ---------- */
@@ -53,30 +53,33 @@ export const Turn: React.FC = () => {
 };
 
 /* ---------- build ---------- */
+const FINISH = {x: 863, y: 467, w: 100, h: 44};
 export const Build: React.FC = () => {
   const {f, ev, b, len} = useShot('build');
-  const finish = box('s-end', 'card');
   const out = range(f, ev.brief - 6, ev.brief + 8, easeIO);
   const lines: Line[] = [{k: 'head', text: 'Brief received.'}, {k: 'agent', text: '23 decisions · 2 risks · 0 open questions'}];
   if (f >= b(EV.build.brief + 1)) lines.push({k: 'head', text: 'Building the Today screen:'});
   BUILD_FILES.forEach((file, i) => { if (f >= b(EV.build.files + i * 0.5)) lines.push({k: 'ok', text: file, a: range(f, b(EV.build.files + i * 0.5), b(EV.build.files + i * 0.5) + 4)}); });
   const tin = range(f, ev.brief, ev.brief + 14, expoOut);
+  const exit = 1 - range(f, len - 8, len);
   return (
     <AbsoluteFill>
-      <Panel state="s-end" cam={BRIEF_CAM} clip={{...box('s-end', 'brief'), x: 120, y: 16, w: 330}} radius={16 * BRIEF_CAM.s} rim={1 - range(f, ev.brief, ev.brief + 20)} />
+      <Panel state="s-end" cam={BRIEF_CAM} clip={{...box('s-end', 'brief'), x: 120, y: 16, w: 330}} radius={16 * BRIEF_CAM.s} rim={1 - range(f, ev.brief, ev.brief + 20)} opacity={exit} />
       {/* Finish: Enter on the deck's done card, then the deck leaves */}
       <Panel state="s-end" cam={DECK_CAM} clip={DECK_CLIP} radius={22} opacity={1 - out} transform={`translateX(${out * 300}px) scale(${1 - 0.08 * out})`} />
-      {f < ev.brief && (
-        <div style={{position: 'absolute', left: DECK_CAM.ax + (finish.x - DECK_CAM.fx) * DECK_CAM.s, top: DECK_CAM.ay + (finish.y - DECK_CAM.fy) * DECK_CAM.s,
-          width: finish.w * DECK_CAM.s, height: finish.h * DECK_CAM.s, borderRadius: 24, boxShadow: `0 0 0 3px rgba(255,93,143,${0.9 * range(f, ev.stop, ev.stop + 4)}), 0 0 60px rgba(255,93,143,${0.4 * range(f, ev.stop, ev.stop + 4)})`}} />
-      )}
+      {f < ev.brief && (() => {
+        // the Finish button, measured on the s-end frame (the card box was taken while the card was still sliding in)
+        const tl = toScreen(DECK_CAM, FINISH.x, FINISH.y), a = range(f, ev.stop, ev.stop + 4);
+        return <div style={{position: 'absolute', left: tl.x - 6, top: tl.y - 6, width: FINISH.w * DECK_CAM.s + 12, height: FINISH.h * DECK_CAM.s + 12, borderRadius: 18,
+          boxShadow: `0 0 0 3px rgba(255,93,143,${0.95 * a}), 0 0 50px rgba(255,93,143,${0.5 * a})`}} />;
+      })()}
       <div style={{position: 'absolute', inset: 0, opacity: 1 - range(f, 0, 10)}}>
         <Counter f={30} left={0} x={1640} y={560} />
       </div>
       <div style={{position: 'absolute', left: 1680, top: 860, opacity: range(f, ev.stop - 10, ev.stop - 3) * (1 - range(f, ev.brief, ev.brief + 6))}}>
         <Keycap pressed={pressAt(f, ev.stop)} size={84}>↵</Keycap>
       </div>
-      <Term x={640} y={70} w={1200} h={640} lines={lines} size={30} lh={1.5} f={f} opacity={tin} transform={`translateX(${(1 - tin) * 200}px)`} title="agent — task-app" />
+      <Term x={640} y={70} w={1200} h={640} lines={lines} size={30} lh={1.5} f={f} opacity={tin * exit} transform={`translateX(${(1 - tin) * 200}px)`} title="agent — task-app" />
       <Caption f={f} from={ev.caption} to={len + 1} x={640} y={820} w={1200} size={104}>
         31 answers. <Pink>0 guesses.</Pink>
       </Caption>
@@ -94,13 +97,16 @@ export const End: React.FC = () => {
   const {f, ev, b} = useShot('end');
   const hit = b(HIT_BEAT - shot('end').start);
   const pulse = f >= hit ? Math.exp(-(f - hit) / 6) : 0;
-  const mark = range(f, ev.mark, ev.mark + 14, expoOut);
+  const mark = lerp(0.35, 1, range(f, ev.mark, ev.mark + 12, expoOut));
   const line = range(f, ev.line, ev.line + 10, expoOut);
   const inst = range(f, ev.install, ev.install + 10, expoOut);
   const url = range(f, ev.url, ev.url + 10, expoOut);
   return (
     <AbsoluteFill style={{alignItems: 'center'}}>
-      <AbsoluteFill style={{background: 'rgba(5,5,7,0.45)'}} />
+      <AbsoluteFill style={{background: 'rgba(5,5,7,0.45)', opacity: range(f, 0, 8)}} />
+      <Caption f={f} from={-30} to={6} x={640} y={820} w={1200} size={104}>
+        31 answers. <Pink>0 guesses.</Pink>
+      </Caption>
       <div style={{position: 'absolute', top: 110, display: 'flex', alignItems: 'center', gap: 36, opacity: mark, transform: `translateY(${(1 - mark) * 30}px) scale(${1 + 0.04 * pulse})`}}>
         <div style={{position: 'relative'}}>
           <div style={{position: 'absolute', left: -120, top: -120, width: 380, height: 380, borderRadius: '50%', background: 'radial-gradient(closest-side, rgba(255,93,143,0.5), rgba(255,93,143,0))', opacity: 0.4 + 0.6 * pulse}} />

@@ -1,0 +1,28 @@
+<!doctype html><meta charset="utf-8">
+<style>
+@font-face{font-family:Geist;src:url(../../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2) format("woff2");font-weight:100 900}
+body{margin:0;background:#050507;font-family:Geist}
+.v{width:1600px;height:900px;position:relative;overflow:hidden;background:radial-gradient(900px 600px at 30% 30%,rgba(124,77,255,.18),transparent),radial-gradient(800px 600px at 80% 80%,rgba(255,93,143,.14),transparent),#050507;color:#f4f4f5}
+.lock{position:absolute;left:0;right:0;top:230px;display:flex;justify-content:center;align-items:center;gap:44px}
+.word{font-weight:650;font-size:190px;letter-spacing:-.045em;line-height:1}
+.i{position:relative;display:inline-block}
+.i::after{content:"";position:absolute;left:50%;top:.085em;width:.19em;height:.19em;margin-left:-.095em;border-radius:50%;background:#ff5d8f}
+.row{position:absolute;left:0;right:0;top:600px;display:flex;justify-content:center;align-items:center;gap:56px}
+.chip{display:flex;align-items:center;gap:28px;padding:28px 36px;border-radius:22px;background:#111116;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+.chip.light{background:#f4f4f5}
+.name{position:absolute;left:60px;top:48px;font:600 30px Geist;color:#a3a3ab}
+</style>
+<template id="m1"><svg viewBox="0 0 64 64"><circle cx="27" cy="40" r="17" fill="url(#g)"/><rect x="40" y="6" width="11" height="51" rx="5.5" fill="currentColor"/></svg></template>
+<template id="m2"><svg viewBox="0 0 64 64"><clipPath id="c"><rect x="4" y="4" width="56" height="56" rx="16"/></clipPath><g clip-path="url(#c)"><rect x="4" y="4" width="26.5" height="56" fill="currentColor" opacity=".18"/><rect x="33.5" y="4" width="26.5" height="56" fill="url(#g)"/></g><path d="M41 32h11m-4.5-5 5 5-5 5" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></svg></template>
+<template id="m3"><svg viewBox="0 0 64 64"><path d="M32 58V40C32 28 16 26 14 12" fill="none" stroke="currentColor" stroke-opacity=".3" stroke-width="7" stroke-linecap="round"/><path d="M32 58V40C32 28 46 24 48 15" fill="none" stroke="url(#g)" stroke-width="7" stroke-linecap="round"/><circle cx="48.5" cy="11" r="7.5" fill="url(#g)"/></svg></template>
+<template id="m4"><svg viewBox="0 0 64 64"><rect x="4" y="4" width="56" height="56" rx="16" fill="url(#g)"/><path d="M20 33l8 8 16-18" fill="none" stroke="#fff" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round"/></svg></template>
+<svg width="0" height="0" style="position:absolute"><defs><linearGradient id="g" x1="0" y1="0" x2=".4" y2="1"><stop offset="0" stop-color="#ff5d8f"/><stop offset="1" stop-color="#e8457a"/></linearGradient></defs></svg>
+<div id="out"></div>
+<script>
+const V=[["m1","A · the dot becomes the d"],["m2","B · two sides, one picked"],["m3","C · the fork, one way taken"],["m4","D · the current check, tidied"]];
+const mk=(id,s,col)=>{const d=document.createElement('div');d.style.cssText=`width:${s}px;height:${s}px;color:${col};display:flex`;d.innerHTML=document.getElementById(id).innerHTML;d.firstElementChild.setAttribute('width',s);d.firstElementChild.setAttribute('height',s);return d.outerHTML};
+document.getElementById('out').innerHTML=V.map(([id,n])=>`<section class="v" id="${id}"><div class="name">${n}</div>
+<div class="lock">${mk(id,200,'#f4f4f5')}<div class="word">dec<span class="i">ı</span>de</div></div>
+<div class="row"><div class="chip">${mk(id,96,'#f4f4f5')}${mk(id,48,'#f4f4f5')}${mk(id,24,'#f4f4f5')}${mk(id,16,'#f4f4f5')}</div>
+<div class="chip light">${mk(id,96,'#0c0c0f')}${mk(id,48,'#0c0c0f')}${mk(id,24,'#0c0c0f')}${mk(id,16,'#0c0c0f')}</div></div></section>`).join('');
+</script>

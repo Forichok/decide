@@ -118,12 +118,15 @@ await shot("p-rollout-picked", { card: "#q-rollout", reply: "#q-rollout .msg.age
 for (const id of ["features", "order", "confidence", "migration"]) {
   await center(`#q-${id}`, "center");
   await page.locator(`#q-${id}`).getByRole("button", { name: /as recommended/i }).click().catch(() => {});
+  // a rank question has no "As recommended": the person confirms the order (otherwise the round goes out with it unanswered)
+  if (id === "order") await page.locator("#q-order").getByRole("button", { name: /this order works/i }).click();
   if (id === "confidence") await page.locator("#q-confidence .scale button, #q-confidence .scale [role=radio]").nth(3).click().catch(() => {});
   await shot(`p-${id}`, { card: `#q-${id}`, bar: ".bar-count" });
 }
 await page.click(".bar-done");
 await settle(page, 600);
 await shot("p-review", { modal: ".modal, dialog", send: ".modal .btn.primary, dialog .btn.primary" });
+if (await page.locator(".modal, dialog").filter({ hasText: /without an answer/i }).count()) throw new Error("review shows an unanswered question");
 await page.locator(".modal .btn.primary, dialog .btn.primary").first().click();
 await page.waitForSelector(".done-digest", { timeout: 10000 });
 await shot("p-handing", { title: "h2, .done-title", digest: ".done-digest" });

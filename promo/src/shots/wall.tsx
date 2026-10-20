@@ -6,7 +6,7 @@ import React from 'react';
 import {AbsoluteFill} from 'remotion';
 import page from '../../fixtures/home.questions.json';
 import deck from '../../fixtures/home.deck.json';
-import {DISPLAY, BODY} from '../fonts';
+import {DISPLAY, BODY, CODE} from '../fonts';
 import {C, Caption, easeIO, expoOut, lerp, range, useShot} from '../lib';
 import {Term, typed, type Line} from '../kit';
 import {EV, TYPED} from '../timeline';
@@ -37,6 +37,13 @@ export const Wall: React.FC = () => {
         <div style={{fontFamily: DISPLAY, fontWeight: 650, fontSize: 200, letterSpacing: -9, lineHeight: 1, color: C.pink, transform: `scale(${1 + 0.08 * pop})`, transformOrigin: '0 100%', fontVariantNumeric: 'tabular-nums'}}>{count}</div>
         <div style={{fontFamily: BODY, fontWeight: 500, fontSize: 34, color: C.sub, marginTop: 6}}>questions before any code</div>
       </div>
+      {/* the punchline, big: the reply everyone gives to a wall of questions */}
+      {reply && (
+        <div style={{position: 'absolute', left: 110, top: 830, fontFamily: CODE, fontSize: 58, fontWeight: 500, color: C.text, whiteSpace: 'pre'}}>
+          <span style={{color: C.pink}}>› </span>{reply}
+          <span style={{display: 'inline-block', width: 30, height: 60, marginLeft: 4, verticalAlign: 'text-bottom', background: Math.floor(f / 9) % 2 ? 'transparent' : C.text}} />
+        </div>
+      )}
       <Caption f={f} from={b(EV.wall.caption)} to={len + 1} x={110} y={560} w={600} size={92}>
         Your agent<br />isn't dumb.
       </Caption>

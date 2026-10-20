@@ -35,7 +35,7 @@ export const Pick: React.FC = () => {
   return (
     <AbsoluteFill>
       <Panel state={state} cam={cam} clip={clip} radius={lerp(16, 0, t)} fade={t > 0.5 ? [120, 160] : undefined} transform={`perspective(2400px) rotateY(${tilt}deg) rotateX(${lerp(2, 0, t)}deg)`} />
-      {f < 8 && <Panel state="p-top" cam={DROP_CAM} opacity={1 - range(f, 0, 8)} radius={16} transform="perspective(2400px) rotateY(-7deg) rotateX(2deg)" />}
+      {f < 4 && <Panel state="p-top" cam={DROP_CAM} opacity={1 - range(f, 0, 4)} radius={16} transform="perspective(2400px) rotateY(-7deg) rotateX(2deg)" />}
       <Halo cam={cam} b={opt} a={picked ? range(f, ev.key, ev.key + 4) * (1 - range(f, ev.key + 20, ev.key + 40)) : 0} radius={12} />
       <Caption f={f} from={8} to={len + 1} x={110} y={330} w={580} size={58}>
         Every option comes<br />with the agent's<br /><Pink>pick. And why.</Pink>
@@ -57,9 +57,9 @@ export const See: React.FC = () => {
   const tc = {x: today.x - c.x + today.w / 2, y: today.y - c.y + today.h / 2};
   const A = cardCam(state, 390, 420, 1.12, 1300, 540);
   const B = cardCam(state, tc.x, tc.y, 1.75, 1300, 540);
-  const cam = mixCam(A, B, range(f, ev.click + 6, b(6.6), easeIO));
+  const cam = mixCam(A, B, range(f, ev.click + 6, b(5.5), easeIO));
   // the clip narrows to the picked mockup as the camera pushes in, so nothing slides under the caption's column
-  const clip = mixBox(CARD_CLIP, {x: today.x - 8, y: 0, w: today.w + 16, h: 805}, range(f, ev.click + 6, b(6.6), easeIO));
+  const clip = mixBox(CARD_CLIP, {x: today.x - 8, y: 0, w: today.w + 16, h: 805}, range(f, ev.click + 6, b(5.5), easeIO));
   const tgt = toScreen(cam, today.x + today.w / 2, today.y + 140);
   const g = glide(f, b(1), ev.click - 2, {x: 1900, y: 1000}, tgt, ev.click);
   return (
@@ -68,7 +68,7 @@ export const See: React.FC = () => {
       <Halo cam={cam} b={today} a={picked ? range(f, ev.click, ev.click + 4) : 0} radius={10} pad={3} />
       <Ripple x={g.x} y={g.y} t={g.ripple} />
       <Cursor x={g.x} y={g.y} press={g.press} opacity={g.op * (1 - range(f, ev.click + 10, ev.click + 18))} />
-      <Caption f={f} from={6} to={ev.click + 10} x={110} y={420} w={640} size={76}>
+      <Caption f={f} from={6} to={len - 6} x={110} y={420} w={640} size={76}>
         See what<br />you're <Pink>choosing.</Pink>
       </Caption>
     </AbsoluteFill>
@@ -107,9 +107,10 @@ export const Ask: React.FC = () => {
   const state = f < open ? 'p-rollout' : sent ? 'p-ask-sent' : f >= ev.type ? 'p-ask-22' : 'p-ask-0';
   const flag = box('p-rollout', 'flag');
   const fc = box('p-rollout', 'card');
-  const A = cardCam(state, 390, flag.y - fc.y + flag.h / 2, 1.42, 1250, 540);
+  // opens on the whole card, title to the flag, then pushes down into the ask box
+  const A = cardCam(state, 390, 420, 1.1, 1250, 540);
   const B = cardCam(state, 390, 850, 1.6, 1250, 540);
-  const cam = f < open ? A : mixCam(cardCam(state, 390, flag.y - fc.y + flag.h / 2, 1.42, 1250, 540), B, range(f, open, open + 22, easeIO));
+  const cam = f < open ? A : mixCam(cardCam(state, 390, 420, 1.1, 1250, 540), B, range(f, open, open + 22, easeIO));
   const text = typed(f, b, EV.ask.type, EV.ask.typed, TYPED.ask);
   const share = text.length / TYPED.ask.length;
   const revealX = TEXT.x0 + (TEXT.x1 - TEXT.x0) * share;
