@@ -43,11 +43,14 @@ export function updatePresence(listening) {
   chip.textContent = t(listening ? "meta.live" : "meta.away");
 }
 
+// The mark: a dot and a stem make a "d". The dot takes the accent, the stem the text color.
+const LOGO = `<svg viewBox="0 0 64 64"><circle cx="27" cy="40" r="17" fill="currentColor" class="dot"/><rect x="40" y="6" width="11" height="51" rx="5.5" fill="currentColor"/></svg>`;
+
 export function eyebrow(env) {
   return h(
     "div.eyebrow",
     {},
-    h("a.brand", { href: REPO, ...out, title: t("brand.title") }, h("span.logo", { html: icon("check") }), h("span", {}, "decide")),
+    h("a.brand", { href: REPO, ...out, title: t("brand.title") }, h("span.logo", { "aria-hidden": "true", html: LOGO }), h("span", {}, "decide")),
     h("span.conn", { title: t("conn") }),
     h("span.spacer"),
     h("a.icon-btn.gh", { href: REPO, ...out, title: t("brand.title"), "aria-label": t("brand.title"), html: icon("github") }),
