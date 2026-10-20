@@ -7,3 +7,5 @@ public/frames/
 public/blender/
 frames/
 research/**/music-*
+fixtures/*.answers*.json
+public/ui/

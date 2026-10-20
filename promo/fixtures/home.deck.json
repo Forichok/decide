@@ -1,0 +1,321 @@
+{
+  "title": "Interview: the small decisions",
+  "goal": "The Today home screen for the task app: every small decision before I write code",
+  "batch": 4,
+  "confidence": 40,
+  "cards": [
+    {
+      "id": "empty",
+      "section": "Today view",
+      "title": "When nothing is due today, what does Today show?",
+      "left": {
+        "label": "An empty state with a nudge"
+      },
+      "right": {
+        "label": "\"All clear\" and tomorrow's tasks"
+      },
+      "recommended": "right",
+      "reason": "people open the app to plan, not to see nothing",
+      "topic": "Empty day"
+    },
+    {
+      "id": "overdue",
+      "section": "Today view",
+      "title": "Do overdue tasks sit above today's?",
+      "left": {
+        "label": "On top, in red"
+      },
+      "right": {
+        "label": "Mixed in by time"
+      },
+      "recommended": "left",
+      "reason": "overdue is what people miss",
+      "topic": "Overdue"
+    },
+    {
+      "id": "count",
+      "section": "Today view",
+      "title": "Show a counter of today's tasks in the header?",
+      "left": {
+        "label": "\"5 today\" in the header"
+      },
+      "right": {
+        "label": "No counter"
+      },
+      "recommended": "left",
+      "reason": "one glance says how heavy the day is",
+      "topic": "Header"
+    },
+    {
+      "id": "later",
+      "section": "Today view",
+      "title": "Is Later folded by default?",
+      "left": {
+        "label": "Folded"
+      },
+      "right": {
+        "label": "Open"
+      },
+      "recommended": "left",
+      "reason": "keeps the screen about today",
+      "topic": "Later"
+    },
+    {
+      "id": "swipe-done",
+      "section": "Tasks",
+      "title": "Swipe right on a task to finish it?",
+      "left": {
+        "label": "Swipe right finishes it"
+      },
+      "right": {
+        "label": "Only the checkbox"
+      },
+      "recommended": "left",
+      "reason": "the fastest way on a phone",
+      "topic": "Finish"
+    },
+    {
+      "id": "undo",
+      "section": "Tasks",
+      "title": "After finishing a task, offer Undo?",
+      "left": {
+        "label": "For 5 seconds"
+      },
+      "right": {
+        "label": "No undo"
+      },
+      "recommended": "left",
+      "reason": "a mis-swipe shouldn't cost a task",
+      "topic": "Undo"
+    },
+    {
+      "id": "snooze",
+      "section": "Tasks",
+      "title": "Snooze a task to tomorrow with one tap?",
+      "left": {
+        "label": "One tap moves it to tomorrow"
+      },
+      "right": {
+        "label": "Only through the date picker"
+      },
+      "recommended": "left",
+      "topic": "Snooze"
+    },
+    {
+      "id": "subtasks",
+      "section": "Tasks",
+      "title": "Show subtasks on the card?",
+      "left": {
+        "label": "As \"2 of 4\""
+      },
+      "right": {
+        "label": "Hidden until opened"
+      },
+      "recommended": "left",
+      "topic": "Subtasks"
+    },
+    {
+      "id": "time",
+      "section": "Dates",
+      "title": "Can a task have a time, not just a day?",
+      "left": {
+        "label": "Day and time"
+      },
+      "right": {
+        "label": "Day only"
+      },
+      "recommended": "left",
+      "reason": "reminders need a time",
+      "topic": "Time"
+    },
+    {
+      "id": "week",
+      "section": "Dates",
+      "title": "Does the week start on Monday?",
+      "left": {
+        "label": "Monday"
+      },
+      "right": {
+        "label": "Sunday"
+      },
+      "recommended": "left",
+      "reason": "most of our users are in Europe",
+      "topic": "Week"
+    },
+    {
+      "id": "nodate",
+      "section": "Dates",
+      "title": "Where do tasks with no date go?",
+      "left": {
+        "label": "A \"No date\" section"
+      },
+      "right": {
+        "label": "Into Later"
+      },
+      "recommended": "left",
+      "topic": "No date"
+    },
+    {
+      "id": "default",
+      "section": "Reminders",
+      "title": "Default reminder for a task with a time?",
+      "left": {
+        "label": "15 minutes before"
+      },
+      "right": {
+        "label": "None until set"
+      },
+      "recommended": "left",
+      "topic": "Reminder"
+    },
+    {
+      "id": "quiet",
+      "section": "Reminders",
+      "title": "Silence reminders at night?",
+      "left": {
+        "label": "22:00–8:00 by default"
+      },
+      "right": {
+        "label": "Never silence"
+      },
+      "recommended": "left",
+      "topic": "Quiet hours"
+    },
+    {
+      "id": "dark",
+      "section": "Look",
+      "title": "Follow the system dark mode?",
+      "left": {
+        "label": "Follows the system"
+      },
+      "right": {
+        "label": "Always light"
+      },
+      "recommended": "left",
+      "topic": "Dark mode"
+    },
+    {
+      "id": "density",
+      "section": "Look",
+      "title": "How dense is the list?",
+      "left": {
+        "label": "Compact, 12 tasks a screen"
+      },
+      "right": {
+        "label": "Roomy, 7 tasks a screen"
+      },
+      "recommended": "left",
+      "reason": "an active user has 140 tasks",
+      "topic": "Density"
+    },
+    {
+      "id": "motion",
+      "section": "Look",
+      "title": "Animate tasks moving between sections?",
+      "left": {
+        "label": "A short slide"
+      },
+      "right": {
+        "label": "No animation"
+      },
+      "recommended": "left",
+      "topic": "Motion"
+    },
+    {
+      "id": "offline",
+      "section": "Data",
+      "title": "Does the Today view work offline?",
+      "left": {
+        "label": "Yes, from the local copy"
+      },
+      "right": {
+        "label": "Shows a spinner"
+      },
+      "recommended": "left",
+      "reason": "people check it on the subway",
+      "topic": "Offline"
+    },
+    {
+      "id": "sync",
+      "section": "Data",
+      "title": "Sync conflicts: which edit wins?",
+      "left": {
+        "label": "The latest edit"
+      },
+      "right": {
+        "label": "Ask the user"
+      },
+      "recommended": "left",
+      "topic": "Sync"
+    },
+    {
+      "id": "beta",
+      "section": "Release",
+      "title": "Show a \"New\" badge on the screen for a week?",
+      "left": {
+        "label": "A \"New\" badge for a week"
+      },
+      "right": {
+        "label": "No badge"
+      },
+      "recommended": "right",
+      "reason": "the change is obvious on its own",
+      "topic": "Badge"
+    },
+    {
+      "id": "feedback",
+      "section": "Release",
+      "title": "Add a \"How's the new screen?\" prompt?",
+      "left": {
+        "label": "Ask after 3 days of use"
+      },
+      "right": {
+        "label": "Never ask"
+      },
+      "recommended": "left",
+      "topic": "Feedback"
+    },
+    {
+      "id": "old",
+      "section": "Release",
+      "title": "Keep the old list as an option?",
+      "left": {
+        "label": "In settings for a month"
+      },
+      "right": {
+        "label": "Remove it"
+      },
+      "recommended": "left",
+      "reason": "a way back for people who hate change",
+      "topic": "Old list"
+    },
+    {
+      "id": "search",
+      "section": "Tasks",
+      "title": "Search from the Today view?",
+      "left": {
+        "label": "A search field on top"
+      },
+      "right": {
+        "label": "Behind an icon"
+      },
+      "recommended": "right",
+      "reason": "keeps the top for today's tasks",
+      "topic": "Search"
+    },
+    {
+      "id": "widget",
+      "section": "Release",
+      "title": "A home-screen widget in the first version?",
+      "left": {
+        "label": "Today's tasks widget"
+      },
+      "right": {
+        "label": "Later"
+      },
+      "recommended": "right",
+      "reason": "one more surface to test this week",
+      "topic": "Widget"
+    }
+  ]
+}
