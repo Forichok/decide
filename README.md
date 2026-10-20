@@ -1,5 +1,10 @@
 <div align="center">
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.svg">
+  <img src="docs/logo-light.svg" alt="" width="72">
+</picture>
+
 # decide
 
 **Your agent asks on a page. You answer in clicks.**
