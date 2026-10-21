@@ -225,17 +225,17 @@ export function mountSwipe(round, env) {
       const imgs = [...(node.images || []).map((i) => i.src), node.compare?.before?.src, node.compare?.after?.src, ...(node.video || []).filter((v) => v.gif).map((v) => v.src)];
       for (const src of imgs.filter((x) => x && !loaded.has(x))) {
         loaded.add(src);
-        Object.assign(new Image(), { decoding: "async" }).src = src;
+        Object.assign(new Image(), { decoding: "async", referrerPolicy: "no-referrer" }).src = src;
       }
       for (const v of (node.video || []).filter((x) => !x.gif && !loaded.has(x.src))) {
         loaded.add(v.src);
-        const el = Object.assign(document.createElement("video"), { preload: "auto", muted: true, src: v.src });
+        const el = Object.assign(document.createElement("video"), { preload: "auto", muted: true, referrerPolicy: "no-referrer", src: v.src });
         keep.push(el);
         if (keep.length > 6) keep.shift().removeAttribute("src");
       }
       if (node.preview && !loaded.has(node.preview.src)) {
         loaded.add(node.preview.src);
-        document.head.append(h("link", { rel: "prefetch", href: node.preview.src }));
+        document.head.append(h("link", { rel: "prefetch", referrerpolicy: "no-referrer", href: node.preview.src }));
       }
     }
   }
@@ -551,7 +551,7 @@ export function mountSwipe(round, env) {
           "div.modal-actions",
           {},
           h("button.btn.ghost", { type: "button", onclick: () => close() }, t("sw.keepGoing")),
-          deeperBtn(() => close()),
+          !server.digging && deeperBtn(() => close()),
           h("button.btn.primary", { type: "button", "data-autofocus": "", onclick: () => (close(), finish()) }, t("sw.finish")),
         ),
       ),
@@ -561,7 +561,7 @@ export function mountSwipe(round, env) {
 
   // "Dig deeper": the deck stays open and the agent comes back with a stricter round of cards.
   async function dig() {
-    if (finishing || digging) return;
+    if (finishing || digging || server.digging) return;
     digging = true;
     paint();
     try {

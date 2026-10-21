@@ -80,6 +80,11 @@ test("a broken attachment is dropped with a warning", async (context) => {
   );
   assert.deepEqual([m.compare, m.video, m.diff, m.table, m.chart], [null, [], null, null, null]);
   const w = warned();
+  // A non-media file never becomes a served root.
+  const odd = collectMedia({ compare: { before: "a.png", after: "notes.txt" }, video: "id_rsa" }, "q", ctx);
+  assert.deepEqual([odd.compare, odd.video], [null, []]);
+  assert.match(warned(), /notes\.txt: not a picture/);
+  assert.match(warned(), /id_rsa: use mp4, webm or gif — skipped/);
   for (const re of [/missing file .+gone\.png/, /compare needs both/, /video needs src/, /gone\.mp4 — skipped/, /expected \{"before"/, /expected \{"columns"/, /unknown chart type "pie"/, /at least one series/]) assert.match(w, re);
 });
 

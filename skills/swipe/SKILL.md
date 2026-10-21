@@ -237,7 +237,8 @@ had not seen yet, and a request for a stricter round. Answer it with one
 - Rewrite the brief and lower `confidence` if the answers left more open
   than you thought.
 
-The user can dig deeper more than once. Each press comes as its own event.
+The user can dig deeper more than once. Presses made while you were busy
+arrive as one event with all their notes.
 
 ## When to stop
 
