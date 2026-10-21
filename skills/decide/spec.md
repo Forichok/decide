@@ -17,6 +17,7 @@
       "section": "base",
       "title": "Which home screen layout do we go with?",
       "tldr": "This decides what people see first.",
+      "body": "| Screen | Visits a day |\n|---|--:|\n| Today | 4 100 |\n| Inbox | 900 |",
       "what": "…",
       "how": "…",
       "why": "…",
@@ -37,6 +38,7 @@
       "previewHeight": 400,
       "mermaid": "flowchart LR\n A --> B",
       "code": { "text": "- old\n+ new", "diff": true },
+      "chart": { "type": "bar", "labels": ["Mon", "Tue"], "series": [{ "name": "Visits", "values": [4100, 3900] }] },
       "links": [{ "label": "Ticket", "url": "https://…" }],
       "options": [
         {
@@ -80,6 +82,9 @@
   earlier questions; the linter warns otherwise.
 - Markdown in text fields: `**bold**`, `_italic_`, `` `code` ``,
   `[link](https://…)`, lists, paragraphs. Terms from `glossary` get a tooltip.
+- `body` takes more markdown, and stays open: tables (`| a | b |` with a
+  `|---|--:|` separator row; `:` sets the alignment), `> quotes` and `###`
+  headings. Raw HTML is shown as text.
 - Specs from older versions (`image` on options, `note: true`,
   `recommended: true`) still work.
 
@@ -96,7 +101,17 @@ marked up by the user.
 | `preview`            | Path to a self-contained HTML file. Runs in a sandboxed frame with no network; `previewHeight` in px.                                                  |
 | `mermaid`            | Mermaid source; the page renders it and the user can enlarge it                                                                                        |
 | `code`               | `{text, lang?}` or `{text, diff: true}`                                                                                                                |
+| `compare`            | `{before, after, labels?: [a, b]}`; `before` / `after` take a path, a URL or `{src, label}`. Two pictures of the same size work best.                 |
+| `video`              | A path or URL, `{src, caption?, loop?}`, or a list. mp4, webm or gif. Clips up to 20 s loop muted unless `loop: false`.                        |
+| `diff`               | `{before, after, lang?, labels?: [a, b]}`. Changed lines are paired by likeness, with the changed part of each line marked.                             |
+| `table`              | `{columns, rows, caption?}`. Columns are strings or `{id, label}`; rows are arrays or objects keyed by column. Numeric cells align right.              |
+| `chart`              | `{type: "bar" \| "line", labels, series: [{name, values}], unit?, title?}`, or `{series: [1, 2, 3]}` for one unnamed series. `null` is a gap.       |
 | `links`              | `[{label, url}]`                                                                                                                                       |
+
+Limits; lint warns past them: 12 bars, 60 line points, 4 series, unnamed
+series when there are two or more, a 400-line diff, a 20 MB video, 50 table
+rows, 8 table columns. Charts on the options of one question share one y
+scale, so equal bars mean equal values.
 
 Missing local files and failed shots are reported as lint warnings and
 skipped. Viewports: desktop 1440×900, mobile 390×844 at 2×. Set

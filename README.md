@@ -40,7 +40,7 @@ decide moves that exchange to a page built for it.
 |                                | Answering in chat                           | Answering in decide                                                          |
 | ------------------------------ | ------------------------------------------- | ---------------------------------------------------------------------------- |
 | Six questions at once          | A numbered wall; you reply "1b, 2 yes, 3 ?" | One card per question, one click each, or the digits 1–9                     |
-| Seeing what you choose         | Text descriptions                           | Screenshots of your running app, clickable HTML mockups, diagrams, code      |
+| Seeing what you choose         | Text descriptions                           | Screenshots, clickable HTML mockups, before/after sliders, video, diffs, tables, charts |
 | "What does this mean?"         | A new message, and the other answers wait   | Ask under the question; the agent answers right there while you go on       |
 | Questions you don't care about | The agent guesses                           | The recommendation or no answer, you choose; it knows you didn't pick it     |
 | Next week                      | Scroll up and hope                          | Every decision is kept per project, and the agent checks before asking again |
@@ -196,10 +196,89 @@ agent hasn't read yet show in the brief as "Not in the brief yet".
   <img src="docs/screens/swipe-followup-light.webp" alt="A follow-up card, 'Because you answered: Yes, sync later', asks which edit wins when a task changes on two phones offline; the last answer waits in the brief under 'Not in the brief yet'">
 </picture>
 
-Cards can carry the same pictures as a round: screenshots, mockups, diagrams
-and code. When the deck runs low, the agent adds more or tells you it has
-enough. Then it shows you the brief in chat and asks whether to start. The
-decisions go into the project journal, so `/decide history` finds them later.
+### What a card can show
+
+Besides screenshots, mockups, diagrams and code, a card can carry the kinds
+below. The agent puts one thing on the card, or one version on each side.
+The same kinds work in `/decide` rounds: on questions, on options and in the
+agent's replies.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<b>Before and after.</b> Drag the divider across today's screen and the new one.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screens/swipe-compare-dark.webp">
+  <img src="docs/screens/swipe-compare-light.webp" alt="A card asking whether to ship the new pricing page, with today's page and the redesign under one draggable divider">
+</picture>
+</td>
+<td width="50%" valign="top">
+<b>Video.</b> Short clips loop muted, so you see an animation or a gesture without pressing play.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screens/swipe-video-dark.webp">
+  <img src="docs/screens/swipe-video-light.webp" alt="A card asking whether to teach the swipe gesture with a clip, showing the clip above the two answers">
+</picture>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<b>A mockup on each side.</b> Each side's HTML mockup is laid out at phone width and scaled into its tile. The corner button opens it full size.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screens/swipe-previews-dark.webp">
+  <img src="docs/screens/swipe-previews-light.webp" alt="A card asking how dense the task list should be, with a compact and a roomy list mockup as the two answers">
+</picture>
+</td>
+<td width="50%" valign="top">
+<b>Diff.</b> Two versions of code side by side, changed lines paired and the changed part marked. Phones get a unified view.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screens/swipe-diff-dark.webp">
+  <img src="docs/screens/swipe-diff-light.webp" alt="A card asking whether to ship a new date parser, with a side-by-side diff of the old and new parse.js">
+</picture>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<b>Facts and charts.</b> Markdown with a table and a quote under the question, and a chart on each side. Both charts use one scale.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screens/swipe-chart-body-dark.webp">
+  <img src="docs/screens/swipe-chart-body-light.webp" alt="A card asking whether to price Pro at $8 or $12, with a table of test results, a quote, and a revenue bar chart on each side">
+</picture>
+</td>
+<td width="50%" valign="top">
+<b>Line charts.</b> For a trend over time; each line is labelled at its end.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screens/swipe-line-dark.webp">
+  <img src="docs/screens/swipe-line-light.webp" alt="A card asking whether to send the digest daily or weekly, with a line chart of opens per 100 emails for both">
+</picture>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<b>Tables.</b> For a few facts per answer, such as plan limits.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screens/swipe-table-dark.webp">
+  <img src="docs/screens/swipe-table-light.webp" alt="A card asking which free plan to offer, with a table of limits on each side">
+</picture>
+</td>
+<td width="50%" valign="top">
+<b>Dig deeper.</b> At the end, leave a note and ask for a stricter round. The agent comes back with harder questions about what is still open, starting with your note.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screens/swipe-deeper-dark.webp">
+  <img src="docs/screens/swipe-deeper-light.webp" alt="The end of the deck: the agent has no more questions, a note asking to dig into offline sync, and the Dig deeper and Finish buttons">
+</picture>
+</td>
+</tr>
+</table>
+
+Click any chart, table, diff or mockup to open it large; `Esc` closes it.
+Pictures and mockups for the next two cards load ahead, so the deck doesn't
+stall on a heavy card.
+
+When the deck runs low, the agent adds more or tells you it has enough. You
+can then finish, or press Dig deeper with a note on what still feels thin.
+On finish the agent shows you the brief in chat, with your note in it, and
+asks whether to start. The decisions go into the project journal, so
+`/decide history` finds them later.
 
 ## Install
 

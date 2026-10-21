@@ -57,7 +57,7 @@ it the tools can't tell where to keep the journal and screenshots.
      in chat.
    - **A question from the user** about one of the questions: answer it with
      `explain {project, round, question, askId, text}`, optionally with
-     `images`, `mermaid` or `code`, then call `wait` again. The page shows
+     any media kind from [Pictures](#pictures), then call `wait` again. The page shows
      that you are writing, so answer right away.
    - **The answers**: the digest and the path of the answers JSON.
 
@@ -139,6 +139,7 @@ answers") so the user can catch a misunderstanding early.
 | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | The title is a plain question a non-engineer understands. Jargon goes to `glossary`.                                                  | Glossary terms get a tooltip on first use.                        |
 | `tldr`: one line on what depends on the answer. Longer context goes to `what` / `how` / `why` / `goal`, which stay folded.            | The user reads title and tldr, and opens the rest only if needed. |
+| `body`: markdown shown open under the tldr, for the facts the choice rests on: a short table, a quote, a list.                       | Numbers the user must see shouldn't hide behind a fold.           |
 | 2–4 real options. No filler options that exist only to lose.                                                                          | A fake choice is worse than no question.                          |
 | Exactly one option is `recommended`, and the value is the reason: `"recommended": "cheapest to undo"`.                                | Shown as ★ with the reason; can fill questions left unanswered.   |
 | `pros` / `cons`: up to three each, concrete. `metrics` use the same labels on every option of a question; numbers 1–5 render as dots. | Side-by-side comparison only works when the axes match.           |
@@ -162,8 +163,17 @@ Show the thing when the choice is about how something looks or flows.
 | UI variants side by side        | `layout: "compare"` and an `image` or `preview` on each option                                                                           |
 | One new screen or component     | `preview`: a self-contained HTML mockup (inline CSS/JS, no network), clickable, in a sandboxed frame                                     |
 | A flow, rollout or architecture | `mermaid`                                                                                                                                |
-| A code, schema or config change | `code: {text, lang}` or `code: {text, diff: true}`                                                                                       |
+| Today's screen vs. the new one  | `compare: {before, after, labels?}`: one picture over the other with a divider to drag                                                   |
+| Motion: an animation, a gesture | `video`: mp4, webm or gif, under 20 MB. Clips up to 20 s loop muted                                                                      |
+| Two versions of code or text    | `diff: {before, after, lang?, labels?}`: side by side on wide screens, unified on phones. Up to 400 lines                                |
+| A few facts in rows             | `table: {columns, rows, caption?}`: limits, prices, specs. Up to 8 columns and 50 rows                                                   |
+| Numbers across time or groups   | `chart: {type: "bar" \| "line", labels, series: [{name, values}], unit?}`. Up to 12 bars, 4 series; option charts share one y scale |
+| A snippet                       | `code: {text, lang}`                                                                                                                     |
 | Docs, tickets, a live stand     | `links: [{label, url}]`                                                                                                                  |
+
+Pick the lightest kind that settles the question. Every kind works on a
+question, on an option and in an `explain` reply. Lint warns past the limits
+above; the full shapes are in [spec.md](spec.md#media).
 
 The user can draw on any image (marker, frame, arrow) and attach the marked-up
 copy to their answer. Open every file in `attachments`: that is where they
