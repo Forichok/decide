@@ -3,16 +3,21 @@
 // the --chart-N tokens, a legend for two or more series and a <title> on every
 // mark for hover. Pure string output, so the tests can render it in node.
 
-const W = 640;
-const H = 260;
-const PAD = { top: 16, right: 12, bottom: 34, left: 46 };
+// size.small: a swipe side tile. The same marks in a smaller box, so the text,
+// which is sized in box units, stays readable once the SVG is scaled down.
+const SIZES = {
+  full: { W: 640, H: 260, PAD: { top: 16, right: 12, bottom: 34, left: 46 } },
+  small: { W: 300, H: 170, PAD: { top: 24, right: 8, bottom: 26, left: 34 } },
+};
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-export function chartSvg(chart) {
+export function chartSvg(chart, size = "full") {
+  const { W, H, PAD } = SIZES[size] || SIZES.full;
   const { type, labels, series, unit = "" } = chart;
   const all = series.flatMap((s) => s.values).filter((v) => v !== null);
-  const lo = Math.min(0, ...all);
-  const hi = Math.max(0, ...all);
+  const [dlo, dhi] = chart.domain || [0, 0];
+  const lo = Math.min(0, dlo, ...all);
+  const hi = Math.max(0, dhi, ...all);
   const ticks = niceTicks(lo, hi);
   const y0 = ticks[0];
   const y1 = ticks.at(-1);
@@ -28,10 +33,10 @@ export function chartSvg(chart) {
     out.push(`<line class="ch-grid${t === 0 ? " zero" : ""}" x1="${PAD.left}" x2="${W - PAD.right}" y1="${y(t)}" y2="${y(t)}"/>`);
     out.push(`<text class="ch-tick" x="${PAD.left - 8}" y="${y(t) + 4}" text-anchor="end">${esc(fmt(t))}</text>`);
   }
-  const every = Math.ceil(n / 12);
+  const every = Math.ceil(n / (size === "small" ? 6 : 12));
   labels.forEach((l, i) => {
     if (i % every) return;
-    out.push(`<text class="ch-label" x="${PAD.left + band * (i + 0.5)}" y="${H - PAD.bottom + 18}" text-anchor="middle">${esc(clip(l, Math.max(4, Math.floor(band / 7))))}</text>`);
+    out.push(`<text class="ch-label" x="${PAD.left + band * (i + 0.5)}" y="${H - PAD.bottom + 18}" text-anchor="middle">${esc(clip(l, Math.max(4, Math.floor(band / 7) * every)))}</text>`);
   });
 
   if (type === "line") {
@@ -53,7 +58,7 @@ export function chartSvg(chart) {
     const groupW = band * 0.72;
     const barW = Math.max(3, (groupW - gap * (series.length - 1)) / series.length);
     const zero = y(Math.max(y0, Math.min(0, y1)));
-    const labelBars = n * series.length <= 12;
+    const labelBars = n * series.length <= (size === "small" ? 6 : 12);
     series.forEach((s, k) => {
       s.values.forEach((v, i) => {
         if (v === null) return;

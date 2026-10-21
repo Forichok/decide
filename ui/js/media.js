@@ -22,8 +22,8 @@ export function renderMedia(node, ctx, qid, { compact = false, big = false } = {
     node.images?.length && gallery(node.images, ctx, qid),
     node.compare && zoom("compare", compareView(node.compare)),
     node.video?.length && videos(node.video, ctx, qid),
-    node.preview && (compact ? zoom("preview", preview(node.preview, 200)) : preview(node.preview, node.previewHeight)),
-    node.chart && zoom("chart", chartView(node.chart)),
+    node.preview && (compact ? zoom("preview", preview(node.preview, 200, true)) : preview(node.preview, node.previewHeight)),
+    node.chart && zoom("chart", chartView(node.chart, compact)),
     node.table && zoom("table", tableView(node.table)),
     node.diff && zoom("diff", diffView(node.diff, ctx, { unified: compact || narrow() })),
     node.mermaid && diagram(node.mermaid, ctx, qid),
@@ -136,9 +136,9 @@ function videos(list, ctx, qid) {
   );
 }
 
-function chartView(c) {
+function chartView(c, small = false) {
   const legend = c.series.length > 1 && h("div.ch-legend", {}, c.series.map((s, k) => h("span.ch-key", {}, h(`i.s${k + 1}`), s.name)));
-  return h("figure.chart.media-stop", {}, c.title && h("figcaption.ch-title", {}, c.title), legend, h("div.ch-plot", { html: chartSvg(c) }));
+  return h("figure.chart.media-stop", {}, c.title && h("figcaption.ch-title", {}, c.title), legend, h("div.ch-plot", { html: chartSvg(c, small ? "small" : "full") }));
 }
 
 const NUM = /^[-+−]?[\d\s.,]*\d[\d\s.,]*\s*(%|[kKMB]|[$€₽£]|ms|s|x|×)?$/;
@@ -168,12 +168,13 @@ function diffView(d, ctx, { unified }) {
   const { added, removed } = diffStats(rows);
   const grid = h(`table.diff-grid${unified ? ".unified" : ""}`);
   const body = h("tbody");
+  // Element.append writes a null as the text "null", so the parts are filtered.
   grid.append(
-    unified
-      ? null
-      : h("colgroup", {}, h("col.n"), h("col.t"), h("col.n"), h("col.t")),
-    !unified && (d.labels[0] || d.labels[1]) ? h("thead", {}, h("tr", {}, h("th", { colspan: "2" }, d.labels[0] || t("cmp.before")), h("th", { colspan: "2" }, d.labels[1] || t("cmp.after")))) : null,
-    body,
+    ...[
+      unified ? h("colgroup", {}, h("col.n"), h("col.sign"), h("col.t")) : h("colgroup", {}, h("col.n"), h("col.t"), h("col.n"), h("col.t")),
+      !unified && (d.labels[0] || d.labels[1]) ? h("thead", {}, h("tr", {}, h("th", { colspan: "2" }, d.labels[0] || t("cmp.before")), h("th", { colspan: "2" }, d.labels[1] || t("cmp.after")))) : null,
+      body,
+    ].filter(Boolean),
   );
   const line = (r) => (unified ? unifiedRows(r) : [splitRow(r)]);
   for (let i = 0; i < rows.length; ) {
@@ -258,7 +259,11 @@ function gallery(images, ctx, qid) {
 
 export const sameOrigin = (src) => /^(\/(?!\/)|blob:|data:)/.test(src) || String(src).startsWith(location.origin);
 
-function preview(p, height) {
+// fit: a side tile is narrower than any phone, so the page is laid out at phone
+// width and scaled down to the tile instead of reflowing into a column of words.
+const FIT_WIDTH = 390;
+
+function preview(p, height, fit = false) {
   const frame = h("iframe", {
     src: p.src,
     sandbox: "allow-scripts allow-popups",
@@ -266,8 +271,9 @@ function preview(p, height) {
     title: t("preview.title"),
     referrerpolicy: "no-referrer",
   });
-  frame.style.height = `${Math.max(160, Math.min(height, 900))}px`;
-  return h(
+  const px = Math.max(160, Math.min(height, 900));
+  frame.style.height = `${px}px`;
+  const box = h(
     "div.preview.media-stop",
     {},
     h(
@@ -279,6 +285,17 @@ function preview(p, height) {
     ),
     frame,
   );
+  if (fit) {
+    new ResizeObserver(([e]) => {
+      const w = e.contentRect.width;
+      if (!w) return;
+      const z = Math.min(1, w / FIT_WIDTH);
+      frame.style.zoom = z;
+      frame.style.width = `${w / z}px`;
+      frame.style.height = `${px / z}px`;
+    }).observe(box);
+  }
+  return box;
 }
 
 function diagram(src, ctx, qid) {

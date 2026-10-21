@@ -128,7 +128,7 @@ export function mountSwipe(round, env) {
     presence.classList.toggle("live", listening);
     presence.classList.toggle("away", !listening);
     presence.textContent = t(listening ? "sw.live" : "sw.away");
-    status.replaceChildren(...(server.thinking ? [h("span.sw-think", {}, h("span.sw-dots", {}, h("i"), h("i"), h("i")), t("sw.thinking"))] : []));
+    status.replaceChildren(...(server.thinking && listening ? [h("span.sw-think", {}, h("span.sw-dots", {}, h("i"), h("i"), h("i")), t("sw.thinking"))] : []));
   }
 
   function paintBrief(a) {
@@ -258,7 +258,7 @@ export function mountSwipe(round, env) {
       );
     }
     if (server.digging || digging) {
-      return h("div.sw-end", {}, h("div.sw-spinner"), h("h2", {}, t("sw.digTitle")), h("p", {}, t(listening ? "sw.digSub" : "sw.emptyAway")));
+      return h("div.sw-end", {}, h("div.sw-spinner"), h("h2", {}, t(listening ? "sw.digTitle" : "sw.digQueued")), h("p", {}, t(listening ? "sw.digSub" : "sw.digQueuedSub")));
     }
     if (server.thinking) {
       return h("div.sw-end", {}, h("div.sw-spinner"), h("h2", {}, t("sw.waitTitle")), h("p", {}, t("sw.waitSub")));

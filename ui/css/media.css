@@ -165,7 +165,8 @@ table.data tbody tr:hover td { background: var(--surface-2); }
 .diff-grid.unified td.sign { width: 16px; padding: 0 2px; text-align: center; color: var(--tx-dim); user-select: none; }
 .diff-grid.unified tr.del td.sign { color: var(--danger); }
 .diff-grid.unified tr.add td.sign { color: var(--ok); }
-.diff-grid.unified td.n { width: 34px; }
+.diff-grid.unified td.n, .diff-grid.unified col.n { width: 34px; }
+.diff-grid.unified col.sign { width: 16px; }
 .diff-grid tr.fold td { padding: 2px 8px; background: var(--info-soft); }
 .diff-grid tr.fold button { border: 0; background: none; color: var(--info); font: 600 11.5px/1.6 var(--font); cursor: pointer; padding: 0; }
 
@@ -185,3 +186,11 @@ table.data tbody tr:hover td { background: var(--surface-2); }
 .media.compact .diagram { padding: 8px; }
 .zoom-top { display: flex; justify-content: flex-end; margin: -6px -6px 6px 0; }
 .q-text { font-size: 14.5px; line-height: 1.55; color: var(--tx); }
+.media.compact .preview-bar { padding: 5px 8px; min-height: 30px; box-sizing: border-box; }
+.media.compact .preview-bar > span:not(.dots3), .media.compact .preview-open { display: none; }
+.media.compact .preview.has-zoom > .media-zoom { top: 3px; right: 4px; width: 24px; height: 24px; }
+/* mermaid could not load: the source shows as code, without a second frame around it */
+.diagram:has(> .code) { padding: 0; border: 0; background: none; text-align: left; }
+/* in a side tile the zoom button gets its own strip above the plot, off the value labels */
+.media.compact .chart.has-zoom { padding-top: 30px; }
+.media.compact .chart.has-zoom > .media-zoom { top: 4px; right: 4px; width: 24px; height: 24px; }

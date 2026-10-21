@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="-apple-system,Segoe UI,Helvetica,sans-serif">
+<rect width="720" height="420" fill="#fbfaf8"/>
+<text x="360" y="58" text-anchor="middle" font-size="24" font-weight="700" fill="#1d1b1a">Pick a plan</text>
+<text x="360" y="84" text-anchor="middle" font-size="13" fill="#8b847c">Billed monthly</text>
+<rect x="48" y="112" width="192" height="270" rx="18" fill="#fff" stroke="#e7e2dc" stroke-width="1"/>
+<text x="68" y="152" font-size="15" font-weight="650" fill="#1d1b1a">Free</text>
+<text x="68" y="198" font-size="34" font-weight="750" fill="#1d1b1a">$0<tspan font-size="13" font-weight="500" fill="#8b847c"> /mo</tspan></text>
+<circle cx="72" cy="236" r="4" fill="#3fa877"/><text x="84" y="240" font-size="13" fill="#4a4540">1 board</text>
+<circle cx="72" cy="264" r="4" fill="#3fa877"/><text x="84" y="268" font-size="13" fill="#4a4540">3 members</text>
+<circle cx="72" cy="292" r="4" fill="#3fa877"/><text x="84" y="296" font-size="13" fill="#4a4540">7-day history</text>
+<rect x="68" y="326" width="152" height="38" rx="10" fill="#efebe6"/><text x="144" y="350" text-anchor="middle" font-size="13.5" font-weight="650" fill="#1d1b1a">Choose</text>
+<rect x="264" y="112" width="192" height="270" rx="18" fill="#fff" stroke="#e7e2dc" stroke-width="1"/>
+<text x="284" y="152" font-size="15" font-weight="650" fill="#1d1b1a">Pro</text>
+<text x="284" y="198" font-size="34" font-weight="750" fill="#1d1b1a">$8<tspan font-size="13" font-weight="500" fill="#8b847c"> /mo</tspan></text>
+<circle cx="288" cy="236" r="4" fill="#3fa877"/><text x="300" y="240" font-size="13" fill="#4a4540">Unlimited boards</text>
+<circle cx="288" cy="264" r="4" fill="#3fa877"/><text x="300" y="268" font-size="13" fill="#4a4540">Reminders</text>
+<circle cx="288" cy="292" r="4" fill="#3fa877"/><text x="300" y="296" font-size="13" fill="#4a4540">Calendar sync</text>
+<rect x="284" y="326" width="152" height="38" rx="10" fill="#efebe6"/><text x="360" y="350" text-anchor="middle" font-size="13.5" font-weight="650" fill="#1d1b1a">Choose</text>
+<rect x="480" y="112" width="192" height="270" rx="18" fill="#fff" stroke="#e7e2dc" stroke-width="1"/>
+<text x="500" y="152" font-size="15" font-weight="650" fill="#1d1b1a">Team</text>
+<text x="500" y="198" font-size="34" font-weight="750" fill="#1d1b1a">$20<tspan font-size="13" font-weight="500" fill="#8b847c"> /mo</tspan></text>
+<circle cx="504" cy="236" r="4" fill="#3fa877"/><text x="516" y="240" font-size="13" fill="#4a4540">Shared spaces</text>
+<circle cx="504" cy="264" r="4" fill="#3fa877"/><text x="516" y="268" font-size="13" fill="#4a4540">Roles</text>
+<circle cx="504" cy="292" r="4" fill="#3fa877"/><text x="516" y="296" font-size="13" fill="#4a4540">Audit log</text>
+<rect x="500" y="326" width="152" height="38" rx="10" fill="#efebe6"/><text x="576" y="350" text-anchor="middle" font-size="13.5" font-weight="650" fill="#1d1b1a">Choose</text>
+</svg>

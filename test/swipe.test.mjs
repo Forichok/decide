@@ -230,3 +230,49 @@ test("MCP: swipe → batches → push → finish", async (context) => {
   assert.match(text(await call("history", { project: dir, query: "worms" })), /Акулы ходят по суше/);
   assert.equal((await call("push", { project: dir, round, done: true })).isError, true, "push after the end is refused");
 });
+
+test("MCP: dig deeper reopens the deck; the closing note reaches the result and the brief", async (context) => {
+  const dir = await scratchDir(context);
+  const child = spawn(process.execPath, [path.join(pluginDir, "mcp.mjs")], { cwd: pluginDir, env: envOf(dir, { CLAUDE_PROJECT_DIR: "" }), stdio: ["pipe", "pipe", "pipe"] });
+  context.after(() => child.kill());
+  const rpc = rpcClient(child);
+  const call = async (name, args) => (await rpc("tools/call", { name, arguments: args })).result;
+  const text = (result) => result.content.map((c) => c.text).join("\n");
+  const post = (url, route, body) => fetch(`${url}${route}`, { method: "POST", headers: WRITE, body: JSON.stringify(body) });
+
+  const opened = text(await call("swipe", { project: dir, spec: { ...deckRaw, batch: 5 }, open: false }));
+  const [, round, url] = opened.match(/Swipe round (\S+) .+: (http:\/\/127\.0\.0\.1:\d+\/)/);
+  const view = async () => (await fetch(`${url}api/rounds/${round}`)).json();
+  await post(url, `api/rounds/${round}/swipe`, { card: "turns", side: "left" });
+  await call("push", { project: dir, round, done: true, confidence: 70 });
+  assert.equal((await view()).spec.done, true);
+
+  // Pressed while nobody waits: queued, and the answer the agent hadn't seen rides along.
+  assert.equal((await post(url, `api/rounds/${round}/deeper`, { note: "Копни в монетизацию" })).status, 200);
+  const v = await view();
+  assert.deepEqual([v.spec.done, v.swipe.digging, v.swipe.thinking, v.swipe.deeper], [false, true, true, 1], "the deck reopens at once");
+  const dug = text(await call("wait", { project: dir, round, timeoutSec: 5 }));
+  assert.match(dug, /asked to dig deeper in swipe round .+ \(time 1\): 1 answered so far, 2 open cards left/);
+  assert.match(dug, /> Копни в монетизацию/);
+  assert.match(dug, /\[turns\] Ходы по очереди\? → turns-L \(left\) ★/);
+  assert.match(dug, /Push a stricter round now/);
+  assert.match(text(await call("wait", { project: dir, round, timeoutSec: 1 })), /Still waiting/, "one event per press");
+
+  // Pressed while the agent waits: delivered at once.
+  const waiting = call("wait", { project: dir, round, timeoutSec: 10 });
+  await post(url, `api/rounds/${round}/deeper`, {});
+  assert.match(text(await waiting), /\(time 2\)/);
+  await call("push", { project: dir, round, add: [card("price", "Платная игра?")], position: "next", confidence: 50 });
+  const after = await view();
+  assert.deepEqual([after.swipe.digging, after.swipe.thinking, after.spec.cards.map((c) => c.id)], [false, false, ["turns", "land", "price", "online"]]);
+
+  await post(url, `api/rounds/${round}/submit`, { note: "Дедлайн — март.\nБез рекламы." });
+  const done = text(await call("wait", { project: dir, round, timeoutSec: 5 }));
+  assert.match(done, /The user's closing note:\n> Дедлайн — март\.\n> Без рекламы\./);
+  const json = JSON.parse(await readFile(done.match(/Full JSON: (.+)/)[1], "utf8"));
+  assert.equal(json.note, "Дедлайн — март.\nБез рекламы.");
+  assert.deepEqual(json.deeper, { rounds: 2, notes: ["Копни в монетизацию"] });
+  const md = await readFile(done.match(/Brief \(markdown\): (.+)/)[1], "utf8");
+  assert.match(md, /## Заметка пользователя\n\n> Дедлайн — март\.\n> Без рекламы\./);
+  assert.equal((await post(url, `api/rounds/${round}/deeper`, {})).status, 409, "no digging after the end");
+});

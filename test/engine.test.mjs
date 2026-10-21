@@ -171,7 +171,7 @@ test("second round reuses the session daemon and keeps drafts and attachments", 
   assert.match(saved.digest, /\[second\]/);
 });
 
-test("--lint rejects a broken spec and passes both showcases", async (context) => {
+test("--lint rejects a broken spec and passes both showcases and the swipe demo deck", async (context) => {
   const scratch = await scratchDir(context);
   const bad = path.join(scratch, "bad.json");
   await writeFile(bad, JSON.stringify({ questions: [spec().questions[0], spec().questions[0]] }));
@@ -180,7 +180,8 @@ test("--lint rejects a broken spec and passes both showcases", async (context) =
   assert.match(badOut.stdout + badOut.stderr, /duplicate question id "delivery"/);
 
   const showcaseRu = showcasePath.replace(".questions.json", ".ru.questions.json");
-  for (const file of [showcasePath, showcaseRu]) {
+  const swipeDeck = path.join(path.dirname(showcasePath), "swipe.deck.json");
+  for (const file of [showcasePath, showcaseRu, swipeDeck]) {
     const { child: goodRun, output: goodOut } = runEngine(context, scratch, ["--lint", file]);
     assert.equal(await exitOf(goodRun), 0, goodOut.stdout + goodOut.stderr);
     assert.doesNotMatch(goodOut.stdout, /warn/i, `${path.basename(file)} must be a lint-clean reference spec`);

@@ -70,13 +70,66 @@ function pair(ops, a, b) {
       else adds.push(ops[k][2]);
       k++;
     }
-    for (let x = 0; x < Math.max(dels.length, adds.length); x++) {
-      const i = dels[x] ?? null;
-      const j = adds[x] ?? null;
-      rows.push(row(i != null && j != null ? "mod" : i != null ? "del" : "add", i, j));
-    }
+    for (const [i, j] of alignRun(dels, adds, a, b)) rows.push(row(i != null && j != null ? "mod" : i != null ? "del" : "add", i, j));
   }
   return rows;
+}
+
+// Pairs inside a changed run: each deleted line goes next to the added line it
+// most resembles, in order, so one inserted line does not shift every pair
+// after it. A run too big to align, or with nothing alike, pairs by position.
+const ALIGN_CELLS = 2500;
+const ALIKE = 0.4;
+
+function alignRun(dels, adds, a, b) {
+  const byPosition = () => Array.from({ length: Math.max(dels.length, adds.length) }, (_, x) => [dels[x] ?? null, adds[x] ?? null]);
+  const n = dels.length;
+  const m = adds.length;
+  if (!n || !m || n * m > ALIGN_CELLS || (n === 1 && m === 1)) return byPosition();
+  const w = m + 1;
+  const score = new Float64Array((n + 1) * w);
+  const sims = new Float64Array(n * m);
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      const sim = similarity(a[dels[i - 1]], b[adds[j - 1]]);
+      sims[(i - 1) * m + j - 1] = sim;
+      const diag = sim >= ALIKE ? score[(i - 1) * w + j - 1] + sim : -1;
+      score[i * w + j] = Math.max(score[(i - 1) * w + j], score[i * w + j - 1], diag);
+    }
+  }
+  if (!score[n * w + m]) return byPosition();
+  const pairs = [];
+  let i = n;
+  let j = m;
+  while (i && j) {
+    const sim = sims[(i - 1) * m + j - 1];
+    if (sim >= ALIKE && score[i * w + j] === score[(i - 1) * w + j - 1] + sim) {
+      pairs.push([i - 1, j - 1]);
+      i--;
+      j--;
+    } else if (score[i * w + j] === score[(i - 1) * w + j]) i--;
+    else j--;
+  }
+  pairs.reverse();
+  const out = [];
+  let di = 0;
+  let aj = 0;
+  for (const [pi, pj] of [...pairs, [n, m]]) {
+    while (di < pi) out.push([dels[di++], null]);
+    while (aj < pj) out.push([null, adds[aj++]]);
+    if (pi < n) out.push([dels[di++], adds[aj++]]);
+  }
+  return out;
+}
+
+// Shared head and tail as a share of the longer line, ignoring indentation.
+function similarity(x, y) {
+  x = x.trim();
+  y = y.trim();
+  const len = Math.max(x.length, y.length);
+  if (!len) return 1;
+  const { left } = inlineSpan(x, y);
+  return (left[0].length + left[2].length) / len;
 }
 
 // The changed span inside a modified line: [prefix, changed, suffix] of each side.

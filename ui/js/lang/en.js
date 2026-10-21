@@ -269,4 +269,6 @@ export default {
   "sw.deeperSent": "The agent is preparing harder questions",
   "sw.digTitle": "The agent is digging deeper",
   "sw.digSub": "It's looking for weak spots in your answers. New cards appear here on their own.",
+  "sw.digQueued": "Dig deeper is waiting for the agent",
+  "sw.digQueuedSub": "The agent stepped away. It gets your request and the note when it's back, and new cards appear here.",
 };
