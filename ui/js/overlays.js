@@ -44,6 +44,15 @@ export function openModal(content, { wide = false, onClose } = {}) {
   return close;
 }
 
+// A visual opened large from its zoom button (a swipe side tile, a chart, a diff).
+export function openZoom(content) {
+  const close = openModal(
+    h("div.media-zoom-box", {}, h("div.zoom-top", {}, h("button.icon-btn", { type: "button", "aria-label": t("lb.close"), html: icon("x"), onclick: () => close() })), content),
+    { wide: true },
+  );
+  return close;
+}
+
 export const modalOpen = () => Boolean(closeCurrent) || !$("#lightbox").hidden;
 
 // onAnnotate(file): enables the mark-up button; annotate: open straight in drawing mode.

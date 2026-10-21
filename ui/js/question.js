@@ -58,7 +58,7 @@ export function renderQuestion(q, index, ctx) {
     });
     card.append(toggle, grid);
   }
-  const body = h("div.q-body", {}, renderMedia(q, ctx, q.id), renderInput(q, ctx), renderThread(q, ctx), renderExtras(q, ctx));
+  const body = h("div.q-body", {}, q.body && h("div.q-text.rich", { html: md(q.body, g) }), renderMedia(q, ctx, q.id), renderInput(q, ctx), renderThread(q, ctx), renderExtras(q, ctx));
   card.append(body, renderActions(q, ctx));
   syncQuestion(card, q, ctx);
   return card;

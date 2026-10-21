@@ -40,6 +40,9 @@ export function saveDraft(id, draft) {
 export const swipeCard = (id, body) =>
   fetch(`/api/rounds/${id}/swipe`, { method: "POST", headers: WRITE, body: JSON.stringify(body) }).then(json);
 
+export const digDeeper = (id, note) =>
+  fetch(`/api/rounds/${id}/deeper`, { method: "POST", headers: WRITE, body: JSON.stringify({ note }) }).then(json);
+
 export const askAgent = (id, question, text) =>
   fetch(`/api/rounds/${id}/ask`, { method: "POST", headers: WRITE, body: JSON.stringify({ question, text }) }).then(json);
 

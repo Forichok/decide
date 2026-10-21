@@ -186,6 +186,10 @@ export default {
   "code.copy": "Copy",
   "code.copied": "Copied",
   "code.diff": "changes",
+  "cmp.before": "Before",
+  "cmp.after": "After",
+  "cmp.slider": "Drag to compare before and after",
+  "diff.fold": (n) => `⋯ ${n} unchanged line${n === 1 ? "" : "s"}`,
   "code.code": "code",
 
   "dlg.you": "You asked",
@@ -257,4 +261,12 @@ export default {
   "sw.helpUndo": "take the last answer back",
   "sw.helpEnough": "stop and build the brief",
   "sw.helpTouch": "On a phone: swipe the card left, right or up.",
+  "sw.note": "Add a note",
+  "sw.notePlaceholder": "Anything the cards missed: a constraint, a deadline, what matters most. The agent gets it with the brief",
+  "sw.noteHint": "Goes into the brief. With “Dig deeper” it tells the agent where to dig",
+  "sw.deeper": "Dig deeper",
+  "sw.deeperTitle": "The agent comes back with a stricter round of questions",
+  "sw.deeperSent": "The agent is preparing harder questions",
+  "sw.digTitle": "The agent is digging deeper",
+  "sw.digSub": "It's looking for weak spots in your answers. New cards appear here on their own.",
 };

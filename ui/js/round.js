@@ -8,7 +8,7 @@ import { renderQuestion, syncQuestion } from "./question.js";
 import { noteArea, paintFiles } from "./extras.js";
 import { credit, renderHeader } from "./header.js";
 import { renderToc, syncToc, trackCurrent } from "./nav.js";
-import { openLightbox, toast } from "./overlays.js";
+import { openLightbox, openZoom, toast } from "./overlays.js";
 import { emptyAnswer, isResolved, isVisible, progress, withRecommendation } from "./logic.js";
 import { askAgent, saveDraft, uploadFile } from "./net.js";
 
@@ -126,6 +126,7 @@ export function mountRound(round, env) {
       }
     },
     lightbox: (images, i, qid, opts = {}) => openLightbox(images, i, { ...opts, onAnnotate: (file) => ctx.attach(qid || null, file) }),
+    zoom: openZoom,
     toast,
     shake(qid) {
       const c = card(qid);

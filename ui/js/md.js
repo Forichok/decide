@@ -1,5 +1,6 @@
 // md.js — tiny, safe markdown-lite: **bold**, _italic_, `code`, [text](https://…),
-// "- " / "1. " lists, blank-line paragraphs; glossary terms become tooltips.
+// "- " / "1. " lists, "### " headings, "> " quotes, pipe tables, blank-line
+// paragraphs; glossary terms become tooltips.
 // Input is escaped first, so spec text can never inject markup.
 
 const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
@@ -51,7 +52,13 @@ function markTerms(html, glossary) {
     .join("");
 }
 
+// Block layout of already-escaped text: paragraphs, "- " / "1. " lists,
+// "### " headings, "> " quotes (escaped to "&gt; ") and pipe tables.
+const TABLE_SEP = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+const cells = (line) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+
 function blocks(s) {
+  const lines = s.split("\n");
   const out = [];
   let para = [];
   let items = null;
@@ -63,7 +70,38 @@ function blocks(s) {
     items = null;
     tag = null;
   };
-  for (const line of s.split("\n")) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.includes("|") && TABLE_SEP.test(lines[i + 1] || "") && lines[i + 1].includes("|")) {
+      flush();
+      const head = cells(line);
+      const align = cells(lines[i + 1]).map((c) => (/^:-+:$/.test(c) ? "center" : /-:$/.test(c) ? "right" : ""));
+      const rows = [];
+      for (i += 2; i < lines.length && lines[i].includes("|") && lines[i].trim(); i++) rows.push(cells(lines[i]));
+      i -= 1;
+      const td = (tagName, c, j) => `<${tagName}${align[j] ? ` style="text-align:${align[j]}"` : ""}>${c}</${tagName}>`;
+      out.push(
+        `<div class="md-table"><table><thead><tr>${head.map((c, j) => td("th", c, j)).join("")}</tr></thead><tbody>${rows
+          .map((r) => `<tr>${head.map((_, j) => td("td", r[j] ?? "", j)).join("")}</tr>`)
+          .join("")}</tbody></table></div>`,
+      );
+      continue;
+    }
+    if (/^\s*&gt;( |$)/.test(line)) {
+      flush();
+      const quoted = [];
+      for (; i < lines.length && /^\s*&gt;( |$)/.test(lines[i]); i++) quoted.push(lines[i].replace(/^\s*&gt; ?/, ""));
+      i -= 1;
+      out.push(`<blockquote>${blocks(quoted.join("\n"))}</blockquote>`);
+      continue;
+    }
+    const head = line.match(/^\s*(#{1,4})\s+(.+)$/);
+    if (head) {
+      flush();
+      const level = head[1].length === 4 ? 4 : 3;
+      out.push(`<h${level}>${head[2]}</h${level}>`);
+      continue;
+    }
     const m = line.match(/^\s*(?:[-•*]|(\d+)[.)])\s+(.*)$/);
     if (m) {
       const t = m[1] ? "ol" : "ul";

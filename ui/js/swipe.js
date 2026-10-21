@@ -1,7 +1,8 @@
 // swipe.js — the swipe interview on screen: the deck in the middle (← → pick a
 // side, ↑ skips, ↓ asks the agent to explain, Enter types an own answer,
 // Backspace takes the last answer back), the brief the agent keeps rewriting on the left, and its confidence
-// on top. Answers go out one by one; the agent's pushes come back as "deck".
+// on top. Answers go out one by one; the agent's pushes come back as "deck". Each side tile shows its
+// own media; at the end the user can leave a closing note or ask the agent to dig deeper.
 
 import { h, icon, $ } from "./dom.js";
 import { t } from "./i18n.js";
@@ -9,14 +10,15 @@ import { md } from "./md.js";
 import { renderMedia } from "./media.js";
 import { eyebrow } from "./header.js";
 import { hideBar } from "./round.js";
-import { modalOpen, openLightbox, openModal, toast } from "./overlays.js";
-import { askAgent, submitRound, swipeCard } from "./net.js";
+import { modalOpen, openLightbox, openModal, openZoom, toast } from "./overlays.js";
+import { askAgent, digDeeper, submitRound, swipeCard } from "./net.js";
 
 const KINDS = ["decision", "risk", "problem", "open", "note"];
 const KIND_ICON = { decision: "check", risk: "alert", problem: "x", open: "help", note: "note" };
 const FLY_MS = 320;
 const DRAG_PICK = 110;
 const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+const PRELOAD = 2; // cards behind the front one whose media loads ahead
 
 export function mountSwipe(round, env) {
   let deck = round.spec;
@@ -38,9 +40,13 @@ export function mountSwipe(round, env) {
   const shownBrief = new Set();
   let firstPaint = true;
   let frontSig = null; // the front card is rebuilt only when what it shows changes
+  let endSig = null; // the same for the end-of-deck card
   let askDraft = "";
   let arrived = new Set(); // cards the agent just added: they slide into the stack
   let deltaTimer = null;
+  let note = ""; // the closing note, shared by the done screen and the "Enough" dialog
+  let digging = false; // a "Dig deeper" request is on its way
+  const media = { toast, lightbox: (images, i) => openLightbox(images, i), zoom: openZoom };
 
   const answers = () => {
     const out = { ...server.answers };
@@ -183,8 +189,13 @@ export function mountSwipe(round, env) {
     foot.replaceChildren(...(deck.done && !top ? [] : [stopBtn]));
     if (!top) {
       frontSig = null;
+      // Rebuilt only when what it says changes: the note box keeps focus and caret while the user types.
+      const sig = JSON.stringify([deck.done, server.digging || digging, server.thinking, listening, deck.confidence]);
+      if (sig === endSig && $(".sw-end", stack)) return;
+      endSig = sig;
       return stack.replaceChildren(endCard());
     }
+    endSig = null;
     const back = q.slice(1, 3).map((c, i) => h(`div.sw-card.back.b${i + 1}${arrived.has(c.id) ? ".arrive" : ""}`, { "aria-hidden": "true" }, h("div.sw-q", {}, c.title)));
     const sig = JSON.stringify([top, dialog.filter((d) => d.qid === top.id), asking === top.id, writing === top.id, deck.glossary]);
     const old = $(".sw-card.front", stack);
@@ -203,6 +214,30 @@ export function mountSwipe(round, env) {
       arrived = new Set(); // slide in once, not on every repaint
     }
     stack.replaceChildren(...back.reverse(), front);
+    preload(q.slice(1, 1 + PRELOAD));
+  }
+
+  // The next cards' pictures and clips load while the user reads the front one.
+  const loaded = new Set();
+  const keep = []; // video elements stay referenced, or the browser drops the download
+  function preload(cards) {
+    for (const node of cards.flatMap((c) => [c, c.left, c.right])) {
+      const imgs = [...(node.images || []).map((i) => i.src), node.compare?.before?.src, node.compare?.after?.src, ...(node.video || []).filter((v) => v.gif).map((v) => v.src)];
+      for (const src of imgs.filter((x) => x && !loaded.has(x))) {
+        loaded.add(src);
+        Object.assign(new Image(), { decoding: "async" }).src = src;
+      }
+      for (const v of (node.video || []).filter((x) => !x.gif && !loaded.has(x.src))) {
+        loaded.add(v.src);
+        const el = Object.assign(document.createElement("video"), { preload: "auto", muted: true, src: v.src });
+        keep.push(el);
+        if (keep.length > 6) keep.shift().removeAttribute("src");
+      }
+      if (node.preview && !loaded.has(node.preview.src)) {
+        loaded.add(node.preview.src);
+        document.head.append(h("link", { rel: "prefetch", href: node.preview.src }));
+      }
+    }
   }
 
   function endCard() {
@@ -213,8 +248,17 @@ export function mountSwipe(round, env) {
         h("div.ring", { html: icon("check") }),
         h("h2", {}, t("sw.doneTitle")),
         h("p", {}, t("sw.doneSub", deck.confidence)),
-        h("button.btn.primary", { type: "button", "data-autofocus": "", onclick: () => finish(), html: `${t("sw.finish")}<kbd>↵</kbd>` }),
+        noteBox(),
+        h(
+          "div.sw-end-actions",
+          {},
+          deeperBtn(),
+          h("button.btn.primary", { type: "button", "data-autofocus": "", onclick: () => finish(), html: `${t("sw.finish")}<kbd>↵</kbd>` }),
+        ),
       );
+    }
+    if (server.digging || digging) {
+      return h("div.sw-end", {}, h("div.sw-spinner"), h("h2", {}, t("sw.digTitle")), h("p", {}, t(listening ? "sw.digSub" : "sw.emptyAway")));
     }
     if (server.thinking) {
       return h("div.sw-end", {}, h("div.sw-spinner"), h("h2", {}, t("sw.waitTitle")), h("p", {}, t("sw.waitSub")));
@@ -229,8 +273,18 @@ export function mountSwipe(round, env) {
     );
   }
 
+  // The closing note: free text that goes into the result and the brief, or with "Dig deeper" tells the agent where to dig.
+  function noteBox() {
+    const input = h("textarea.sw-ask-input.sw-note-input", { rows: 2, maxlength: 4000, placeholder: t("sw.notePlaceholder"), "aria-label": t("sw.note"), oninput: () => (note = input.value) });
+    input.value = note;
+    return h("label.sw-note", {}, h("span.sw-note-label", { html: `${icon("note")}${t("sw.note")}` }), input, h("span.sw-ask-hint", {}, t("sw.noteHint")));
+  }
+
+  const deeperBtn = (after) =>
+    h("button.btn.ghost.sw-deeper", { type: "button", title: t("sw.deeperTitle"), onclick: () => (after?.(), dig()), html: `${icon("spark")}${t("sw.deeper")}` });
+
   function frontCard(c) {
-    const ctx = { toast, lightbox: (images, i) => openLightbox(images, i) };
+    const ctx = media;
     const replies = dialog.filter((d) => d.qid === c.id);
     const waitingReply = replies.some((d) => !d.reply);
     const card = h(
@@ -249,11 +303,12 @@ export function mountSwipe(round, env) {
       fromLine(c),
       h("h2.sw-q", { html: md(c.title, deck.glossary).replace(/^<p>|<\/p>$/g, "") }),
       c.tldr && h("div.sw-tldr.rich", { html: md(c.tldr, deck.glossary) }),
+      c.body && h("div.sw-body.rich", { html: md(c.body, deck.glossary) }),
       renderMedia(c, ctx, c.id),
       replies.filter((d) => d.reply).map((d) => explainBox(d)),
       waitingReply && h("div.sw-explain.wait", {}, h("span.sw-dots", {}, h("i"), h("i"), h("i")), t("sw.explaining")),
       asking === c.id && askBox(c),
-      h("div.sw-sides", {}, sideBtn(c, "left"), sideBtn(c, "right")),
+      h("div.sw-sides", {}, sideTile(c, "left"), sideTile(c, "right")),
       writing === c.id
         ? ownBox(c)
         : h("button.sw-own", { type: "button", onclick: () => openOwn() }, h("span", { html: icon("note") }), h("span", {}, t("sw.own")), h("kbd", {}, "↵")),
@@ -292,16 +347,23 @@ export function mountSwipe(round, env) {
     deltaTimer = setTimeout(() => (delta.hidden = true), 4000);
   }
 
-  function sideBtn(c, side) {
+  // A side tile: the pick button on top, the side's own media below it. A click on the tile picks
+  // the side; a click on its media zooms or plays it instead.
+  function sideTile(c, side) {
     const s = c[side];
     const rec = c.recommended === side;
+    const shown = renderMedia(s, media, c.id, { compact: true });
     return h(
-      `button.sw-side.${side}${rec ? ".rec" : ""}`,
-      { type: "button", onclick: () => answer(side) },
-      h("span.sw-side-key", {}, side === "left" ? "←" : "→"),
-      h("span.sw-side-label", {}, s.label),
-      s.detail && h("span.sw-side-detail", { html: md(s.detail, deck.glossary).replace(/^<p>|<\/p>$/g, "") }),
-      s.images?.[0] && h("img.sw-side-img", { src: s.images[0].src, alt: s.images[0].caption || "", loading: "lazy" }),
+      `div.sw-side.${side}${rec ? ".rec" : ""}${shown ? ".with-media" : ""}`,
+      { onclick: (e) => !e.target.closest(".media-stop, a, button, video") && answer(side) },
+      h(
+        "button.sw-side-pick",
+        { type: "button", onclick: () => answer(side) },
+        h("span.sw-side-key", {}, side === "left" ? "←" : "→"),
+        h("span.sw-side-label", {}, s.label),
+        s.detail && h("span.sw-side-detail.rich", { html: md(s.detail, deck.glossary).replace(/^<p>|<\/p>$/g, "") }),
+      ),
+      shown,
       rec && h("span.sw-side-rec", { title: c.reason || t("sw.rec"), html: icon("star") }),
     );
   }
@@ -313,7 +375,7 @@ export function mountSwipe(round, env) {
       {},
       d.ask && h("div.sw-explain-q", {}, d.ask),
       h("div.rich", { html: md(r.text, deck.glossary) }),
-      renderMedia({ images: r.images || [], mermaid: r.mermaid, code: r.code, links: r.links || [] }, { toast, lightbox: (images, i) => openLightbox(images, i) }, d.qid),
+      renderMedia(r, media, d.qid),
     );
   }
 
@@ -484,21 +546,40 @@ export function mountSwipe(round, env) {
         {},
         h("h2.modal-title", {}, t("sw.finishTitle")),
         h("p", {}, t("sw.finishSub", n, queue().length)),
+        noteBox(),
         h(
           "div.modal-actions",
           {},
           h("button.btn.ghost", { type: "button", onclick: () => close() }, t("sw.keepGoing")),
+          deeperBtn(() => close()),
           h("button.btn.primary", { type: "button", "data-autofocus": "", onclick: () => (close(), finish()) }, t("sw.finish")),
         ),
       ),
+      { wide: true },
     );
+  }
+
+  // "Dig deeper": the deck stays open and the agent comes back with a stricter round of cards.
+  async function dig() {
+    if (finishing || digging) return;
+    digging = true;
+    paint();
+    try {
+      await digDeeper(round.id, note.trim());
+      note = "";
+      toast(t("sw.deeperSent"));
+    } catch (e) {
+      toast(t(e.status === 409 ? "sw.closed" : "sw.offline"));
+    }
+    digging = false;
+    paint();
   }
 
   async function finish() {
     if (finishing) return;
     finishing = true;
     try {
-      const res = await submitRound(round.id, {});
+      const res = await submitRound(round.id, note.trim() ? { note: note.trim() } : {});
       env.finished(round.id, res.result);
     } catch (e) {
       finishing = false;

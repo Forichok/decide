@@ -36,12 +36,12 @@ const TOOLS = [
   {
     name: "swipe",
     description:
-      "Start a swipe interview: a deck of cards, each a simple question with exactly two answers (left / right), answered with the arrow keys (or with the user's own typed answer when neither fits), with the brief growing beside the deck. Pass spec {title, goal, cards: [{id, title, left: {label}, right: {label}, recommended?: \"left\"|\"right\"}], brief?, confidence?, batch?} or specPath. Then call wait: it returns batches of answers; answer each with push.",
+      "Start a swipe interview: a deck of cards, each a simple question with exactly two answers (left / right), answered with the arrow keys (or with the user's own typed answer when neither fits), with the brief growing beside the deck. Pass spec {title, goal, cards: [{id, title, left: {label}, right: {label}, recommended?: \"left\"|\"right\"}], brief?, confidence?, batch?} or specPath. Then call wait: it returns batches of answers; answer each with push. At the end the user may add a note, or press \"Dig deeper\": wait then returns that event and you push a stricter round of cards.",
     inputSchema: {
       type: "object",
       properties: {
         project: PROJECT,
-        spec: { type: "object", description: "The deck: {title, goal, cards: [{id, title, tldr?, left, right, recommended?, reason?, from?, images?, mermaid?, preview?}], brief?, confidence?, batch?}", additionalProperties: true },
+        spec: { type: "object", description: "The deck: {title, goal, cards: [{id, title, tldr?, body?, left, right, recommended?, reason?, from?, images?, compare?, video?, diff?, table?, chart?, mermaid?, preview?, code?}], brief?, confidence?, batch?}. Each side may carry the same media.", additionalProperties: true },
         specPath: { type: "string", description: "Path to a deck file instead of spec; answers and the brief are written next to it." },
         open: { type: "boolean", description: "Open or focus the browser page (default true)." },
       },
@@ -93,10 +93,15 @@ const TOOLS = [
         round: ROUND,
         question: { type: "string", description: "Question id the explanation belongs to." },
         askId: { type: "string", description: "Id of the user's ask, if wait returned one." },
-        text: { type: "string", description: "Short, plain explanation. Markdown." },
+        text: { type: "string", description: "Short, plain explanation. Markdown: lists, tables, > quotes, ### headings." },
         images: { type: "array", items: { type: "string" }, description: "Image paths (absolute or relative to project) or URLs." },
         mermaid: { type: "string", description: "Mermaid diagram source." },
         code: { type: "string", description: "Code or diff to show." },
+        compare: { type: "object", description: "Before/after slider: {before: image, after: image, labels?: [before, after]}.", additionalProperties: true },
+        video: { description: "A short clip: path or URL of an mp4, webm or gif, or {src, caption}." },
+        diff: { type: "object", description: "Side-by-side text diff: {before: text, after: text, lang?, labels?}.", additionalProperties: true },
+        table: { type: "object", description: "Data table: {columns: [...], rows: [[...]], caption?}.", additionalProperties: true },
+        chart: { type: "object", description: "Simple chart: {type: \"bar\"|\"line\", labels: [...], series: [{name, values}], unit?, title?}.", additionalProperties: true },
       },
       required: ["round", "question", "text"],
     },
