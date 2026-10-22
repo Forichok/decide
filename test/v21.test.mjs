@@ -51,6 +51,19 @@ test("budget keeps what fits by priority and lists the rest as left out", () => 
   assert.ok(spec.estimateMin <= 1);
 });
 
+test("budget never drops every question when the first pick depends on another", () => {
+  const opts = Array.from({ length: 8 }, (_, i) => ({ id: `o${i}`, label: `Option ${i}` }));
+  const { spec } = normalizeSpec({
+    title: "Budget",
+    budget: 1,
+    questions: [
+      { id: "base", title: "Base", priority: 3, options: opts },
+      { id: "main", title: "Main", priority: 1, options: opts, showIf: { q: "base", is: "o1" } },
+    ],
+  });
+  assert.deepEqual(spec.questions.map((q) => q.id), ["base", "main"]);
+});
+
 test("mine: never auto-filled and blocks review until answered", () => {
   const { spec } = normalizeSpec({ title: "Mine", questions: [choice("own", "Theirs to pick", { mine: true }), choice("free", "Anyone")] });
   const final = finalizeAnswers(spec, {}, { fill: "recommend" });
@@ -129,6 +142,8 @@ test("adr: numbered file with context, options, decision, consequences; rewritte
   const gone = supersedeJournal(dir, { round: id, reason: "changed our mind" });
   markAdrSuperseded(dir, gone);
   assert.match(readFileSync(first.file, "utf8"), /- Status: Superseded: changed our mind/);
+  markAdrSuperseded(dir, { ...gone, superseded: { reason: "costs $& and $' more" } });
+  assert.match(readFileSync(first.file, "utf8"), /- Status: Superseded: costs \$& and \$' more$/m);
 });
 
 test("export: one self-contained page, its modules resolved through the import map", async (t) => {
@@ -149,6 +164,22 @@ test("export: one self-contained page, its modules resolved through the import m
     for (const [, spec] of source.matchAll(/^\s*(?:import|export)\b[^;"'`]*?\bfrom\s*["']([^"']+)["']/gm)) assert.ok(map.imports[spec], `${key} imports ${spec}, missing from the map`);
   }
   assert.match(Buffer.from(map.imports["@decide/net.js"].split(",")[1], "base64").toString(), /export const offline = true/);
+  // $-patterns in spec text stay literal; a file name with ")" is still inlined.
+  const odd = path.join(dir, "odd");
+  mkdirSync(odd);
+  writeFileSync(path.join(odd, "shot (1).svg"), "<svg xmlns='http://www.w3.org/2000/svg'/>");
+  const tricky = await prepareSpec(
+    { title: "Cost $& x", questions: [{ id: "q", title: "echo $'a' and $$", images: ["shot (1).svg"], options: [{ id: "a", label: "A" }, { id: "b", label: "B" }] }] },
+    { specDir: odd, dataDir: dir, shots: false },
+  );
+  const oddOut = path.join(dir, "odd.decide.html");
+  const oddBuilt = exportSpec(tricky.spec, { id: "x2", out: oddOut });
+  const oddHtml = readFileSync(oddOut, "utf8");
+  assert.deepEqual(oddBuilt.missing, []);
+  assert.match(oddHtml, /<title>Cost \$&amp; x — decide<\/title>/);
+  const payload = JSON.parse(oddHtml.match(/<script type="application\/json" id="decide-export">([\s\S]*?)<\/script>/)[1]);
+  assert.equal(payload.round.spec.questions[0].title, "echo $'a' and $$");
+  assert.match(payload.round.spec.questions[0].images[0].src, /^data:image\/svg\+xml;name=shot%20\(1\)\.svg;base64,/);
   assert.equal(rewriteImports('import en from "./lang/en.js";', "i18n.js"), 'import en from "@decide/lang/en.js";');
   assert.equal(rewriteImports('import { x } from "../dom.js";', "lang/en.js"), 'import { x } from "@decide/dom.js";');
 });

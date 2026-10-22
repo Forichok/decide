@@ -117,7 +117,8 @@ const deliveryOf = (id) => app.state.history.find((e) => e.id === id) || { deliv
 
 function armClose() {
   const { id, result } = app.done;
-  if (result?.cancelled || !deliveryOf(id).delivered || app.closeFor === id || app.state.rounds.some((r) => r.id !== id)) return;
+  // An exported file stays open: its done screen offers the download again.
+  if (offline || result?.cancelled || !deliveryOf(id).delivered || app.closeFor === id || app.state.rounds.some((r) => r.id !== id)) return;
   app.closeFor = id;
   app.closing = 5;
   rerenderStatic();
@@ -173,6 +174,7 @@ function showIdle(message) {
 }
 
 function showJournal() {
+  if (app.round) app.journalFrom = app.round.id;
   disarmClose();
   app.round?.stop();
   app.round = null;
@@ -185,8 +187,8 @@ function showJournal() {
 }
 
 function leaveJournal() {
-  const last = app.state.rounds.at(-1);
-  if (last) return openRound(last.id);
+  const back = app.state.rounds.find((r) => r.id === app.journalFrom) || app.state.rounds.at(-1);
+  if (back) return openRound(back.id);
   history.replaceState(null, "", location.pathname + location.search);
   showIdle();
 }
