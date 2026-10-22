@@ -12,7 +12,7 @@ export const FLAGS = {
 export function emptyAnswer(q) {
   const order = q.type === "rank" ? orderFrom(q) : [];
   const selected = q.type === "rank" ? [] : q.default.filter((id) => q.options.some((o) => o.id === id));
-  return { selected, other: "", note: "", attachments: [], order, value: null, text: "", flag: null, touched: false };
+  return { selected, other: "", note: "", attachments: [], pins: [], order, value: null, text: "", flag: null, touched: false };
 }
 
 function orderFrom(q) {
@@ -45,9 +45,14 @@ export function isAnswered(q, a) {
   }
 }
 
+// A question marked mine waits for the user's own answer: handing it to the agent doesn't resolve it.
 export function isResolved(q, a) {
+  if (q.mine && a?.flag === "delegate") return isAnswered(q, a);
   return q.optional || Boolean(a?.flag) || isAnswered(q, a);
 }
+
+// Visible required questions marked mine that still have no answer: Done waits for them.
+export const missingMine = (spec, answers) => visibleQuestions(spec, answers).filter((q) => q.mine && !q.optional && !isResolved(q, answers[q.id]));
 
 export const recommendedIds = (q) => q.options.filter((o) => o.recommended).map((o) => o.id);
 
@@ -77,7 +82,8 @@ export function finalizeAnswers(spec, answers, { fill = false } = {}) {
     let a = answers[q.id] || emptyAnswer(q);
     let auto = false;
     if (fill && !isResolved(q, a)) {
-      a = fill === "skip" ? { ...a, flag: "skip" } : { ...withRecommendation(q, a), flag: "delegate" };
+      // The recommendation is never filled in for a question the user must answer themselves.
+      a = fill === "skip" || q.mine ? { ...a, flag: "skip" } : { ...withRecommendation(q, a), flag: "delegate" };
       auto = true;
     }
     const r = compact(q, a);
@@ -96,9 +102,23 @@ function compact(q, a) {
   if (q.type === "text" && a.text.trim()) r.text = a.text.trim();
   if (a.note.trim()) r.note = a.note.trim();
   if (a.attachments.length) r.attachments = [...a.attachments];
+  // Notes pinned on a mockup: where (in % of the frame, and at which layout width) and what.
+  if (a.pins?.length) r.pins = a.pins.map(({ src, x, y, width, text }) => ({ file: fileName(src), x, y, ...(width ? { width } : {}), text }));
   if (a.flag) r.flag = a.flag;
   return r;
 }
+
+const fileName = (src) => {
+  // An exported file carries its pictures as data: URIs with the original name kept in a parameter.
+  const named = String(src || "").match(/^data:[^,]*;name=([^;,]+)/);
+  if (named) return decodeURIComponent(named[1]);
+  const last = String(src || "").split(/[?#]/)[0].split("/").pop();
+  try {
+    return decodeURIComponent(last);
+  } catch {
+    return last;
+  }
+};
 
 const label = (q, id) => q.options.find((o) => o.id === id)?.label ?? id;
 
@@ -146,10 +166,12 @@ export function digest(spec, result) {
     const r = answers[q.id];
     if (!r) continue;
     n += 1;
-    lines.push(`${n}. [${q.id}] ${q.title} → ${describe(q, r)}`);
+    lines.push(`${n}. [${q.id}] ${q.title} → ${describe(q, r)}${q.mine && r.flag === "skip" ? " (theirs to decide: don't pick for them)" : ""}`);
     if (r.note) lines.push(`   ✎ ${r.note.replace(/\n/g, "\n     ")}`);
     for (const f of r.attachments || []) lines.push(`   📎 ${f}`);
+    for (const p of r.pins || []) lines.push(`   📍 ${p.file}${p.width ? ` at ${p.width}px` : ""} (x ${p.x}%, y ${p.y}%): ${p.text}`);
   }
+  if (spec.leftOut?.length) lines.push(`Not asked, to fit the user's ${spec.budget}-minute budget: ${spec.leftOut.map((q) => `[${q.id}] ${q.title}`).join("; ")}`);
   if (result.comment) lines.push(`Comment: ${result.comment}`);
   for (const f of result.attachments || []) lines.push(`📎 ${f}`);
   return lines.join("\n");

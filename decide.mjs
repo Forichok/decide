@@ -13,7 +13,12 @@
 //   node decide.mjs --wait <round> [--live]          keep waiting for a round
 //   node decide.mjs --reply <round> --question <id> --text "…" | <reply.json>
 //   node decide.mjs --shot <url> [--viewport desktop|mobile|both] [--name n]
-//   node decide.mjs --journal [--limit n] [--query text]
+//   node decide.mjs --sim ios|android [--device id] [--name n]  simulator screen
+//   node decide.mjs --journal [--limit n] [--query text] [--status live|superseded] [--topic text]
+//   node decide.mjs --supersede <round> [--by <round>] [--reason "…"]
+//   node decide.mjs --export <round | x.questions.json> [--out page.html]
+//   node decide.mjs --import <a.answers.json> [more.answers.json…] [--round id] [--spec x.questions.json]
+//   node decide.mjs --adr [<round>] [--consequences "…"] [--adr-dir docs/decisions]
 //   node decide.mjs --demo [--lang en|ru]             the feature tour
 //   node decide.mjs --lint <x.questions.json> | --stop
 //   Every command takes --project <dir> (default: the current directory).
@@ -28,7 +33,7 @@ import { openProject } from "./lib/project.mjs";
 import * as cmd from "./lib/commands.mjs";
 
 const ENGINE = fileURLToPath(import.meta.url);
-const VALUE_FLAGS = ["--lang", "--out", "--port", "--dir", "--lint", "--wait", "--reply", "--question", "--text", "--shot", "--viewport", "--name", "--wait-ms", "--limit", "--query", "--project"];
+const VALUE_FLAGS = ["--lang", "--out", "--port", "--dir", "--lint", "--wait", "--reply", "--question", "--text", "--shot", "--viewport", "--name", "--wait-ms", "--limit", "--query", "--project", "--status", "--topic", "--supersede", "--by", "--reason", "--consequences", "--adr-dir", "--export", "--round", "--spec", "--sim", "--device"];
 const argv = process.argv.slice(2);
 const has = (name) => argv.includes(name);
 function flag(name) {
@@ -47,7 +52,8 @@ function showcase(lang) {
 
 async function main() {
   if (!argv.length || has("-h") || has("--help")) {
-    const usage = readFileSync(ENGINE, "utf8").split("\n").slice(10, 19).join("\n");
+    const lines = readFileSync(ENGINE, "utf8").split("\n");
+    const usage = lines.slice(lines.indexOf("// Usage:"), lines.findIndex((l) => l.includes("Every command takes")) + 1).join("\n");
     console.log(usage.replace(/^\/\/ ?/gm, ""));
     return argv.length ? 0 : 1;
   }
@@ -59,7 +65,12 @@ async function main() {
   const live = has("--live");
   if (has("--stop")) return cmd.stop(project);
   if (has("--lint")) return cmd.lint(resolve(flag("--lint") || positional[0] || ""), project);
-  if (has("--journal")) return cmd.journal({ limit: Number(flag("--limit")) || 10, query: flag("--query") || "", project });
+  if (has("--journal")) return cmd.journal({ limit: Number(flag("--limit")) || 10, query: flag("--query") || "", status: flag("--status"), topic: flag("--topic"), project });
+  if (has("--supersede")) return cmd.supersede({ id: flag("--supersede"), by: flag("--by") || "", reason: flag("--reason") || "", project });
+  if (has("--export")) return cmd.exportCmd({ target: flag("--export") || positional[0] || "", out: flag("--out"), project });
+  if (has("--import")) return cmd.importCmd({ files: positional, round: flag("--round"), specPath: flag("--spec"), project });
+  if (has("--adr")) return cmd.adr({ id: positional[0], consequences: flag("--consequences") || "", dir: flag("--adr-dir"), project });
+  if (has("--sim")) return cmd.shot({ simulator: flag("--sim"), device: flag("--device"), name: flag("--name"), project });
   if (has("--shot")) return cmd.shot({ url: flag("--shot"), viewport: flag("--viewport"), name: flag("--name"), waitMs: Number(flag("--wait-ms")) || undefined, project });
   if (has("--wait")) return cmd.resume({ id: flag("--wait"), live, project });
   if (has("--reply")) {

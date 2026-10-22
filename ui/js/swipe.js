@@ -47,6 +47,19 @@ export function mountSwipe(round, env) {
   let note = ""; // the closing note, shared by the done screen and the "Enough" dialog
   let digging = false; // a "Dig deeper" request is on its way
   const media = { toast, lightbox: (images, i) => openLightbox(images, i), zoom: openZoom };
+  // How long the front card has been read: only while the tab is visible and no ask or own-answer box is open.
+  const reading = { card: null, ms: 0, since: null };
+  const readTick = () => {
+    const now = performance.now();
+    if (reading.since !== null) reading.ms += now - reading.since;
+    reading.since = !document.hidden && !asking && !writing ? now : null;
+  };
+  const readFor = (id) => {
+    if (reading.card === id) return readTick();
+    Object.assign(reading, { card: id, ms: 0, since: null });
+    readTick();
+  };
+  document.addEventListener("visibilitychange", readTick);
 
   const answers = () => {
     const out = { ...server.answers };
@@ -196,6 +209,7 @@ export function mountSwipe(round, env) {
       return stack.replaceChildren(endCard());
     }
     endSig = null;
+    readFor(top.id);
     const back = q.slice(1, 3).map((c, i) => h(`div.sw-card.back.b${i + 1}${arrived.has(c.id) ? ".arrive" : ""}`, { "aria-hidden": "true" }, h("div.sw-q", {}, c.title)));
     const sig = JSON.stringify([top, dialog.filter((d) => d.qid === top.id), asking === top.id, writing === top.id, deck.glossary]);
     const old = $(".sw-card.front", stack);
@@ -222,7 +236,7 @@ export function mountSwipe(round, env) {
   const keep = []; // video elements stay referenced, or the browser drops the download
   function preload(cards) {
     for (const node of cards.flatMap((c) => [c, c.left, c.right])) {
-      const imgs = [...(node.images || []).map((i) => i.src), node.compare?.before?.src, node.compare?.after?.src, ...(node.video || []).filter((v) => v.gif).map((v) => v.src)];
+      const imgs = [...(node.images || []).map((i) => i.src), ...(node.compare && !node.compare.live ? [node.compare.before.src, node.compare.after.src] : []), ...(node.video || []).filter((v) => v.gif).map((v) => v.src)];
       for (const src of imgs.filter((x) => x && !loaded.has(x))) {
         loaded.add(src);
         Object.assign(new Image(), { decoding: "async", referrerPolicy: "no-referrer" }).src = src;
@@ -441,6 +455,9 @@ export function mountSwipe(round, env) {
   async function answer(side, text) {
     const c = queue()[0];
     if (!c || flying || finishing) return;
+    readTick();
+    const ms = reading.card === c.id ? Math.round(reading.ms) : undefined;
+    reading.card = null;
     asking = null;
     askDraft = "";
     writing = null;
@@ -449,7 +466,7 @@ export function mountSwipe(round, env) {
     inflight.set(c.id, side === "own" ? { side, text, at: Date.now() } : { side, at: Date.now() });
     trail.push(c.id);
     // Sent before the card flies off, so the daemon knows which card is on screen next as soon as possible.
-    const sent = swipeCard(round.id, { card: c.id, side, ...(side === "own" ? { text } : {}), rev: c.rev || 0 });
+    const sent = swipeCard(round.id, { card: c.id, side, ...(side === "own" ? { text } : {}), rev: c.rev || 0, ms });
     sent.catch(() => {});
     await fly(side);
     paint();
@@ -677,6 +694,7 @@ export function mountSwipe(round, env) {
     finish: () => (deck.done && !queue().length ? finish() : confirmFinish()),
     stop() {
       document.removeEventListener("keydown", onKey);
+      document.removeEventListener("visibilitychange", readTick);
       document.body.classList.remove("swipe-mode");
     },
   };

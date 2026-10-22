@@ -71,6 +71,7 @@ function badges(q) {
     q.type === "multi" && h("span.badge.soft", {}, t("badge.multi", q.max)),
     q.type === "rank" && h("span.badge.soft", {}, t("badge.rank")),
     q.optional && h("span.badge.soft", {}, t("badge.optional")),
+    q.mine && h("span.badge.mine", { title: t("badge.mineTitle"), html: `${icon("hand")}${t("badge.mine")}` }),
   ].filter(Boolean);
   return list.length ? h("div.badges", {}, list) : null;
 }
@@ -82,7 +83,7 @@ function renderActions(q, ctx) {
     h("button.chip.ghost", { type: "button", dataset: { act: "note" }, html: `${icon("note")}${t("chip.note")}`, title: t("chip.noteTitle"), onclick: () => ctx.openNote(q.id) }),
     q.allowOther &&
       h("button.chip.ghost", { type: "button", dataset: { act: "other" }, html: `${icon("plus")}${t("chip.other")}`, onclick: () => ctx.openOther(q.id) }),
-    h("button.chip.ghost", { type: "button", dataset: { act: "file" }, html: `${icon("clip")}${t("chip.file")}`, title: t("chip.fileTitle"), onclick: () => ctx.pickFile(q.id) }),
+    !ctx.offline && h("button.chip.ghost", { type: "button", dataset: { act: "file" }, html: `${icon("clip")}${t("chip.file")}`, title: t("chip.fileTitle"), onclick: () => ctx.pickFile(q.id) }),
   ];
   tools.append(...toolList.filter(Boolean));
   const flags = h("div.flags");
@@ -91,7 +92,7 @@ function renderActions(q, ctx) {
       h("button.chip.ghost.rec-act", { type: "button", dataset: { act: "rec" }, html: `${icon("star")}${t("chip.rec")}`, title: t("chip.recTitle"), onclick: () => ctx.applyRecommended(q.id) }),
     );
   }
-  for (const a of ACTIONS) {
+  for (const a of ACTIONS.filter((x) => !(q.mine && x.flag === "delegate"))) {
     const label = a.flag === "explain" && ctx.live ? t("act.ask") : a.label;
     flags.append(
       h("button.chip.flag", {

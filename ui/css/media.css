@@ -78,7 +78,6 @@
 .code.has-zoom > .media-zoom, .table-wrap.has-zoom > .media-zoom { top: 4px; right: auto; left: auto; inset-inline-end: 64px; width: 24px; height: 22px; }
 .table-wrap.has-zoom > .media-zoom { inset-inline-end: 6px; }
 .modal:has(.media-zoom-box) { width: min(1100px, 100%); padding: 16px; }
-.media-zoom-box .preview iframe { height: min(70vh, 720px) !important; }
 .media-zoom-box .shot-btn img { max-height: 70vh; }
 
 .compare {
@@ -194,3 +193,53 @@ table.data tbody tr:hover td { background: var(--surface-2); }
 /* in a side tile the zoom button gets its own strip above the plot, off the value labels */
 .media.compact .chart.has-zoom { padding-top: 30px; }
 .media.compact .chart.has-zoom > .media-zoom { top: 4px; right: 4px; width: 24px; height: 24px; }
+
+/* ---- 2.1: mockup width switch, pinned notes, live before/after, HTML block */
+.preview { position: relative; }
+.pv-frame { position: relative; margin: 0 auto; max-width: 100%; }
+.pv-frame iframe { margin: 0 auto; }
+.pv-live { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pv-widths { display: inline-flex; margin-left: auto; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; flex: none; }
+.pv-widths + .pv-mark, .pv-widths ~ .preview-open { margin-left: 0; }
+.pv-w { border: 0; background: none; color: var(--tx-mut); font: 600 11px/1 var(--mono); padding: 4px 7px; cursor: pointer; }
+.pv-w + .pv-w { border-left: 1px solid var(--line); }
+.pv-w:hover { color: var(--tx); background: var(--surface-3); }
+.pv-w[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-tx); }
+.pv-mark {
+  display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); background: none; color: var(--tx-mut);
+  font: 600 11.5px/1 var(--font); padding: 4px 8px; border-radius: 7px; cursor: pointer; flex: none;
+}
+.pv-mark .i { width: 12px; height: 12px; }
+.pv-mark[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.pv-pins { position: absolute; inset: 0; pointer-events: none; }
+.pv-pins.on { pointer-events: auto; cursor: crosshair; background: rgba(226, 51, 110, 0.04); outline: 2px dashed var(--accent-line); outline-offset: -2px; }
+.pv-pin, .pv-list b {
+  display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50% 50% 50% 4px;
+  background: var(--accent); color: var(--on-accent); font: 700 11.5px/1 var(--font); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+.pv-pin { position: absolute; transform: translate(-2px, -20px); pointer-events: auto; cursor: help; }
+.pv-bubble { position: absolute; transform: translate(-8px, 6px); z-index: 2; }
+.pv-note {
+  width: min(260px, 60vw); font: 13px/1.4 var(--font); padding: 7px 9px; border-radius: 8px;
+  border: 1px solid var(--accent-line); background: var(--surface); color: var(--tx); box-shadow: var(--shadow-2);
+}
+.pv-list { list-style: none; margin: 0; padding: 8px 10px; display: grid; gap: 6px; border-top: 1px solid var(--line); font-size: 13.5px; }
+.pv-list li { display: flex; align-items: center; gap: 8px; }
+.pv-list b { flex: none; width: 20px; height: 20px; border-radius: 50%; box-shadow: none; font-size: 11px; }
+.pv-list span:first-of-type { flex: 1; min-width: 0; }
+.pv-at { color: var(--tx-dim); font: 11px/1 var(--mono); }
+.pv-del { border: 0; background: none; color: var(--tx-dim); cursor: pointer; padding: 2px; display: grid; }
+.pv-del .i { width: 14px; height: 14px; }
+.pv-del:hover { color: var(--danger); }
+
+.compare.live { border: 0; border-radius: 0; cursor: default; margin: 0 auto; }
+.cmp-frame iframe { display: block; border: 0; background: #fff; }
+.cmp-frame.after { position: absolute; inset: 0; clip-path: inset(0 0 0 var(--pos)); }
+.compare.live .cmp-handle { cursor: ew-resize; touch-action: none; }
+.compare.live .cmp-handle::before { content: ""; position: absolute; inset: 0 -10px; }
+.compare.live.sliding iframe { pointer-events: none; }
+.compare.live .cmp-tag { bottom: auto; top: 8px; }
+.media.compact .cmp-live iframe { pointer-events: none; }
+
+.html-block { border-radius: 10px; }
+.html-frame { display: block; width: 100%; border: 0; background: transparent; }

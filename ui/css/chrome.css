@@ -59,6 +59,7 @@ kbd {
 .badge.danger, .badge.irreversible { background: var(--danger-soft); color: var(--danger); }
 .badge.stakes-high { background: var(--warn-soft); color: var(--warn); }
 .badge.soft { background: var(--surface-2); color: var(--tx-dim); font-weight: 560; }
+.badge.mine { background: var(--info-soft); color: var(--info); }
 
 /* connection dot in the eyebrow */
 .eyebrow .conn {

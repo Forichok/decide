@@ -104,7 +104,7 @@ done, and on that message call `wait {project, round, timeoutSec: 5}` first.
 | `section`, `tldr`, `stakes`   | A small heading, one line on what depends on the answer, `"high"` for money, data and anything hard to undo.             |
 | `from`                        | On a follow-up: the id of the card whose answer brought it up. The card shows "Because you answered: …".                |
 | `body`                        | Markdown under the title: a short table, a quote, a list, an `###` heading. For the facts the answer rests on, not for an essay; lint warns past 700 characters. |
-| media                         | `images`, `compare`, `video`, `preview`, `chart`, `table`, `diff`, `mermaid`, `code`, `links`. See [What a card can show](#what-a-card-can-show). |
+| media                         | `images`, `compare`, `video`, `preview`, `html`, `chart`, `table`, `diff`, `mermaid`, `code`, `links`. See [What a card can show](#what-a-card-can-show). |
 
 Relative image paths resolve against `project`, or against the deck file's
 folder with `specPath`; the same goes for cards you `push` later.
@@ -124,10 +124,11 @@ Each side tile holds one heavy visual at most.
 
 | Kind | Shape | Use it for |
 | --- | --- | --- |
-| `images` / `image` | `"path"` or `{src, caption}` | A screen, a sketch. The default for "which looks better". |
-| `compare` | `{before, after, labels?: [a, b]}` | Two pictures of the same screen, today vs. proposed. The user drags a divider across them. On the card, not on a side. |
+| `images` / `image` | `"path"`, `{src, caption}`, or `{sim: "ios" \| "android"}` | A screen, a sketch. The default for "which looks better". `sim` captures the running simulator when the deck opens. |
+| `compare` | `{before, after, labels?: [a, b]}` | Two pictures of the same screen, today vs. proposed. The user drags a divider across them. Two `.html` mockups make a live compare. On the card, not on a side. |
 | `video` | `"clip.mp4"` or `{src, caption, loop?}`; mp4, webm or gif | Motion: an animation, a gesture, a flow. Clips of 20 s or less loop muted; longer ones get controls. Keep files under 20 MB. |
 | `preview` | `"mockup.html"`, `previewHeight` | A clickable HTML mockup. On a side it is laid out at phone width and scaled to the tile; zoom opens it full size. One per card: either on the card or on the sides. |
+| `html` | an HTML string or `{source, maxHeight?}`, up to 200 KB | A small piece of real UI written inline, when a separate mockup file is overkill. Counts as heavy, like a preview. |
 | `chart` | `{type: "bar" \| "line", labels, series: [{name, values}], unit?, title?}` | Numbers over time or across a few groups. Up to 12 bars, 60 line points, 4 series; name every series when there are two or more. Charts on the two sides share one y scale. |
 | `table` | `{columns, rows, caption?}` | A few facts in rows: limits per plan, prices, specs. Up to 8 columns and 50 rows; numbers align right. |
 | `diff` | `{before, after, lang?, labels?}` | Two versions of a text or code. Shown side by side on wide screens and unified on phones and in side tiles. Up to 400 lines; cut it to the part that matters. |
@@ -219,6 +220,10 @@ Reading answers:
 - Skipped: leave it out. Ask again only if it blocks the work, and then put it
   differently.
 - Taken back: the card is open again; don't count the old answer.
+- "Not sure or hesitated": the user took much longer than the card needs to
+  read, or answered it again after taking it back. Keep the answer, but treat
+  it as weak: note it as `open` or `risk` when it carries weight, and ask it
+  once more, differently, if the work depends on it.
 
 ## Dig deeper
 

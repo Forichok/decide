@@ -83,3 +83,30 @@
 }
 .jr-search:focus { outline: none; border-color: var(--accent); }
 .jr-empty { margin: 0; font-size: 14px; color: var(--tx-dim); }
+
+/* journal page (2.1) */
+.jr-all { display: inline-block; margin-top: 12px; font-size: 13.5px; }
+.journal-view { padding-bottom: 40px; }
+.jp-back { display: inline-flex; align-items: center; gap: 6px; margin: 18px 0 6px; font-size: 14px; text-decoration: none; }
+.jp-back .i { width: 15px; height: 15px; }
+.jp-sub { margin: 4px 0 14px; color: var(--tx-mut); font-size: 14.5px; }
+.jp-count { color: var(--tx-dim); font: 500 13px/1 var(--mono); }
+.jp-filters { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 18px; }
+.jp-filter { display: flex; flex-wrap: wrap; gap: 6px; }
+.jp-filter .chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-tx); border-color: transparent; }
+.jp-list { display: grid; gap: 10px; }
+.jp-item { padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.jp-item.superseded { background: transparent; border-style: dashed; }
+.jp-item.superseded .jp-title { color: var(--tx-mut); text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: var(--tx-dim); }
+.jp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.jp-title { margin: 0; font-size: 15.5px; font-weight: 640; line-height: 1.35; }
+.jp-mode { background: var(--surface-2); color: var(--tx-dim); font-weight: 560; }
+.jp-old { background: var(--warn-soft); color: var(--warn); }
+.jp-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; font: 500 12px/1.4 var(--mono); color: var(--tx-dim); }
+.jp-meta code { font: inherit; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); user-select: all; }
+.jp-why { margin: 8px 0 0; font-size: 13.5px; color: var(--tx-mut); }
+.jp-digest { margin-top: 8px; }
+.jp-digest summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13.5px; color: var(--tx-mut); list-style: none; }
+.jp-digest summary::-webkit-details-marker { display: none; }
+.jp-digest .chev { width: 14px; height: 14px; transition: transform 0.15s; transform: rotate(-90deg); }
+.jp-digest[open] .chev { transform: none; }

@@ -40,18 +40,25 @@ user what the code already says wastes their time.
 
 ### With the decide tools (preferred)
 
-Rounds use five tools of the plugin's MCP server: `ask`, `wait`, `explain`,
-`screenshot`, `history` (`swipe` and `push` belong to the card interview,
-see the decide:swipe skill). **Always pass `project`**, the absolute path of the
+Rounds use the plugin's MCP server: `ask`, `wait`, `explain`, `screenshot`,
+`history`, plus `supersede`, `adr`, `export` and `import` (below). `swipe` and
+`push` belong to the card interview, see the decide:swipe skill. **Always pass `project`**, the absolute path of the
 project you work in. Codex starts the server outside your project, and without
 it the tools can't tell where to keep the journal and screenshots.
 
 1. `history {project, query}`: check what was already decided, so you don't
-   ask the same thing twice.
+   ask the same thing twice. `history {project, topic: "<your question>"}`
+   lists only the live decisions on that topic; `status: "live"` hides
+   superseded ones.
 2. Optional: `screenshot {project, url, viewport}` captures a running page
    (`desktop`, `mobile` or `both`) and returns PNG paths for the spec.
+   `screenshot {project, simulator: "ios" | "android", device?}` captures the
+   booted iOS simulator or the running Android emulator instead.
 3. `ask {project, spec}` opens the round and returns its id and URL. Tell the
-   user in one line that the questions are open, with the URL.
+   user in one line that the questions are open, with the URL. If the output
+   says a question may contradict a decision that still holds, read that
+   decision: reuse it instead of asking, or ask and supersede it afterwards
+   (see [Decisions that change](#decisions-that-change)).
 4. `wait {project, round}` blocks for up to 10 minutes and returns one of:
    - **"Still waiting"**: call `wait` again right away. Don't nudge the user
      in chat.
@@ -104,12 +111,50 @@ enough; there are no dependencies.
    `{"question", "askId", "text", "images", "mermaid", "code"}`.
 
 Other commands: `--lint <file>` checks a spec alone; `--shot <url> --viewport
-mobile` takes a screenshot; `--journal --query <text>` prints past decisions;
+mobile` takes a screenshot; `--sim ios|android` captures a simulator;
+`--journal --query <text>` prints past decisions (`--status live`, `--topic
+<text>`); `--supersede <round> --by <round> --reason "…"`; `--adr [<round>]`;
+`--export <round | spec>`; `--import <files…>`;
 `--no-open` skips opening the browser (give the user the printed URL);
 `--stop` stops the page server.
 
 Without `--live` the page takes no live questions: the user's "explain"
 becomes a flag in the answers and you explain in the next round.
+
+### Someone else answers: export and import
+
+When the answer belongs to a person who can't open this machine's page,
+export the round: `export {project, round}` for an open round, or
+`export {project, spec | specPath}` without opening a page. You get one
+self-contained `.html` path; give it to the user to send. The recipient
+answers offline, and Done saves an answers JSON with their name. End your
+turn; nothing comes back through `wait`.
+
+When the user hands you the files, call `import {project, files: [...]}`.
+One file settles the round: you get the digest and it goes into the journal,
+like a round answered here. Several files settle nothing: you get each
+person's answers and the questions where they disagree. Show the
+disagreements to the user, ask how to resolve them, then import the file
+that stands or run a new round. If decide no longer knows the round's spec,
+pass `specPath`.
+
+Exported files can't attach files and have no live questions. Swipe rounds
+can't be exported.
+
+### Decisions that change
+
+When the user decides against an earlier decision, call
+`supersede {project, round: <old id>, by: <new id>, reason}` after the new
+round is answered. The journal keeps the old decision, marked superseded,
+and later rounds stop treating it as settled.
+
+`adr {project, round?, consequences?}` writes a round (default: the latest)
+as `docs/decisions/NNNN-title.md`: context, options, decision, consequences.
+Pass `consequences` as markdown on what the decision makes easier and harder;
+pros and cons of the picked options are added on their own. Offer an ADR
+for decisions the team will want to find in the repo: architecture, data,
+public APIs. Writing the same round again updates its file, and `supersede`
+updates its status.
 
 ## The interview loop
 
@@ -147,6 +192,8 @@ answers") so the user can catch a misunderstanding early.
 | `danger: true` on an option that can break something live.                                                                            | Shown as a warning.                                               |
 | `showIf` for questions that only make sense after a certain answer.                                                                   | Hidden questions don't count and aren't sent.                     |
 | At most ~10 questions per round; above six, use `sections`.                                                                           | Long rounds get skimmed.                                          |
+| `budget` (minutes) when the user is short of time, with `priority` 1–3 on questions (1 asks first; high stakes default to 1).         | The page keeps what fits and lists the rest as left out. Decide those yourself and say so. |
+| `mine: true` on a question only the user can answer: taste, their money, their name.                                                  | No recommendation fill and no "Agent decides"; Done waits for it. |
 | Write questions in the user's language, politely and without blame. The page's own buttons follow the browser language (English or Russian). | The page talks to the user, not to you.                           |
 
 Types: `single` (default), `multi` (`min`/`max`), `confirm` (yes / no /
@@ -169,6 +216,8 @@ Show the thing when the choice is about how something looks or flows.
 | A few facts in rows             | `table: {columns, rows, caption?}`: limits, prices, specs. Up to 8 columns and 50 rows                                                   |
 | Numbers across time or groups   | `chart: {type: "bar" \| "line", labels, series: [{name, values}], unit?}`. Up to 12 bars, 4 series; option charts share one y scale |
 | A snippet                       | `code: {text, lang}`                                                                                                                     |
+| A small piece of real UI        | `html`: an HTML string (or `{source, maxHeight}`), up to 200 KB, rendered in a sandboxed frame that sizes to its content                 |
+| A screen of the mobile app      | `{"sim": "ios"}` or `{"sim": "android"}` in `images` captures the simulator when the round opens                                         |
 | Docs, tickets, a live stand     | `links: [{label, url}]`                                                                                                                  |
 
 Pick the lightest kind that settles the question. Every kind works on a
@@ -178,6 +227,10 @@ above; the full shapes are in [spec.md](spec.md#media).
 The user can draw on any image (marker, frame, arrow) and attach the marked-up
 copy to their answer. Open every file in `attachments`: that is where they
 point at things.
+
+A `preview` mockup has a width switch (375, 768, 1440 px) and pins: the user
+clicks a point and writes a note. `compare` with two `.html` files is a live
+before/after under one divider.
 
 ## Reading the answers
 
@@ -197,7 +250,10 @@ Then open the JSON for notes, attachments and the dialog.
 | `auto: true` + `flag: "skip"`        | Left unanswered, and the user chose not to take your recommendation. Don't pick silently; ask again if it blocks.     |
 | `flag: "skip"`                       | Leave that part out or as it is. Don't bring it back unless it blocks the work.                                       |
 | `dialog`                             | What the user asked you on the page and what you answered. Their final choice already accounts for it.                |
+| `pins`                               | Notes on points of a mockup: file, x/y in % of the frame, the width it was laid out at, text. Treat them like notes.  |
 | `comment`, top-level `attachments`   | Context for the whole round. Read them before acting.                                                                 |
+| `leftOut`                            | Questions cut to fit the user's time budget. Decide them yourself and list what you picked.                           |
+| `name`, `importedFrom`               | The answers came back in a file from an exported page; `name` is who answered.                                        |
 | `cancelled: true`                    | The user closed the round. Ask in chat how to proceed.                                                                |
 
 An answer against your recommendation isn't a mistake to correct. If it has a

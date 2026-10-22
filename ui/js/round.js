@@ -43,6 +43,8 @@ export function mountRound(round, env) {
   const ctx = {
     answers,
     live,
+    // An exported file has no daemon to keep attachments: no file buttons, no mark-up.
+    offline: Boolean(env.offline),
     dialog: round.dialog || [],
     glossary: spec.glossary,
     ui: s.ui,
@@ -79,9 +81,26 @@ export function mountRound(round, env) {
         }
         persist();
         toast(t("upload.done", up.name));
-      } catch {
-        toast(t("upload.failed"));
+      } catch (e) {
+        toast(t(e.offline ? "upload.offline" : "upload.failed"));
       }
+    },
+    // Notes pinned on one mockup of this question (see media.js pinLayer).
+    pins(qid, src) {
+      return {
+        listEl: h("ol.pv-list", { hidden: true }),
+        list: () => (answers[qid].pins || []).filter((p) => p.src === src),
+        add(pin) {
+          answers[qid].pins = [...(answers[qid].pins || []), { src, ...pin }];
+          syncOne(qid);
+          persist();
+        },
+        remove(pin) {
+          answers[qid].pins = answers[qid].pins.filter((p) => p !== pin);
+          syncOne(qid);
+          persist();
+        },
+      };
     },
     removeFile(qid, path) {
       answers[qid].attachments = answers[qid].attachments.filter((p) => p !== path);
@@ -125,7 +144,7 @@ export function mountRound(round, env) {
         toast(t("ask.offline"));
       }
     },
-    lightbox: (images, i, qid, opts = {}) => openLightbox(images, i, { ...opts, onAnnotate: (file) => ctx.attach(qid || null, file) }),
+    lightbox: (images, i, qid, opts = {}) => openLightbox(images, i, { ...opts, onAnnotate: env.offline ? undefined : (file) => ctx.attach(qid || null, file) }),
     zoom: openZoom,
     toast,
     shake(qid) {
@@ -222,7 +241,7 @@ export function mountRound(round, env) {
       s.comment = v;
       persist();
     }, (f) => ctx.attach(null, f)),
-    h("div.final-tools", {}, h("button.chip.ghost", { type: "button", html: `${icon("clip")}${t("final.attach")}`, onclick: () => pickFiles((f) => ctx.attach(null, f)) })),
+    !env.offline && h("div.final-tools", {}, h("button.chip.ghost", { type: "button", html: `${icon("clip")}${t("final.attach")}`, onclick: () => pickFiles((f) => ctx.attach(null, f)) })),
     commentFilesBox,
   );
   main.replaceChildren(renderHeader(spec, { ...env, live, listening: round.listening }), ...blocks, final, credit());

@@ -280,6 +280,59 @@ On finish the agent shows you the brief in chat, with your note in it, and
 asks whether to start. The decisions go into the project journal, so
 `/decide history` finds them later.
 
+## Asking someone else
+
+Sometimes the answer belongs to a person who isn't at your machine: a
+designer, a client, the rest of the team. Ask the agent to export the round.
+You get one `.html` file with the page, the pictures and the mockups inside
+it. Whoever opens it answers from disk in any browser, with nothing to
+install and no server. Done asks for their name and saves an
+`*.answers.json`, which they send back.
+
+Hand those files to the agent and it imports them. One file settles the
+round as if it was answered here. Several files settle nothing: the agent
+gets each person's answers side by side and a list of the questions where
+they disagree, and asks you how to resolve them.
+
+An exported file can't attach files, and the agent can't answer questions
+inside it. Diagrams need the network once to draw; offline they show their
+source.
+
+## Decisions over time
+
+Every answered round goes into the project's journal. The journal page
+(the clock button in the header, or "Open the journal" on the idle screen)
+lists them with search and filters by kind and status.
+
+When a new round asks about something a decision already settled, the agent
+is told which earlier answer it may contradict. If you now decide otherwise,
+it marks the old decision superseded: the journal keeps it, crossed out,
+with the round that replaced it.
+
+To keep a decision in the repository, ask for an ADR. The agent writes
+`docs/decisions/NNNN-title.md` with context, options, the decision and its
+consequences. Superseding the decision later updates its status there too.
+
+## Smaller things in 2.1
+
+- **A time budget.** A spec can say the user has five minutes. The page asks
+  what fits, by priority, and lists the questions it left out, so the agent
+  knows what it still has to decide.
+- **Questions only you answer.** Such a question never gets the agent's
+  recommendation filled in and has no "Agent decides" button. Done waits
+  until it has an answer.
+- **Hesitation.** In a swipe interview, a card you looked at for a long time
+  or answered twice reaches the agent marked "not sure or hesitated".
+- **Mockup widths and pins.** A mockup switches between 375, 768 and 1440 px.
+  Two HTML mockups compare live under one divider. You can pin notes to
+  points on a mockup; the pins go into your answer.
+- **Inline HTML.** A question, option or card can carry a small HTML snippet
+  instead of a file.
+- **Simulator screenshots.** The agent can capture the booted iOS simulator
+  or a running Android emulator and put the screen into a round.
+- **A system notification** when the agent replies or adds cards while the
+  page isn't in front of you.
+
 ## Install
 
 You need Node.js 20 or newer. Screenshots of running pages use a local
@@ -329,12 +382,14 @@ you about the current task. See [Swipe interview](#swipe-interview).
 
 ## How it works
 
-The plugin ships an MCP server with seven tools: `ask` opens a round, `swipe`
-opens a card interview, `wait` blocks until you answer or ask something,
-`push` updates the deck and brief of a card interview, `explain` puts the
-agent's answer on the page, `screenshot` captures a running page, and
-`history` searches past decisions. Agents without MCP can run the same engine as a CLI
-(`node decide.mjs --help`).
+The plugin ships an MCP server with eleven tools: `ask` opens a round,
+`swipe` opens a card interview, `wait` blocks until you answer or ask
+something, `push` updates the deck and brief of a card interview, `explain`
+puts the agent's answer on the page, `screenshot` captures a running page or
+a simulator, `history` searches past decisions, `supersede` marks one as no
+longer holding, `adr` writes one into the repo, and `export` and `import`
+carry a round to someone else and back. Agents without MCP can run the same
+engine as a CLI (`node decide.mjs --help`).
 
 A small server per project serves the page on 127.0.0.1. It starts on demand
 and stops after 30 idle minutes. Its state, the decision journal and
@@ -373,7 +428,9 @@ sandboxed frame with no network access. Screenshots take http(s) URLs only.
 **Does anything leave my machine?**
 No. The page, your answers and the journal stay on 127.0.0.1 and in
 `~/.decide`. The one outside request is mermaid, loaded from jsDelivr, and
-only for rounds that have a diagram.
+only for rounds that have a diagram. An exported round leaves only when you
+send the file to someone, and it holds the questions and pictures of that
+one round.
 
 **I closed the tab halfway through.**
 Your answers are saved as you go. Open the same link again and carry on.

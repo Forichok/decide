@@ -23,6 +23,8 @@ body.locked { overflow: hidden; }
 
 .rv-warn, .rv-ok { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; }
 .rv-warn { background: var(--warn-soft); color: var(--warn); }
+.rv-warn.block { background: var(--info-soft); color: var(--info); }
+.rv-mine { margin: 6px 0 0; padding-left: 18px; color: var(--tx); }
 .rv-ok { background: var(--ok-soft); color: var(--ok); }
 .rv-warn .i, .rv-ok .i { margin-top: 2px; flex: none; }
 .rv-body { display: grid; gap: 10px; min-width: 0; }
@@ -115,3 +117,11 @@ body.locked { overflow: hidden; }
 .hist-title { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-weight: 620; font-size: 14px; }
 .hist-when { font: 500 12px/1 var(--mono); color: var(--tx-dim); }
 .hist-digest { margin-top: 6px; max-height: 200px; }
+
+/* exported file: who answered (2.1) */
+.rv-name { display: grid; gap: 6px; margin: 14px 0 0; font-size: 13.5px; font-weight: 600; color: var(--tx-mut); }
+.rv-name-input {
+  width: 100%; padding: 9px 12px; border-radius: 10px; font: inherit; font-size: 14.5px; font-weight: 400;
+  border: 1px solid var(--line-strong); background: var(--surface); color: var(--tx);
+}
+.rv-name-input:focus { outline: none; border-color: var(--accent); }

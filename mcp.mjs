@@ -108,18 +108,20 @@ const TOOLS = [
   },
   {
     name: "screenshot",
-    description: "Capture a running web page with the local headless Chrome. Returns PNG paths (and the images) to use in a spec.",
+    description:
+      "Capture a running web page with the local headless Chrome, or the screen of a booted iOS simulator / running Android emulator. Returns PNG paths (and the images) to use in a spec.",
     inputSchema: {
       type: "object",
       properties: {
         project: PROJECT,
         url: { type: "string", description: "http(s) URL, e.g. http://localhost:5173/settings" },
+        simulator: { type: "string", enum: ["ios", "android"], description: "Instead of url: capture the booted iOS simulator (xcrun simctl) or the Android emulator (adb)." },
+        device: { type: "string", description: "With simulator: a simulator UDID or name, or an adb serial. Default: the booted one." },
         viewport: { type: "string", enum: ["desktop", "mobile", "both"], description: "desktop 1440×900, mobile 390×844; default desktop." },
         name: { type: "string", description: "File name hint." },
         waitMs: { type: "number", description: "Let the page settle this long before capturing, default 1500." },
         show: { type: "boolean", description: "Return the images to you as well (default true)." },
       },
-      required: ["url"],
     },
   },
   {
@@ -127,7 +129,69 @@ const TOOLS = [
     description: "Decisions already made in this project (newest first), to avoid asking the same thing twice.",
     inputSchema: {
       type: "object",
-      properties: { project: PROJECT, limit: { type: "number", description: "Default 10." }, query: { type: "string", description: "Filter by text." } },
+      properties: {
+        project: PROJECT,
+        limit: { type: "number", description: "Default 10." },
+        query: { type: "string", description: "Filter by text." },
+        status: { type: "string", enum: ["all", "live", "superseded"], description: "live: only decisions that still hold. Default all." },
+        topic: { type: "string", description: "A question you are about to ask: lists the live decisions on the same topic." },
+      },
+    },
+  },
+  {
+    name: "supersede",
+    description: "Mark an earlier decision as no longer holding, when the user decided otherwise in a later round. history and later rounds then stop treating it as settled, and its ADR (if any) gets a Superseded status.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: PROJECT,
+        round: { type: "string", description: "The id of the round whose decision no longer holds (history shows ids)." },
+        by: { type: "string", description: "The id of the round that replaced it, if any." },
+        reason: { type: "string", description: "One line on why, in the user's language." },
+      },
+      required: ["round"],
+    },
+  },
+  {
+    name: "adr",
+    description: "Write a finished round as an architecture decision record in the repo: docs/decisions/NNNN-slug.md with context, options, decision and consequences. Writing the same round again updates its file.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: PROJECT,
+        round: { type: "string", description: "The round id. Default: the latest decision." },
+        consequences: { type: "string", description: "Markdown: what this makes easier and harder. Pros and cons of the picked options are added on their own." },
+        dir: { type: "string", description: "Folder relative to the project. Default docs/decisions." },
+      },
+    },
+  },
+  {
+    name: "export",
+    description:
+      "Save a question round as one self-contained .html file for someone who can't reach this machine: they open it from disk, answer, and Done saves an answers JSON with their name. Pass round to export an open round, or spec/specPath to export without opening a page. Then end your turn; when the files come back, call import.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: PROJECT,
+        round: { type: "string", description: "An open question round to export." },
+        spec: { type: "object", description: "Or the questions object, as for ask." },
+        specPath: { type: "string", description: "Or the path of a *.questions.json." },
+        out: { type: "string", description: "Where to write the .html. Default: next to the spec, *.decide.html." },
+      },
+    },
+  },
+  {
+    name: "import",
+    description: "Read answers files saved from an exported page. One file settles the round (answers file, journal) and returns the digest; several files return each person's answers and where they disagree, and settle nothing.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: PROJECT,
+        files: { type: "array", items: { type: "string" }, description: "Paths of the *.answers.json files." },
+        round: { type: "string", description: "Override the round id the files carry." },
+        specPath: { type: "string", description: "The questions file, if decide no longer knows which one the round came from." },
+      },
+      required: ["files"],
     },
   },
 ];
@@ -141,7 +205,7 @@ async function callTool(name, args) {
     const out = await handler(args || {});
     return { content: typeof out === "string" ? [{ type: "text", text: out }] : out };
   } catch (e) {
-    const text = e instanceof UserError ? e.message : `decide failed: ${e.message}`;
+    const text = e instanceof UserError || e.user ? e.message : `decide failed: ${e.message}`;
     return { content: [{ type: "text", text }], isError: true };
   }
 }

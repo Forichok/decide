@@ -3,7 +3,7 @@
 
 import { h, icon } from "./dom.js";
 import { lang, t } from "./i18n.js";
-import { md } from "./md.js";
+import { md, mdInline } from "./md.js";
 import { getJournal } from "./net.js";
 
 const REPO = "https://github.com/Forichok/decide";
@@ -15,7 +15,7 @@ export function renderHeader(spec, env) {
   const high = spec.questions.filter((q) => q.stakes === "high").length;
   const meta = [
     [t("meta.questions", n)],
-    [t("meta.minutes", spec.estimateMin)],
+    [spec.budget ? t("meta.budget", spec.estimateMin, spec.budget) : t("meta.minutes", spec.estimateMin)],
     spec.sections.length && [t("meta.sections", spec.sections.length)],
     high && [t("meta.high", high), ".warn"],
     env.live && [t(env.listening === false ? "meta.away" : "meta.live"), `.presence${env.listening === false ? ".away" : ".live"}`],
@@ -29,6 +29,14 @@ export function renderHeader(spec, env) {
     h("div.meta-row", {}, meta.map(([text, cls = ""]) => h(`span.chip.static${cls}`, {}, text))),
     spec.intro && h("div.intro.rich", { html: md(spec.intro, g) }),
     spec.recap && h("div.panel.recap", {}, h("div.panel-h", { html: `${icon("spark")}${t("recap")}` }), h("div.rich", { html: md(spec.recap, g) })),
+    spec.leftOut?.length &&
+      h(
+        "details.panel.left-out",
+        {},
+        h("summary", {}, h("div.panel-h", { html: `${icon("chevron", "chev")}${t("budget.leftOut", spec.budget)} · ${spec.leftOut.length}` })),
+        h("p.left-out-sub", {}, t("budget.sub")),
+        h("ul.left-out-list", {}, spec.leftOut.map((q) => h("li", { html: mdInline(q.title, g) }))),
+      ),
     spec.context && h("details.panel.context", {}, h("summary", {}, h("div.panel-h", { html: `${icon("chevron", "chev")}${t("context")}` })), h("div.rich", { html: md(spec.context, g) })),
     journalPanel(),
   );
@@ -53,6 +61,7 @@ export function eyebrow(env) {
     h("a.brand", { href: REPO, ...out, title: t("brand.title") }, h("span.logo", { "aria-hidden": "true", html: LOGO }), h("span", {}, "decide")),
     h("span.conn", { title: t("conn") }),
     h("span.spacer"),
+    env.journal && h("button.icon-btn.jr-btn", { type: "button", title: t("journal.open"), "aria-label": t("journal.open"), html: icon("history"), onclick: env.journal }),
     h("a.icon-btn.gh", { href: REPO, ...out, title: t("brand.title"), "aria-label": t("brand.title"), html: icon("github") }),
     h("button.icon-btn.keys-btn", { type: "button", title: t("keys.button"), "aria-label": t("keys.label"), html: icon("keyboard"), onclick: env.help }),
     h("button.icon-btn.theme", { type: "button", title: t("theme.button"), "aria-label": t("theme.label"), html: icon(env.isDark() ? "sun" : "moon"), onclick: env.toggleTheme }),
@@ -80,7 +89,8 @@ export function journalPanel({ open = false, skip = null } = {}) {
   const list = h("div.jr-list");
   const search = h("input.jr-search", { type: "search", placeholder: t("journal.search"), "aria-label": t("journal.searchLabel") });
   const head = h("div.panel-h", { html: `${icon("history")}${t("journal.title")}` });
-  const box = h("details.panel.history", { hidden: true, open }, h("summary", {}, head), search, list);
+  const all = h("button.link-btn.jr-all", { type: "button", onclick: () => (location.hash = "journal") }, t("journal.open"));
+  const box = h("details.panel.history", { hidden: true, open }, h("summary", {}, head), search, list, all);
   let timer = null;
   search.addEventListener("input", () => {
     clearTimeout(timer);
@@ -121,9 +131,16 @@ export function renderDone(result, env) {
   const cancelled = result?.cancelled;
   const others = (env.pending || []).filter((r) => r.id !== env.currentId);
   const { delivered = true, listening = false } = env.delivery || {};
-  const state = cancelled ? "cancelled" : delivered ? "sent" : listening ? "handing" : "saved";
-  const ring = { cancelled: ".cancel", sent: "", handing: ".handing", saved: ".saved" }[state];
-  const next = others.length
+  const state = cancelled ? "cancelled" : env.offline ? "file" : delivered ? "sent" : listening ? "handing" : "saved";
+  const ring = { cancelled: ".cancel", sent: "", handing: ".handing", saved: ".saved", file: "" }[state];
+  const next = env.offline
+    ? h(
+        "div.close-row",
+        {},
+        !cancelled && h("button.btn.primary", { type: "button", onclick: env.download, html: `${icon("download")}${t("done.downloadAgain")}` }),
+        h("button.btn", { type: "button", onclick: env.reopen, html: `${icon("pen")}${t("done.change")}` }),
+      )
+    : others.length
     ? h("button.btn.primary", { type: "button", onclick: () => env.switchTo(others[0].id), html: `${t("done.more", others.length)}${icon("arrow")}` })
     : state === "saved"
       ? h("button.btn.primary", { type: "button", onclick: env.copyNudge, html: `${icon("clip")}${t("done.copy")}` })
@@ -139,13 +156,13 @@ export function renderDone(result, env) {
       {},
       h(`div.ring${ring}`, { html: icon(cancelled ? "x" : state === "sent" ? "check" : state === "saved" ? "alert" : "arrow") }),
       h("h2", {}, t(`done.${state}`)),
-      h("p.done-sub", {}, t(`done.${state}Sub`)),
+      h("p.done-sub", {}, state === "file" ? t("done.fileSub", result.file) : t(`done.${state}Sub`)),
       next,
       result?.mode === "swipe" && result.brief?.length
         ? h("ul.done-brief", {}, result.brief.map((b) => h(`li.sw-item.k-${b.kind}`, {}, b.text)))
         : result?.digest && h("pre.done-digest", {}, result.digest),
     ),
-    journalPanel({ skip: env.currentId }),
+    !env.offline && journalPanel({ skip: env.currentId }),
     credit(),
   );
 }
@@ -185,7 +202,7 @@ export function renderIdle(env) {
   );
 }
 
-function when(iso) {
+export function when(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const today = d.toDateString() === new Date().toDateString();

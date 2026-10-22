@@ -4,7 +4,7 @@
 import { h, icon, $ } from "./dom.js";
 import { shortcut, t } from "./i18n.js";
 import { mdInline } from "./md.js";
-import { describe, finalizeAnswers, isResolved, visibleQuestions } from "./logic.js";
+import { describe, finalizeAnswers, isResolved, missingMine, visibleQuestions } from "./logic.js";
 import { sameOrigin } from "./media.js";
 import { startAnnotate } from "./annotate.js";
 
@@ -129,9 +129,11 @@ export function openLightbox(images, start, { onAnnotate, annotate = false } = {
 // What to do with unanswered questions; kept while the page is open.
 let fillMode = "recommend";
 
-export function openReview({ spec, answers, comment, onSend, onJump }) {
+export function openReview({ spec, answers, comment, onSend, onJump, askName = null }) {
   const visible = visibleQuestions(spec, answers);
   const open = visible.filter((q) => !isResolved(q, answers[q.id]));
+  // Questions marked mine block the send until the user answers them.
+  const mine = missingMine(spec, answers);
   const words = reviewWords();
   const list = h("div.rv-list");
   const render = () => {
@@ -156,7 +158,9 @@ export function openReview({ spec, answers, comment, onSend, onJump }) {
       h("input", { type: "radio", name: "rv-fill", value: mode, checked: fillMode === mode, onchange: () => ((fillMode = mode), render()) }),
       h("span", {}, t(`review.fill.${mode}`)),
     );
-  const status = open.length
+  const status = mine.length
+    ? h("div.rv-warn.block", { html: icon("hand") }, h("div.rv-body", {}, h("p", {}, t("review.mine", mine.length)), h("ul.rv-mine", {}, mine.map((q) => h("li", { html: mdInline(q.title) })))))
+    : open.length
     ? h(
         "div.rv-warn",
         { html: icon("alert") },
@@ -169,9 +173,17 @@ export function openReview({ spec, answers, comment, onSend, onJump }) {
       )
     : h("p.rv-ok", { html: `${icon("check")}${t("review.ok")}` });
   const back = open.length
-    ? h("button.btn.ghost", { type: "button", onclick: () => (close(), onJump(open[0].id)) }, t("review.fillIn"))
+    ? h("button.btn.ghost", { type: "button", "data-autofocus": mine.length ? "" : null, onclick: () => (close(), onJump((mine[0] || open[0]).id)) }, t("review.fillIn"))
     : h("button.btn.ghost", { type: "button", onclick: () => close() }, t("common.back"));
-  const send = h("button.btn.primary", { type: "button", "data-autofocus": "", html: `${t("review.send")}${icon("arrow")}`, onclick: () => (close(), onSend(fillMode)) });
+  // An exported file asks who answered: the agent may get several answer files back.
+  const name = askName && h("input.rv-name-input", { type: "text", maxlength: 80, value: askName.value || "", placeholder: t("review.namePh"), autocomplete: "name" });
+  const send = h("button.btn.primary", {
+    type: "button",
+    disabled: mine.length > 0,
+    "data-autofocus": mine.length || name ? null : "",
+    html: `${askName ? t("review.download") : t("review.send")}${icon(askName ? "download" : "arrow")}`,
+    onclick: () => (close(), onSend(fillMode, name?.value.trim() || "")),
+  });
   const close = openModal(
     h(
       "div.review",
@@ -180,6 +192,7 @@ export function openReview({ spec, answers, comment, onSend, onJump }) {
       status,
       list,
       comment && h("p.rv-comment", {}, t("review.comment", comment)),
+      name && h("label.rv-name", {}, h("span", {}, t("review.name")), name),
       h("div.modal-actions", {}, back, send),
       h("p.modal-hint", {}, t("review.hint")),
     ),

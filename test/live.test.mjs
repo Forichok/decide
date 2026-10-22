@@ -115,7 +115,7 @@ test("MCP server: ask → wait → explain → wait → history over stdio", asy
   assert.deepEqual([init.result.protocolVersion, init.result.serverInfo.name, init.result.serverInfo.version], ["2025-06-18", "decide", VERSION]);
   assert.match(init.result.instructions, /wait/);
   const tools = (await rpc("tools/list", {})).result.tools.map((t) => t.name);
-  assert.deepEqual(tools, ["ask", "swipe", "wait", "push", "explain", "screenshot", "history"]);
+  assert.deepEqual(tools, ["ask", "swipe", "wait", "push", "explain", "screenshot", "history", "supersede", "adr", "export", "import"]);
   assert.equal((await rpc("nope", {})).error.code, -32601);
 
   const lost = await call("history", {});

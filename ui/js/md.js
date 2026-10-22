@@ -10,20 +10,20 @@ const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export const md = (src, glossary = {}) => render(src, glossary, blocks);
 export const mdInline = (src, glossary = {}) => render(src, glossary, (s) => s.replace(/\n/g, "<br>"));
 
+// Code spans and links wait outside as placeholders while the blocks are laid
+// out, so a "|" inside them never splits a table cell.
 function render(src, glossary, layout) {
   if (!src) return "";
-  const codes = [];
-  let s = esc(src).replace(/`([^`\n]+)`/g, (_, c) => `\u0000${codes.push(c) - 1}\u0000`);
-  s = s
-    .replace(
-      /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>',
-    )
-    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/(^|[\s(])_([^_\n]+)_(?=$|[\s).,!?:;])/gm, "$1<em>$2</em>");
-  s = layout(markTerms(s, glossary));
-  return s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${codes[i]}</code>`);
+  const held = [];
+  const hold = (html) => `\u0000${held.push(html) - 1}\u0000`;
+  let s = esc(src).replace(/`([^`\n]+)`/g, (_, c) => hold(`<code>${c}</code>`));
+  s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, text, href) => hold(`<a href="${href}" target="_blank" rel="noopener noreferrer">${emphasis(text)}</a>`));
+  s = layout(markTerms(emphasis(s), glossary));
+  return s.replace(/\u0000(\d+)\u0000/g, (_, i) => held[i]);
 }
+
+const emphasis = (s) =>
+  s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>").replace(/(^|[\s(])_([^_\n]+)_(?=$|[\s).,!?:;])/gm, "$1<em>$2</em>");
 
 function markTerms(html, glossary) {
   const terms = Object.keys(glossary || {}).sort((a, b) => b.length - a.length);
@@ -55,7 +55,14 @@ function markTerms(html, glossary) {
 // Block layout of already-escaped text: paragraphs, "- " / "1. " lists,
 // "### " headings, "> " quotes (escaped to "&gt; ") and pipe tables.
 const TABLE_SEP = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
-const cells = (line) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+// "\\|" keeps a pipe inside a cell, as in GitHub markdown.
+const cells = (line) =>
+  line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/(?<!\\)\|$/, "")
+    .split(/(?<!\\)\|/)
+    .map((c) => c.trim().replace(/\\\|/g, "|"));
 
 function blocks(s) {
   const lines = s.split("\n");

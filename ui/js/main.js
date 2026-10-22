@@ -4,10 +4,11 @@
 
 import { $, $$, icon } from "./dom.js";
 import { lang, t } from "./i18n.js";
-import { cancelRound, getRound, getState, listen, submitRound } from "./net.js";
+import { answererName, cancelRound, download, getRound, getState, listen, offline, reopen, submitRound } from "./net.js";
 import { hideBar, mountRound } from "./round.js";
 import { mountSwipe } from "./swipe.js";
 import { renderDone, renderIdle, roundTabs, updatePresence } from "./header.js";
+import { renderJournal } from "./journal.js";
 import { bindKeys } from "./nav.js";
 import { confirmCancel, openHelp, openReview, toast } from "./overlays.js";
 import { finalizeAnswers, isResolved, recommendedIds } from "./logic.js";
@@ -16,7 +17,7 @@ import { choose } from "./inputs.js";
 const app = {
   state: { rounds: [], history: [] },
   connected: false,
-  view: "boot", // round | done | idle
+  view: "boot", // round | done | idle | journal
   round: null, // mounted round, see round.js
   done: null, // { id, result } while the done screen is shown
   seen: new Set(),
@@ -62,6 +63,11 @@ function env() {
     isDark,
     toggleTheme,
     switchTo: (id) => openRound(id),
+    journal: offline ? null : () => (location.hash = "journal"),
+    offline,
+    download,
+    reopen: () => app.done && (reopen(), openRound(app.done.id)),
+    leaveJournal,
     finished: (id, result) => showDone(id, result),
     go,
     submit: review,
@@ -166,6 +172,25 @@ function showIdle(message) {
   if (message) toast(message);
 }
 
+function showJournal() {
+  disarmClose();
+  app.round?.stop();
+  app.round = null;
+  app.view = "journal";
+  app.done = null;
+  hideBar();
+  $("#main").replaceChildren(renderJournal(env()));
+  document.title = `${t("journalPage.title")} — decide`;
+  window.scrollTo({ top: 0 });
+}
+
+function leaveJournal() {
+  const last = app.state.rounds.at(-1);
+  if (last) return openRound(last.id);
+  history.replaceState(null, "", location.pathname + location.search);
+  showIdle();
+}
+
 function refreshTabs() {
   const old = $(".round-tabs");
   const fresh = roundTabs(env());
@@ -189,6 +214,7 @@ function onState(st) {
     return;
   }
   if (fresh.length) return openRound(fresh.at(-1).id);
+  if (app.view === "journal") return;
   rerenderStatic();
   if (app.view === "done") armClose();
 }
@@ -211,7 +237,7 @@ function onStatus(ok) {
 function renderDoneView() {
   const { id, result } = app.done;
   $("#main").replaceChildren(renderDone(result, env()));
-  const title = result?.cancelled ? "title.cancelled" : deliveryOf(id).delivered ? "title.sent" : "title.saved";
+  const title = result?.cancelled ? "title.cancelled" : offline ? "title.file" : deliveryOf(id).delivered ? "title.sent" : "title.saved";
   document.title = `${t(title)} — decide`;
 }
 
@@ -227,15 +253,15 @@ function review() {
   const open = $("#overlay .review .btn.primary");
   if (open) return open.click();
   const r = app.round;
-  openReview({ spec: r.spec, answers: r.answers, comment: r.comment().trim(), onSend: send, onJump: go });
+  openReview({ spec: r.spec, answers: r.answers, comment: r.comment().trim(), onSend: send, onJump: go, askName: offline ? { value: answererName() } : null });
 }
 
-async function send(fill = "recommend") {
+async function send(fill = "recommend", name = "") {
   const r = app.round;
   if (!r || app.sending) return;
   app.sending = true;
   try {
-    const res = await submitRound(r.id, r.payload(finalizeAnswers(r.spec, r.answers, { fill })));
+    const res = await submitRound(r.id, { ...r.payload(finalizeAnswers(r.spec, r.answers, { fill })), ...(offline ? { name } : {}) });
     showDone(r.id, res.result);
   } catch (e) {
     if (e.status === 409) openRound(r.id, false);
@@ -306,6 +332,7 @@ function act(kind) {
   if (!q) return;
   const { ctx } = app.round;
   if (kind === "note") return ctx.openNote(q.id);
+  if (kind === "delegate" && q.mine) return toast(t("toast.mine"));
   if (kind !== "rec") return ctx.toggleFlag(q.id, kind);
   if (recommendedIds(q).length || q.type === "rank") ctx.applyRecommended(q.id);
   else toast(t("toast.noRec"));
@@ -355,6 +382,25 @@ function bindDrop() {
   });
 }
 
+// A click into a live mockup moves focus into its frame, and keys pressed there never reach this
+// page: the swipe arrows and the question shortcuts stop. The first pointer move back on the page
+// returns focus to the card around the frame.
+function bindFrameFocus() {
+  window.addEventListener("blur", () =>
+    setTimeout(() => {
+      const frame = document.activeElement;
+      if (frame?.tagName !== "IFRAME") return;
+      const back = () => {
+        if (document.activeElement !== frame) return;
+        const card = frame.closest(".sw-card, .card");
+        if (card) card.focus({ preventScroll: true });
+        else frame.blur();
+      };
+      document.addEventListener("pointermove", back, { once: true });
+    }),
+  );
+}
+
 async function boot() {
   document.documentElement.lang = lang;
   $("#toc").setAttribute("aria-label", t("toc"));
@@ -362,6 +408,7 @@ async function boot() {
   loadTheme();
   bindKeys({ submit: review, step: (d) => app.round && step(d), nextOpen, act, help: () => swiping() || openHelp(), pick });
   bindDrop();
+  bindFrameFocus();
   try {
     app.state = await getState();
     app.connected = true;
@@ -369,8 +416,14 @@ async function boot() {
     showIdle();
   }
   app.state.rounds.forEach((r) => app.seen.add(r.id));
+  window.addEventListener("hashchange", () => {
+    if (location.hash === "#journal") return app.view !== "journal" && showJournal();
+    const id = new URLSearchParams(location.hash.slice(1)).get("r");
+    if (id && id !== app.round?.id && id !== app.done?.id) openRound(id);
+  });
   const id = new URLSearchParams(location.hash.slice(1)).get("r");
-  if (id) await openRound(id);
+  if (location.hash === "#journal") showJournal();
+  else if (id) await openRound(id);
   else if (app.state.rounds.length) await openRound(app.state.rounds.at(-1).id);
   else if (app.view === "boot") showIdle();
   listen(onState, onStatus, onDialog, onDeck);

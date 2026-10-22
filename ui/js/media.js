@@ -18,11 +18,14 @@ let mermaidSeq = 0;
 // compact: a swipe side tile; big: the zoomed copy in a modal.
 export function renderMedia(node, ctx, qid, { compact = false, big = false } = {}) {
   const zoom = (kind, el) => (ctx.zoom && !big ? zoomable(el, () => ctx.zoom(renderMedia({ [kind]: node[kind], previewHeight: 640 }, ctx, qid, { big: true }))) : el);
+  // Pins with notes on a mockup belong to the question, like a note does (not in a swipe deck).
+  const pinsOf = (src) => (ctx.pins && !compact ? ctx.pins(qid, src) : null);
   const parts = [
     node.images?.length && gallery(node.images, ctx, qid),
-    node.compare && zoom("compare", compareView(node.compare)),
+    node.compare && zoom("compare", node.compare.live ? compareLive(node.compare, compact ? 200 : node.previewHeight, { fit: compact }) : compareView(node.compare)),
     node.video?.length && videos(node.video, ctx, qid),
-    node.preview && (compact ? zoom("preview", preview(node.preview, 200, true)) : preview(node.preview, node.previewHeight)),
+    node.preview && (compact ? zoom("preview", preview(node.preview, 200, { fit: true })) : preview(node.preview, node.previewHeight, { pins: pinsOf(node.preview.src) })),
+    node.html && (compact ? zoom("html", htmlBlock(node.html, 200)) : htmlBlock(node.html)),
     node.chart && zoom("chart", chartView(node.chart, compact)),
     node.table && zoom("table", tableView(node.table)),
     node.diff && zoom("diff", diffView(node.diff, ctx, { unified: compact || narrow() })),
@@ -55,11 +58,6 @@ function zoomable(el, open) {
 
 // Before/after: drag the divider (or focus it and use ← →); the left part shows before.
 function compareView(c) {
-  const pos = (v) => {
-    const p = Math.max(0, Math.min(100, v));
-    box.style.setProperty("--pos", `${p}%`);
-    handle.setAttribute("aria-valuenow", String(Math.round(p)));
-  };
   const img = (a, cls) => h(`img.cmp-img.${cls}`, { src: a.src, alt: a.label || "", draggable: "false", loading: "lazy", decoding: "async" });
   const handle = h("div.cmp-handle", { role: "slider", tabindex: "0", "aria-label": t("cmp.slider"), "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": "50" }, h("span.cmp-knob", { html: `${icon("left")}${icon("right")}` }));
   const box = h(
@@ -71,30 +69,7 @@ function compareView(c) {
     h("span.cmp-tag.r", {}, c.after.label || t("cmp.after")),
     handle,
   );
-  pos(50);
-  let dragging = null;
-  const at = (e) => {
-    const r = box.getBoundingClientRect();
-    pos(((e.clientX - r.left) / r.width) * 100);
-  };
-  box.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0 || e.target.closest(".media-zoom")) return;
-    e.preventDefault(); // no focus: the arrow keys keep answering the swipe card
-    dragging = e.pointerId;
-    box.setPointerCapture(e.pointerId);
-    at(e);
-  });
-  box.addEventListener("pointermove", (e) => e.pointerId === dragging && at(e));
-  const stop = (e) => e.pointerId === dragging && (dragging = null);
-  box.addEventListener("pointerup", stop);
-  box.addEventListener("pointercancel", stop);
-  handle.addEventListener("keydown", (e) => {
-    const d = { ArrowLeft: -5, ArrowRight: 5, Home: -100, End: 100 }[e.key];
-    if (d === undefined) return;
-    e.preventDefault();
-    e.stopPropagation();
-    pos(Number(handle.getAttribute("aria-valuenow")) + d);
-  });
+  slider(box, handle, box);
   return box;
 }
 
@@ -249,6 +224,7 @@ function gallery(images, ctx, qid) {
           html: `<img src="${attr(img.src)}" alt="${attr(img.caption)}" loading="lazy" decoding="async"><span class="zoom">${icon("expand")}</span>`,
         }),
         sameOrigin(img.src) &&
+          !ctx.offline &&
           h("button.shot-mark", { type: "button", title: t("media.markTitle"), html: `${icon("pen")}${t("lb.mark")}`, onclick: open(true) }),
         img.caption && h("figcaption", {}, img.caption),
       ),
@@ -259,43 +235,250 @@ function gallery(images, ctx, qid) {
 
 export const sameOrigin = (src) => /^(\/(?!\/)|blob:|data:)/.test(src) || String(src).startsWith(location.origin);
 
-// fit: a side tile is narrower than any phone, so the page is laid out at phone
-// width and scaled down to the tile instead of reflowing into a column of words.
+// A mockup is laid out at a chosen width (a phone, a tablet, a laptop) and scaled down when
+// the box is narrower. A swipe side tile always lays it out at phone width: it is narrower
+// than any phone, and reflowing would make a column of words.
 const FIT_WIDTH = 390;
+const WIDTHS = [375, 768, 1440];
 
-function preview(p, height, fit = false) {
-  const frame = h("iframe", {
-    src: p.src,
-    sandbox: "allow-scripts allow-popups",
-    loading: "lazy",
-    title: t("preview.title"),
-    referrerpolicy: "no-referrer",
-  });
-  const px = Math.max(160, Math.min(height, 900));
-  frame.style.height = `${px}px`;
-  const box = h(
-    "div.preview.media-stop",
-    {},
-    h(
-      "div.preview-bar",
-      {},
-      h("span.dots3", {}, h("i"), h("i"), h("i")),
-      h("span", {}, t("preview.live")),
-      h("a.preview-open", { href: p.src, target: "_blank", rel: "noopener", html: `${t("preview.open")}${icon("expand")}` }),
-    ),
-    frame,
-  );
-  if (fit) {
-    new ResizeObserver(([e]) => {
-      const w = e.contentRect.width;
-      if (!w) return;
-      const z = Math.min(1, w / FIT_WIDTH);
-      frame.style.zoom = z;
-      frame.style.width = `${w / z}px`;
-      frame.style.height = `${px / z}px`;
-    }).observe(box);
+// Sizes frames (and their wrappers) to the box: want = virtual width or null for the box width.
+function fitFrames(box, wraps, frames, height, want) {
+  const w = box.clientWidth;
+  if (!w) return;
+  const z = want ? Math.min(1, w / want) : 1;
+  for (const f of frames) {
+    f.style.width = want ? `${want}px` : "100%";
+    f.style.height = `${height / z}px`;
+    f.style.zoom = z < 1 ? String(z) : "";
   }
+  for (const el of wraps) el.style.width = want ? `${Math.min(w, want)}px` : "";
+}
+
+function widthSwitch(onPick) {
+  let current = null;
+  const buttons = WIDTHS.map((w) =>
+    h("button.pv-w", {
+      type: "button",
+      "aria-pressed": "false",
+      title: t("preview.width", w),
+      onclick: (e) => {
+        e.stopPropagation();
+        current = current === w ? null : w;
+        for (const b of buttons) b.setAttribute("aria-pressed", String(Number(b.textContent) === current));
+        onPick(current);
+      },
+    }, String(w)),
+  );
+  return h("span.pv-widths", { role: "group", "aria-label": t("preview.widths") }, buttons);
+}
+
+function previewBar(p, extra = []) {
+  return h(
+    "div.preview-bar",
+    {},
+    h("span.dots3", {}, h("i"), h("i"), h("i")),
+    h("span.pv-live", {}, t("preview.live")),
+    ...extra,
+    p && h("a.preview-open", { href: p.src, target: "_blank", rel: "noopener", html: `${t("preview.open")}${icon("expand")}` }),
+  );
+}
+
+const frameOf = (src) =>
+  h("iframe", { src, sandbox: "allow-scripts allow-popups", loading: "lazy", title: t("preview.title"), referrerpolicy: "no-referrer" });
+
+// pins: {list, add, remove} for notes pinned on top of the mockup, or null.
+function preview(p, height, { fit = false, pins = null } = {}) {
+  const px = Math.max(160, Math.min(height, 900));
+  const frame = frameOf(p.src);
+  const wrap = h("div.pv-frame", {}, frame);
+  let want = fit ? FIT_WIDTH : null;
+  const box = h("div.preview.media-stop");
+  const layout = () => fitFrames(box, [wrap], [frame], px, want);
+  const extra = fit ? [] : [widthSwitch((w) => ((want = w), layout()))];
+  if (pins) extra.push(pinLayer(wrap, pins, () => want));
+  box.append(previewBar(p, extra), wrap);
+  if (pins) box.append(pins.listEl);
+  frame.style.height = `${px}px`;
+  new ResizeObserver(layout).observe(box);
   return box;
+}
+
+// Notes pinned on a mockup: the toggle turns clicks on the frame into pins; each pin asks for its note.
+function pinLayer(wrap, pins, widthNow) {
+  const layer = h("div.pv-pins");
+  wrap.append(layer);
+  let on = false;
+  const toggle = h("button.pv-mark", {
+    type: "button",
+    "aria-pressed": "false",
+    title: t("pins.title"),
+    html: `${icon("pen")}${t("pins.button")}`,
+    onclick: (e) => {
+      e.stopPropagation();
+      on = !on;
+      toggle.setAttribute("aria-pressed", String(on));
+      layer.classList.toggle("on", on);
+    },
+  });
+  const paint = () => {
+    const list = pins.list();
+    layer.replaceChildren(
+      ...list.map((pin, i) => h("span.pv-pin", { style: `left:${pin.x}%;top:${pin.y}%`, title: pin.text }, String(i + 1))),
+    );
+    pins.listEl.replaceChildren(
+      ...list.map((pin, i) =>
+        h(
+          "li",
+          {},
+          h("b", {}, `${i + 1}`),
+          h("span", {}, pin.text),
+          pin.width && h("span.pv-at", {}, `${pin.width}px`),
+          h("button.pv-del", { type: "button", "aria-label": t("pins.remove"), html: icon("x"), onclick: () => (pins.remove(pin), paint()) }),
+        ),
+      ),
+    );
+    pins.listEl.hidden = !list.length;
+  };
+  layer.addEventListener("click", (e) => {
+    if (!on || e.target !== layer) return;
+    const r = layer.getBoundingClientRect();
+    const x = Math.round(((e.clientX - r.left) / r.width) * 1000) / 10;
+    const y = Math.round(((e.clientY - r.top) / r.height) * 1000) / 10;
+    const input = h("input.pv-note", { type: "text", maxlength: 400, placeholder: t("pins.placeholder"), "aria-label": t("pins.placeholder") });
+    const bubble = h("span.pv-bubble", { style: `left:${x}%;top:${y}%` }, input);
+    layer.append(bubble);
+    input.focus();
+    let done = false;
+    const close = (save) => {
+      if (done) return;
+      done = true;
+      const text = input.value.trim();
+      if (save && text) pins.add({ x, y, width: widthNow(), text });
+      paint();
+    };
+    input.addEventListener("keydown", (k) => {
+      k.stopPropagation();
+      if (k.key === "Enter") close(true);
+      else if (k.key === "Escape") close(false);
+    });
+    input.addEventListener("blur", () => close(true));
+  });
+  paint();
+  return toggle;
+}
+
+// Two live mockups behind one divider: the left part shows before. Only the divider drags, so
+// both pages stay clickable.
+function compareLive(c, height, { fit = false } = {}) {
+  const px = Math.max(160, Math.min(height, 900));
+  const before = frameOf(c.before.src);
+  const after = frameOf(c.after.src);
+  const handle = h("div.cmp-handle", { role: "slider", tabindex: "0", "aria-label": t("cmp.slider"), "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": "50" }, h("span.cmp-knob", { html: `${icon("left")}${icon("right")}` }));
+  const stage = h(
+    "div.compare.live",
+    {},
+    h("div.cmp-frame.before", {}, before),
+    h("div.cmp-frame.after", {}, after),
+    h("span.cmp-tag.l", {}, c.before.label || t("cmp.before")),
+    h("span.cmp-tag.r", {}, c.after.label || t("cmp.after")),
+    handle,
+  );
+  let want = fit ? FIT_WIDTH : null;
+  const box = h("div.preview.cmp-live.media-stop", {}, previewBar(null, fit ? [] : [widthSwitch((w) => ((want = w), layout()))]), stage);
+  const layout = () => fitFrames(box, [stage], [before, after], px, want);
+  new ResizeObserver(layout).observe(box);
+  slider(stage, handle, handle);
+  return box;
+}
+
+// Drag (on grab) or the arrow keys (on the focused handle) move the divider.
+function slider(box, handle, grab) {
+  const pos = (v) => {
+    const p = Math.max(0, Math.min(100, v));
+    box.style.setProperty("--pos", `${p}%`);
+    handle.setAttribute("aria-valuenow", String(Math.round(p)));
+  };
+  pos(50);
+  let dragging = null;
+  const at = (e) => {
+    const r = box.getBoundingClientRect();
+    pos(((e.clientX - r.left) / r.width) * 100);
+  };
+  grab.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || e.target.closest(".media-zoom")) return;
+    e.preventDefault(); // no focus: the arrow keys keep answering the swipe card
+    dragging = e.pointerId;
+    grab.setPointerCapture(e.pointerId);
+    box.classList.add("sliding");
+    at(e);
+  });
+  grab.addEventListener("pointermove", (e) => e.pointerId === dragging && at(e));
+  const stop = (e) => {
+    if (e.pointerId !== dragging) return;
+    dragging = null;
+    box.classList.remove("sliding");
+  };
+  grab.addEventListener("pointerup", stop);
+  grab.addEventListener("pointercancel", stop);
+  handle.addEventListener("keydown", (e) => {
+    const d = { ArrowLeft: -5, ArrowRight: 5, Home: -100, End: 100 }[e.key];
+    if (d === undefined) return;
+    e.preventDefault();
+    e.stopPropagation();
+    pos(Number(handle.getAttribute("aria-valuenow")) + d);
+  });
+}
+
+// An HTML block: the snippet runs in a sandboxed frame (no access to this page), which reports its
+// height so the frame is as tall as its content, up to maxHeight.
+const sizedFrames = new Set();
+let listening = false;
+const frameSizes = new ResizeObserver((entries) => {
+  for (const { target } of entries) if (target.offsetWidth) target.contentWindow?.postMessage({ decideMeasure: true }, "*");
+});
+
+// The theme toggle and the system setting both reach frames that are already open.
+const retheme = () => {
+  const scheme = dark() ? "dark" : "light";
+  for (const f of sizedFrames) f.contentWindow?.postMessage({ decideScheme: scheme }, "*");
+};
+
+function htmlBlock(x, cap) {
+  const frame = h("iframe.html-frame", { sandbox: "allow-scripts allow-popups", title: t("html.title"), referrerpolicy: "no-referrer" });
+  frame.srcdoc = htmlDoc(x.source);
+  frame.style.height = "60px";
+  frame.dataset.max = String(cap || x.maxHeight);
+  sizedFrames.add(frame);
+  // A frame laid out while hidden reports 0 and may never report again: ask it to measure once it has a size.
+  frameSizes.observe(frame);
+  if (!listening) {
+    listening = true;
+    new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    matchMedia("(prefers-color-scheme: dark)").addEventListener("change", retheme);
+    window.addEventListener("message", (e) => {
+      if (!Number.isFinite(e.data?.decideHeight)) return;
+      for (const f of sizedFrames) {
+        if (!f.isConnected && f.dataset.seen) sizedFrames.delete(f), frameSizes.unobserve(f);
+        else if (f.contentWindow === e.source) {
+          f.dataset.seen = "1";
+          f.style.height = `${Math.max(24, Math.min(Math.ceil(e.data.decideHeight), Number(f.dataset.max)))}px`;
+        }
+      }
+    });
+  }
+  return h("div.html-block.media-stop", {}, frame);
+}
+
+const dark = () => {
+  const theme = document.documentElement.dataset.theme;
+  return theme ? theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+};
+
+function htmlDoc(source) {
+  const scheme = dark() ? "dark" : "light";
+  // The body's own box, not scrollHeight: scrollHeight never drops below the frame, so a frame could only grow.
+  const report = `(()=>{const b=document.body,s=()=>parent.postMessage({decideHeight:Math.ceil(b.getBoundingClientRect().height)+2},"*");new ResizeObserver(s).observe(b);addEventListener("load",s);addEventListener("message",e=>{if(e.source!==parent||!e.data)return;if(e.data.decideScheme)document.documentElement.style.colorScheme=e.data.decideScheme;if(e.data.decideMeasure)s()});s()})()`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><base target="_blank"><style>:root{color-scheme:${scheme}}html,body{margin:0;background:transparent}body{font:14.5px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:1px}</style></head><body>${source}<script>${report}</script></body></html>`;
 }
 
 function diagram(src, ctx, qid) {
