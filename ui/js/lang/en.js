@@ -224,6 +224,7 @@ export default {
   "sw.keyRight": "right",
   "sw.keySkip": "skip",
   "sw.keyExplain": "explain",
+  "sw.keyFacets": "more",
   "sw.keyUndo": "back",
   "sw.enough": "Enough, build the brief",
   "sw.finish": "Finish",

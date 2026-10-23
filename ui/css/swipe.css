@@ -224,6 +224,9 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 20px; }
 /* ---- keys */
 .sw-keys { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; transition: opacity 0.2s; }
 .sw-keys.off { opacity: 0.35; pointer-events: none; }
+/* Keys that don't fit on one line drop labels: first ← → (the side tiles show them), then all (the title keeps them). */
+.sw-keys.tight-1 .sw-key:is(.left, .right) span, .sw-keys.tight-2 .sw-key span { display: none; }
+.sw-keys.tight-1 .sw-key:is(.left, .right), .sw-keys.tight-2 .sw-key { padding: 8px; }
 .sw-key {
   display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px 7px 8px; border-radius: 999px;
   border: 1px solid var(--line-strong); background: var(--surface); color: var(--tx-mut); font-size: 13px; cursor: pointer;

@@ -99,6 +99,7 @@ export function mountSwipe(round, env) {
     keyBtn("left", "←", t("sw.keyLeft"), () => answer("left")),
     keyBtn("up", "↑", t("sw.keySkip"), () => answer("skip")),
     keyBtn("down", "↓", t("sw.keyExplain"), () => openAsk()),
+    keyBtn("fold", "␣", t("sw.keyFacets"), () => toggleFacets()),
     keyBtn("own", "↵", t("sw.keyOwn"), () => openOwn()),
     keyBtn("undo", "⌫", t("sw.keyUndo"), () => undo()),
     keyBtn("right", "→", t("sw.keyRight"), () => answer("right")),
@@ -194,12 +195,25 @@ export function mountSwipe(round, env) {
     return h(`li.sw-item${isNew ? ".new" : ""}`, { html: md(b.text, deck.glossary) });
   }
 
+  // The key strip stays on one line: while it wraps, it drops labels a step at a time.
+  function fitKeys() {
+    const shown = [...keys.children].filter((k) => !k.hidden);
+    const wraps = () => new Set(shown.map((k) => k.offsetTop)).size > 1;
+    keys.classList.remove("tight-1", "tight-2");
+    if (wraps()) keys.classList.add("tight-1");
+    if (wraps()) keys.classList.add("tight-2");
+  }
+  const keysFit = new ResizeObserver(() => fitKeys());
+  keysFit.observe(stack);
+
   function paintDeck() {
     const q = queue();
     const top = q[0];
     doneBanner.hidden = !(deck.done && top);
     if (deck.done && top) doneBanner.replaceChildren(h("span", {}, t("sw.doneEarly")), h("button.btn.primary.sm", { type: "button", onclick: () => confirmFinish() }, t("sw.finish")));
     keys.classList.toggle("off", !top);
+    $(".sw-key.fold", keys).hidden = !(top && FACETS.some(([k]) => top[k]));
+    fitKeys();
     foot.replaceChildren(...(deck.done && !top ? [] : [stopBtn]));
     if (!top) {
       frontSig = null;
@@ -738,6 +752,7 @@ export function mountSwipe(round, env) {
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("visibilitychange", readTick);
       document.body.classList.remove("swipe-mode");
+      keysFit.disconnect();
     },
   };
 }

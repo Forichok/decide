@@ -231,6 +231,7 @@ export default {
   "sw.keyRight": "правый",
   "sw.keySkip": "пропустить",
   "sw.keyExplain": "объясни",
+  "sw.keyFacets": "подробнее",
   "sw.keyUndo": "назад",
   "sw.enough": "Хватит, собрать бриф",
   "sw.finish": "Завершить",
