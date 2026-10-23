@@ -183,7 +183,7 @@ answers") so the user can catch a misunderstanding early.
 | Rule                                                                                                                                  | Why                                                               |
 | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | The title is a plain question a non-engineer understands. Jargon goes to `glossary`.                                                  | Glossary terms get a tooltip on first use.                        |
-| `tldr`: one line on what depends on the answer. Longer context goes to `what` / `how` / `why` / `goal`, which stay folded.            | The user reads title and tldr, and opens the rest only if needed. |
+| `tldr`: one line on what depends on the answer. Longer context goes to `what` / `how` / `why` / `goal` / `then` (what happens after each option), which stay folded. | The user reads title and tldr, and opens the rest only if needed. |
 | `body`: markdown shown open under the tldr, for the facts the choice rests on: a short table, a quote, a list.                       | Numbers the user must see shouldn't hide behind a fold.           |
 | 2–4 real options. No filler options that exist only to lose.                                                                          | A fake choice is worse than no question.                          |
 | Exactly one option is `recommended`, and the value is the reason: `"recommended": "cheapest to undo"`.                                | Shown as ★ with the reason; can fill questions left unanswered.   |

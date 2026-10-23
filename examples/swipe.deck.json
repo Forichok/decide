@@ -18,6 +18,9 @@
       "compare": { "before": "swipe.assets/pricing-before.svg", "after": "swipe.assets/pricing-after.svg", "labels": ["Today", "Redesign"] },
       "left": { "label": "Keep today's page", "detail": "Monthly prices, no highlighted plan" },
       "right": { "label": "Ship the redesign", "detail": "Yearly billing, **Pro** highlighted" },
+      "what": "A redesign of the pricing page: yearly billing first, the Pro plan highlighted.",
+      "why": "Pricing is where trial starts are won or lost; the page hasn't changed in two years.",
+      "then": "← nothing changes. → the redesign goes to every visitor next week; the old page stays one flag away.",
       "recommended": "right",
       "reason": "the highlighted plan doubled trial starts in the last test"
     },
@@ -27,6 +30,8 @@
       "title": "Which home screen?",
       "left": { "label": "List", "detail": "Everything due, sorted by time", "image": "swipe.assets/home-list.svg" },
       "right": { "label": "Board", "detail": "Columns by status", "image": "swipe.assets/home-board.svg" },
+      "why": "The home screen is the first thing people see every day.",
+      "then": "The chosen layout becomes the default; the other one stays as a setting.",
       "recommended": "left",
       "reason": "most sessions are a 20-second check of what is due"
     },
@@ -38,7 +43,9 @@
       "video": { "src": "swipe.assets/swipe-clip.mp4", "caption": "The clip as it would play" },
       "left": { "label": "No clip", "detail": "A one-line hint under the first task" },
       "right": { "label": "Show the clip", "detail": "Plays once, then a **Got it** button" },
-      "recommended": "right"
+      "recommended": "right",
+      "why": "New users don't find the swipe on their own; half of them never try it.",
+      "then": "← people learn the gesture from the hint arrow. → the clip plays once on first launch and never again."
     },
     {
       "id": "density",
@@ -46,7 +53,9 @@
       "title": "How dense should the task list be?",
       "left": { "label": "Compact", "detail": "One line per task, 9 tasks on a phone", "preview": "swipe.assets/row-compact.html", "previewHeight": 260 },
       "right": { "label": "Roomy", "detail": "Two lines, the note under the title", "preview": "swipe.assets/row-roomy.html", "previewHeight": 260 },
-      "recommended": "left"
+      "recommended": "left",
+      "why": "The list is the screen people stay on longest; density decides how many tasks fit without scrolling.",
+      "then": "← about 12 tasks on a phone screen, smaller tap targets. → about 7, easier to hit with a thumb."
     },
     {
       "id": "parser",
@@ -61,7 +70,9 @@
       },
       "left": { "label": "Not yet", "detail": "Keep the picker until the parser has tests in 5 languages" },
       "right": { "label": "Ship it", "detail": "English first, the picker stays as a fallback" },
-      "recommended": "right"
+      "recommended": "right",
+      "why": "Typing a date is the slowest part of adding a task today.",
+      "then": "← the date picker stays. → typed dates work everywhere; the picker stays as a fallback."
     },
     {
       "id": "pro-price",
@@ -79,7 +90,9 @@
         "chart": { "type": "bar", "labels": ["Jan", "Feb", "Mar", "Apr"], "series": [{ "name": "$12", "values": [25, 26, 26, 27] }] }
       },
       "recommended": "left",
-      "reason": "it grows faster and keeps small teams"
+      "reason": "it grows faster and keeps small teams",
+      "why": "The price decides both how many trials convert and how much each one brings.",
+      "then": "← more paying teams, less money from each. → fewer conversions, about the same revenue in the test."
     },
     {
       "id": "digest",
@@ -97,7 +110,9 @@
       "left": { "label": "Daily", "detail": "Every morning at 8" },
       "right": { "label": "Weekly", "detail": "Monday morning" },
       "recommended": "right",
-      "reason": "daily opens halve within two months"
+      "reason": "daily opens halve within two months",
+      "why": "The digest brings people back, but too many emails get it muted.",
+      "then": "← one email every morning with today's tasks. → one email on Monday with the week ahead."
     },
     {
       "id": "limits",
@@ -111,7 +126,9 @@
         "label": "Tight",
         "table": { "columns": ["Limit", "Free"], "rows": [["Boards", "1"], ["Members", "3"], ["History", "7 days"]] }
       },
-      "recommended": "right"
+      "recommended": "right",
+      "why": "The free plan is how small teams find the app; its limits push them to pay.",
+      "then": "← more free teams, slower upgrades. → fewer free teams, upgrades come sooner."
     },
     {
       "id": "sync",
@@ -120,7 +137,9 @@
       "mermaid": "flowchart LR\n  A[Phone edits offline] --> B{Online?}\n  B -- yes --> C[Push change]\n  B -- no --> D[Queue locally]\n  D --> B\n  C --> E[Server merges by field]",
       "left": { "label": "Keep it" },
       "right": { "label": "Rethink it", "detail": "Last write wins instead of a merge" },
-      "recommended": "left"
+      "recommended": "left",
+      "why": "Sync is where data gets lost; changing it later means a migration.",
+      "then": "← we build the flow on the diagram. → I come back with a new diagram before any sync code is written."
     },
     {
       "id": "share-gif",
@@ -129,7 +148,9 @@
       "left": { "label": "A still picture", "image": "swipe.assets/home-board.svg" },
       "right": { "label": "A short loop", "video": "swipe.assets/swipe-loop.gif" },
       "recommended": "left",
-      "reason": "most chat apps don't autoplay a link preview"
+      "reason": "most chat apps don't autoplay a link preview",
+      "why": "A shared board is how most new teams hear about the app.",
+      "then": "← a PNG, works everywhere. → a short GIF, heavier, some chats show it as a file."
     },
     {
       "id": "utc",
@@ -139,10 +160,12 @@
       "left": { "label": "UTC plus the zone", "detail": "Moves with daylight saving" },
       "right": { "label": "Local time only", "detail": "Breaks when the user travels" },
       "recommended": "left",
-      "stakes": "high"
+      "stakes": "high",
+      "why": "Reminders that fire an hour off after a trip are the top complaint.",
+      "then": "← reminders stay right across time zones and DST. → simpler storage; a reminder set at home fires at the same clock time abroad."
     },
-    { "id": "dark", "section": "Look", "title": "Follow the phone's dark mode?", "left": "Yes, automatically", "right": "A switch in settings", "recommended": "left" },
-    { "id": "undo", "section": "Home", "title": "Undo a finished task with a shake?", "left": "Shake to undo", "right": "An undo button for 5 s", "recommended": "right" },
-    { "id": "widgets", "section": "Home", "title": "A home-screen widget in 2.0?", "left": "Yes, today's tasks", "right": "Later", "recommended": "right" }
+    { "id": "dark", "section": "Look", "title": "Follow the phone's dark mode?", "left": "Yes, automatically", "right": "A switch in settings", "recommended": "left", "why": "Half the users keep the phone in dark mode at night.", "then": "← the app switches with the phone. → people choose once in settings." },
+    { "id": "undo", "section": "Home", "title": "Undo a finished task with a shake?", "left": "Shake to undo", "right": "An undo button for 5 s", "recommended": "right", "why": "Finishing a task by mistake is common, and today there is no way back.", "then": "← shake the phone to bring the task back. → a toast with Undo stays for 5 seconds." },
+    { "id": "widgets", "section": "Home", "title": "A home-screen widget in 2.0?", "left": "Yes, today's tasks", "right": "Later", "recommended": "right", "why": "A widget shows today's tasks without opening the app.", "then": "← two more weeks of work in 2.0. → 2.0 ships sooner; the widget comes in 2.1." }
   ]
 }

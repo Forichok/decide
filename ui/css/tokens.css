@@ -29,6 +29,7 @@
   --c-how: #0f9a6e;
   --c-why: #c07a0c;
   --c-goal: #e2336e;
+  --c-then: #7a4fd6;
   /* chart series: the dataviz reference categorical order, validated for light and dark */
   --chart-1: #2a78d6;
   --chart-2: #eb6834;
@@ -81,6 +82,7 @@
     --c-how: #3ad3a0;
     --c-why: #f2b155;
     --c-goal: #ff7aa3;
+    --c-then: #b294ff;
     --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
     --shadow-2: 0 14px 40px -16px rgba(0, 0, 0, 0.7);
     --shadow-3: 0 30px 80px -20px rgba(0, 0, 0, 0.85);
@@ -120,6 +122,7 @@
   --c-how: #3ad3a0;
   --c-why: #f2b155;
   --c-goal: #ff7aa3;
+  --c-then: #b294ff;
   --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
   --shadow-2: 0 14px 40px -16px rgba(0, 0, 0, 0.7);
   --shadow-3: 0 30px 80px -20px rgba(0, 0, 0, 0.85);

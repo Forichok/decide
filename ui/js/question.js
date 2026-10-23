@@ -10,11 +10,12 @@ import { renderExtras, syncExtras } from "./extras.js";
 import { renderThread, syncThread } from "./dialog.js";
 import { isAnswered, recommendedIds } from "./logic.js";
 
-const FACETS = [
+export const FACETS = [
   ["what", t("facet.what")],
   ["how", t("facet.how")],
   ["why", t("facet.why")],
   ["goal", t("facet.goal")],
+  ["then", t("facet.then")],
 ];
 
 const ACTIONS = [

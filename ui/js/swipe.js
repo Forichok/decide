@@ -1,5 +1,5 @@
 // swipe.js — the swipe interview on screen: the deck in the middle (← → pick a
-// side, ↑ skips, ↓ asks the agent to explain, Enter types an own answer,
+// side, ↑ skips, ↓ asks the agent to explain, Space folds the what/how/why answers, Enter types an own answer,
 // Backspace takes the last answer back), the brief the agent keeps rewriting on the left, and its confidence
 // on top. Answers go out one by one; the agent's pushes come back as "deck". Each side tile shows its
 // own media; at the end the user can leave a closing note or ask the agent to dig deeper.
@@ -11,6 +11,7 @@ import { renderMedia } from "./media.js";
 import { eyebrow } from "./header.js";
 import { hideBar } from "./round.js";
 import { modalOpen, openLightbox, openModal, openZoom, toast } from "./overlays.js";
+import { FACETS } from "./question.js";
 import { askAgent, digDeeper, submitRound, swipeCard } from "./net.js";
 
 const KINDS = ["decision", "risk", "problem", "open", "note"];
@@ -297,6 +298,39 @@ export function mountSwipe(round, env) {
   const deeperBtn = (after) =>
     h("button.btn.ghost.sw-deeper", { type: "button", title: t("sw.deeperTitle"), onclick: () => (after?.(), dig()), html: `${icon("spark")}${t("sw.deeper")}` });
 
+  // The answers to "what, how, why, what for, what happens" fold under the question. Open or
+  // folded stays the same from card to card: whoever opened it once wants it on the next one too.
+  let facetsOpen = false;
+  function facetsBox(c) {
+    const facets = FACETS.filter(([k]) => c[k]);
+    if (!facets.length) return null;
+    const grid = h(
+      "div.facets.sw-facets",
+      { hidden: !facetsOpen },
+      facets.map(([k, label]) => h(`div.facet.${k}`, {}, h("div.f-label", {}, label), h("div.f-text.rich", { html: md(c[k], deck.glossary) }))),
+    );
+    const toggle = h(
+      "button.explain-toggle.sw-facets-toggle",
+      { type: "button", "aria-expanded": String(facetsOpen), onclick: () => toggleFacets() },
+      h("span", { html: `${icon("chevron", "chev")}${t("facet.more", facets.map(([, l]) => l.toLowerCase()).join(" · "))}` }),
+      h("kbd", {}, "␣"),
+    );
+    return [toggle, grid];
+  }
+  // The front card's fold, unless the card is flying off.
+  function frontFacets() {
+    const card = !flying && $(".sw-card.front");
+    return card && $(".sw-facets", card);
+  }
+  function toggleFacets() {
+    const grid = frontFacets();
+    if (!grid) return;
+    const card = grid.closest(".sw-card");
+    facetsOpen = grid.hidden;
+    grid.hidden = !facetsOpen;
+    $(".sw-facets-toggle", card).setAttribute("aria-expanded", String(facetsOpen));
+  }
+
   function frontCard(c) {
     const ctx = media;
     const replies = dialog.filter((d) => d.qid === c.id);
@@ -318,6 +352,7 @@ export function mountSwipe(round, env) {
       h("h2.sw-q", { html: md(c.title, deck.glossary).replace(/^<p>|<\/p>$/g, "") }),
       c.tldr && h("div.sw-tldr.rich", { html: md(c.tldr, deck.glossary) }),
       c.body && h("div.sw-body.rich", { html: md(c.body, deck.glossary) }),
+      facetsBox(c),
       renderMedia(c, ctx, c.id),
       replies.filter((d) => d.reply).map((d) => explainBox(d)),
       waitingReply && h("div.sw-explain.wait", {}, h("span.sw-dots", {}, h("i"), h("i"), h("i")), t("sw.explaining")),
@@ -609,7 +644,7 @@ export function mountSwipe(round, env) {
   function bindDrag(card) {
     let start = null;
     card.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0 || e.target.closest("button, a, textarea, input, .media-stop, .sw-explain")) return;
+      if (e.button !== 0 || e.target.closest("button, a, textarea, input, .media-stop, .sw-explain, .sw-facets")) return;
       start = { x: e.clientX, y: e.clientY, id: e.pointerId };
       card.setPointerCapture(e.pointerId);
       card.classList.add("dragging");
@@ -643,6 +678,13 @@ export function mountSwipe(round, env) {
   const onKey = (e) => {
     // ⌘↵ comes through main.js (finish below); the rest is ours.
     if (e.target.closest?.("input, textarea, [contenteditable]") || modalOpen() || e.altKey || e.metaKey || e.ctrlKey) return;
+    // Space folds the answers, but leaves a focused button, link or video and pages without a fold alone.
+    if (e.key === " ") {
+      if (e.target.closest?.("button, a, video, audio, select, summary") || !frontFacets()) return;
+      e.preventDefault();
+      if (!e.repeat) toggleFacets();
+      return;
+    }
     const act = {
       ArrowLeft: () => answer("left"),
       ArrowRight: () => answer("right"),
@@ -708,6 +750,7 @@ const SWIPE_KEYS = [
   ["←  →", "sw.helpPick"],
   ["↑", "sw.helpSkip"],
   ["↓", "sw.helpExplain"],
+  ["␣", "sw.helpFacets"],
   ["↵", "sw.helpOwn"],
   ["⌫", "sw.helpUndo"],
   ["Esc", "sw.helpEnough"],

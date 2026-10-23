@@ -58,6 +58,7 @@ details:not([open]) .chev { transform: rotate(-90deg); }
 .facet.how { --c: var(--c-how); }
 .facet.why { --c: var(--c-why); }
 .facet.goal { --c: var(--c-goal); }
+.facet.then { --c: var(--c-then); }
 .f-label { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--c); margin-bottom: 2px; }
 .f-text { color: var(--tx-mut); }
 @media (max-width: 560px) { .explain-toggle, .facets { margin-left: 0; } }

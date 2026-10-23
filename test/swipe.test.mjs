@@ -45,6 +45,20 @@ test("a deck card has exactly two sides", () => {
   assert.equal(normalizeDeck({ title: "t" }).deck, null);
 });
 
+test("a card keeps its folded answers, and cards without them get one warning", () => {
+  const card = (id, extra) => ({ id, title: "?", left: "a", right: "b", ...extra });
+  const { deck, issues } = normalizeDeck({
+    goal: "g",
+    cards: [card("full", { what: " w ", how: "h", why: "y", goal: "g", then: "t" }), card("bare1"), card("bare2")],
+  });
+  assert.deepEqual(["what", "how", "why", "goal", "then"].map((k) => deck.cards[0][k]), ["w", "h", "y", "g", "t"]);
+  assert.equal(deck.cards[1].why, "");
+  const warns = issues.filter((i) => /without why/.test(i.message));
+  assert.equal(warns.length, 1);
+  assert.match(warns[0].message, /2 card\(s\).*bare1, bare2/);
+  assert.equal(normalizePatch({ add: [card("n1")] }).issues.filter((i) => /without why/.test(i.message)).length, 1);
+});
+
 test("push touches only open cards", () => {
   const { deck } = normalizeDeck(deckRaw);
   const answered = new Set(["turns"]);
@@ -68,7 +82,7 @@ test("push touches only open cards", () => {
   assert.match(warned, /remove: no card "nope"/);
   assert.equal(applyPatch(res.deck, answered, normalizePatch({ add: [card("weapons", "?")] }).patch).added, 0, "an existing id is not added twice");
   assert.equal(res.deck.cards[2].rev, 1, "a replaced card gets a new revision");
-  assert.match(normalizePatch({ add: [{ title: "?", left: "a", right: "b" }] }).issues[0].message, /needs an id/);
+  assert.ok(normalizePatch({ add: [{ title: "?", left: "a", right: "b" }] }).issues.some((i) => /needs an id/.test(i.message)));
 
   const md = briefMarkdown(res.deck, { turns: { side: "left" }, land: { side: "skip" } });
   assert.match(md, /^# Worms с акулами/);

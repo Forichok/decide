@@ -23,6 +23,7 @@
       "how": "…",
       "why": "…",
       "goal": "…",
+      "then": "…",
       "type": "single",
       "layout": "compare",
       "stakes": "high",

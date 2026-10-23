@@ -138,6 +138,11 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 20px; }
 .sw-tldr p { margin: 0; }
 .sw-body { font-size: 14.5px; line-height: 1.55; user-select: text; }
 .sw-body .md-table { margin: 2px 0 4px; }
+.sw-card .sw-facets-toggle { margin: 0; align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; }
+.sw-facets-toggle span { display: inline-flex; align-items: center; gap: 6px; }
+.sw-facets-toggle kbd { font-size: 11px; opacity: 0.7; }
+.sw-card .sw-facets { margin: 0; user-select: text; }
+.sw-card .sw-facets .facet { font-size: 14px; }
 .sw-card .media { margin: 0; }
 .sw-card .media .preview iframe { max-height: 340px; }
 .sw-card .media .gallery img, .sw-card .media .video .shot-btn img { max-height: 240px; object-fit: contain; }
