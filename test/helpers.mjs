@@ -2,10 +2,10 @@
 // scratch dir that is both the project and (under .home) its DECIDE_HOME, so
 // no daemon, journal or screenshot leaks into the real ~/.decide.
 
-import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, realpathSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { devNull, tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -86,3 +86,25 @@ export const waitForReadyUrl = (child, output) =>
 
 export const exitOf = (child) =>
   child.exitCode !== null ? Promise.resolve(child.exitCode) : new Promise((resolve) => child.once("exit", resolve));
+
+export const hasGit = spawnSync("git", ["--version"], { stdio: "ignore" }).status === 0;
+
+// A scratch repository with one commit and a linked worktree, all removed after the test.
+// Paths are real paths, so /var vs /private/var and short Windows names cannot differ.
+export async function repoWithWorktree(context) {
+  const dir = realpathSync.native(await scratchDir(context));
+  const main = path.join(dir, "main");
+  const wt = path.join(dir, "wt");
+  mkdirSync(main);
+  const git = (cwd, ...args) => {
+    const env = { ...process.env, GIT_CONFIG_GLOBAL: devNull, GIT_CONFIG_NOSYSTEM: "1" };
+    for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete env[k];
+    const r = spawnSync("git", ["-c", "user.name=decide-test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", ...args], { cwd, encoding: "utf8", env });
+    if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.stderr}`);
+    return r.stdout;
+  };
+  git(main, "init", "-q");
+  git(main, "commit", "-q", "--allow-empty", "-m", "init");
+  git(main, "worktree", "add", "-q", "-b", "side", wt);
+  return { dir, main, wt, git };
+}
