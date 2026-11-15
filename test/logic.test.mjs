@@ -260,15 +260,17 @@ test("markdown-lite escapes HTML and marks glossary terms outside code", () => {
 });
 
 test("a round nobody has waited on for the grace period is not listened to", async (context) => {
-  const { createRounds } = await import("../lib/rounds.mjs");
+  const { createStore } = await import("../lib/store/rounds.mjs");
   const { createRoots } = await import("../lib/assets.mjs");
   const { normalizeSpec } = await import("../lib/spec.mjs");
   const dir = await mkdtemp(path.join(tmpdir(), "decide-rounds-"));
   context.after(() => rm(dir, { force: true, recursive: true }));
-  const store = createRounds({ roots: createRoots(), onChange: () => {}, listenGraceMs: 0 });
-  const round = store.create({ spec: normalizeSpec({ title: "t", questions: [{ id: "a", title: "A", options: [{ id: "x", label: "X" }] }] }).spec, outPath: path.join(dir, "t.answers.json") });
+  const store = createStore({ home: dir, roots: createRoots(), listenGraceMs: 0 });
+  const spec = normalizeSpec({ title: "t", questions: [{ id: "a", title: "A", options: [{ id: "x", label: "X" }] }] }).spec;
+  const round = store.create({ project: { root: dir, dataDir: path.join(dir, "projects", "p") }, spec, raw: spec, outPath: path.join(dir, "t.answers.json") });
   assert.equal(store.summary().rounds[0].listening, false);
-  const res = { writeHead: () => ({ end() {} }), end() {} };
-  store.wait(round, { on() {} }, res, { timeoutMs: 1_000 });
+  const waiting = store.next(round, { waiter: "agent", timeoutMs: 1_000 });
   assert.equal(store.summary().rounds[0].listening, true);
+  store.close(); // frees the waiter and the log before the directory goes
+  assert.equal(await waiting, null);
 });

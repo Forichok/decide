@@ -111,7 +111,7 @@ test("MCP server: ask → wait → explain → wait → history over stdio", asy
   const text = (result) => result.content.map((c) => c.text).join("\n");
 
   const init = await rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } });
-  const { VERSION } = await import(path.join(pluginDir, "lib/daemon.mjs"));
+  const { VERSION } = await import(path.join(pluginDir, "lib/server.mjs"));
   assert.deepEqual([init.result.protocolVersion, init.result.serverInfo.name, init.result.serverInfo.version], ["2025-06-18", "decide", VERSION]);
   assert.match(init.result.instructions, /wait/);
   const tools = (await rpc("tools/list", {})).result.tools.map((t) => t.name);

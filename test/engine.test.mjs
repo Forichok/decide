@@ -57,7 +57,7 @@ test("ships the decide plugin for Claude and Codex", async (context) => {
   const [plugin, market, pkg, mcp] = await Promise.all(
     [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "package.json", ".mcp.json"].map((f) => readJson(path.join(pluginDir, f))),
   );
-  const { VERSION } = await import(path.join(pluginDir, "lib/daemon.mjs"));
+  const { VERSION } = await import(path.join(pluginDir, "lib/server.mjs"));
   assert.equal(pkg.type, "module", "a copied plugin runs outside the repo and needs its own ESM marker");
   assert.deepEqual([plugin.version, market.plugins[0].version, pkg.version], [VERSION, VERSION, VERSION]);
   assert.equal(market.plugins[0].name, plugin.name);
@@ -156,7 +156,9 @@ test("second round reuses the session daemon and keeps drafts and attachments", 
   });
   assert.equal(upload.status, 200);
   const file = await upload.json();
-  assert.equal(path.dirname(file.path), path.join(scratch, "two.answers.files"));
+  // 3.0: uploads live in the round's own directory (rounds/<id>/files/), not in <answers>.files next to the spec.
+  assert.equal(path.basename(path.dirname(file.path)), "files");
+  assert.equal(path.basename(path.dirname(path.dirname(file.path))), r2.round);
   assert.equal(await readFile(file.path, "utf8"), "fake-png");
 
   await fetch(`${r2.url}api/rounds/${r2.round}/submit`, {

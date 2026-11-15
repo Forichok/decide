@@ -2,8 +2,8 @@
 // decide.mjs — clickable decision rounds for coding agents (CLI).
 //
 // The agent writes a questions spec and runs this script in the background.
-// The script posts the round to the project's session daemon (started on
-// demand), which serves one browser tab for every round of the project.
+// The script posts the round to the decide home's server (started on
+// demand), which serves one browser tab for every round of every project.
 // When the user presses Done, the answers JSON is written, a digest is
 // printed, and the script exits 0. With --live it exits 3 as soon as the
 // user asks the agent something: reply with --reply, then --wait again.
@@ -21,6 +21,7 @@
 //   node decide.mjs --adr [<round>] [--consequences "…"] [--adr-dir docs/decisions]
 //   node decide.mjs --demo [--lang en|ru]             the feature tour
 //   node decide.mjs --lint <x.questions.json> | --stop
+//   node decide.mjs serve [--port n]                  run the home's server (started on demand)
 //   Every command takes --project <dir> (default: the current directory).
 //
 // Zero dependencies, Node >= 20. Agent guide and spec: skills/decide/.
@@ -28,12 +29,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { startDaemon } from "./lib/daemon.mjs";
+import { startServer } from "./lib/server.mjs";
 import { openProject } from "./lib/project.mjs";
 import * as cmd from "./lib/commands.mjs";
 
 const ENGINE = fileURLToPath(import.meta.url);
-const VALUE_FLAGS = ["--lang", "--out", "--port", "--dir", "--lint", "--wait", "--reply", "--question", "--text", "--shot", "--viewport", "--name", "--wait-ms", "--limit", "--query", "--project", "--status", "--topic", "--supersede", "--by", "--reason", "--consequences", "--adr-dir", "--export", "--round", "--spec", "--sim", "--device"];
+const VALUE_FLAGS = ["--lang", "--out", "--port", "--lint", "--wait", "--reply", "--question", "--text", "--shot", "--viewport", "--name", "--wait-ms", "--limit", "--query", "--project", "--status", "--topic", "--supersede", "--by", "--reason", "--consequences", "--adr-dir", "--export", "--round", "--spec", "--sim", "--device"];
 const argv = process.argv.slice(2);
 const has = (name) => argv.includes(name);
 function flag(name) {
@@ -57,8 +58,19 @@ async function main() {
     console.log(usage.replace(/^\/\/ ?/gm, ""));
     return argv.length ? 0 : 1;
   }
-  if (has("--daemon")) {
-    await startDaemon({ dir: resolve(flag("--dir") || process.cwd()), port: Number(flag("--port")) || 0 });
+  if (argv[0] === "serve") {
+    // Test seams, read only here: DECIDE_TEST_LOAD_BLOCK_MS blocks the event loop right before the store
+    // loads; DECIDE_TEST_BUSY_MS="<after>:<for>" blocks it once, <after> ms after the server serves.
+    const block = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+    const loadBlock = Number(process.env.DECIDE_TEST_LOAD_BLOCK_MS) || 0;
+    const started = await startServer({ port: Number(flag("--port")) || undefined, ...(loadBlock > 0 && { beforeLoad: () => block(loadBlock) }) });
+    if (!started) {
+      console.log("decide: a server of this decide home is already running");
+      return 0;
+    }
+    console.log(`DECIDE serving: http://127.0.0.1:${started.port}/`);
+    const [after, busy] = String(process.env.DECIDE_TEST_BUSY_MS || "").split(":").map(Number);
+    if (busy > 0) setTimeout(() => block(busy), after || 0);
     return null;
   }
   const project = openProject(flag("--project") || process.cwd());

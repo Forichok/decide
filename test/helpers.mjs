@@ -3,8 +3,8 @@
 // no daemon, journal or screenshot leaks into the real ~/.decide.
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, realpathSync } from "node:fs";
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { appendFileSync, mkdirSync, realpathSync } from "node:fs";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { devNull, tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,7 +14,12 @@ export const enginePath = path.join(pluginDir, "decide.mjs");
 export const WRITE = { "content-type": "application/json", "x-decide": "1" };
 
 export const homeOf = (dir) => path.join(dir, ".home");
-export const envOf = (dir, extra = {}) => ({ ...process.env, DECIDE_HOME: homeOf(dir), ...extra });
+// DECIDE_PORT is dropped: a scratch home gets its own port, never the real home's.
+export function envOf(dir, extra = {}) {
+  const env = { ...process.env, DECIDE_HOME: homeOf(dir), ...extra };
+  if (!("DECIDE_PORT" in extra)) delete env.DECIDE_PORT;
+  return env;
+}
 export const readJson = async (p) => JSON.parse(await readFile(p, "utf8"));
 
 export async function scratchDir(context) {
@@ -26,16 +31,84 @@ export async function scratchDir(context) {
   return dir;
 }
 
-export async function shutdownDaemon(dir) {
-  const projects = path.join(homeOf(dir), "projects");
-  for (const name of existsSync(projects) ? await readdir(projects) : []) {
-    try {
-      const info = await readJson(path.join(projects, name, ".decide-daemon.json"));
-      await fetch(`http://127.0.0.1:${info.port}/api/shutdown`, { method: "POST", headers: WRITE });
-    } catch {
-      // daemon already gone
-    }
+// Stops the server of the scratch dir's home through POST /api/stop, as the user's stop command does.
+export const shutdownDaemon = (dir) => stopServer(homeOf(dir));
+
+export async function stopServer(home) {
+  let info;
+  try {
+    info = await readJson(path.join(home, "daemon.json"));
+  } catch {
+    return; // no server
   }
+  // Only a decide server of this home with that pid is asked and waited for: daemon.json may name anything.
+  const pong = alive(info.pid) ? await ping(info.port) : null;
+  if (pong?.app !== "decide" || pong.home !== path.resolve(home) || pong.pid !== info.pid) return;
+  notePid(info.pid);
+  try {
+    await fetch(`http://127.0.0.1:${info.port}/api/stop`, { method: "POST", headers: { ...WRITE, "x-decide-token": String(info.token) }, signal: AbortSignal.timeout(2_000) });
+  } catch {
+    // server already gone
+  }
+  // The process must be gone before the test ends: nothing outlives the run.
+  for (let i = 0; i < 100 && alive(info.pid); i++) await new Promise((r) => setTimeout(r, 50));
+}
+
+export function alive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === "EPERM";
+  }
+}
+
+// DECIDE_TEST_PIDLOG=<file>: every server pid a test started or stopped is appended there, so a
+// run can be checked for leftovers with `ps -o pid,command -p <pids>`.
+export function notePid(pid) {
+  if (process.env.DECIDE_TEST_PIDLOG && Number.isInteger(pid)) appendFileSync(process.env.DECIDE_TEST_PIDLOG, `${pid}\n`);
+}
+
+// GET /api/ping on a port: the answer, or null when nothing (or nothing that speaks JSON) answers.
+export async function ping(port) {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/ping`, { signal: AbortSignal.timeout(1_500) });
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+// `node decide.mjs serve` for a home. Resolves once the process serves ({ pid, port, exited: null })
+// or has exited ({ pid, exited: <code> }). A process still running is stopped by its pid after the test.
+export function spawnServer(context, home, { env = {} } = {}) {
+  const childEnv = { ...process.env, DECIDE_HOME: home, DECIDE_NOTIFY: "0", ...env };
+  if (!("DECIDE_PORT" in env)) delete childEnv.DECIDE_PORT;
+  const child = spawn(process.execPath, [enginePath, "serve"], { stdio: ["ignore", "pipe", "pipe"], env: childEnv });
+  notePid(child.pid);
+  const output = collect(child);
+  context.after(async () => {
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    child.kill();
+    await exitOf(child);
+  });
+  return new Promise((resolve, reject) => {
+    const done = (value) => {
+      clearInterval(timer);
+      clearTimeout(timeout);
+      resolve({ pid: child.pid, child, output, ...value });
+    };
+    const timer = setInterval(() => {
+      const m = output.stdout.match(/DECIDE serving: http:\/\/127\.0\.0\.1:(\d+)\//);
+      if (m) done({ port: Number(m[1]), exited: null });
+    }, 20);
+    const timeout = setTimeout(() => {
+      clearInterval(timer);
+      reject(new Error(`decide serve neither served nor exited: ${output.stderr || output.stdout}`));
+    }, 10_000);
+    child.once("exit", (code) => done({ exited: code }));
+  });
 }
 
 export function collect(child) {

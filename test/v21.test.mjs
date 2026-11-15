@@ -12,7 +12,7 @@ import { finalizeAnswers, missingMine } from "../ui/js/logic.js";
 import { normalizeSpec } from "../lib/spec.mjs";
 import { batchDigest, normalizeDeck } from "../lib/swipe.mjs";
 import { createRoots } from "../lib/assets.mjs";
-import { createRounds } from "../lib/rounds.mjs";
+import { createStore } from "../lib/store/rounds.mjs";
 import { appendJournal, formatJournal, overlaps, readJournal, supersedeJournal } from "../lib/journal.mjs";
 import { markAdrSuperseded, writeAdr } from "../lib/adr.mjs";
 import { exportSpec, findExport, rewriteImports } from "../lib/export.mjs";
@@ -20,7 +20,7 @@ import { checkAnswers, compareAnswers } from "../lib/answers.mjs";
 import { exportRound, importAnswers } from "../lib/transfer.mjs";
 import { captureSim } from "../lib/shot.mjs";
 import { prepareSpec } from "../lib/prepare.mjs";
-import { pluginDir, scratchDir } from "./helpers.mjs";
+import { homeOf, pluginDir, scratchDir } from "./helpers.mjs";
 
 const choice = (id, title, extra = {}) => ({
   id,
@@ -78,14 +78,19 @@ test("mine: never auto-filled and blocks review until answered", () => {
 test("swipe: a long read or a retaken card is marked hesitated", async (t) => {
   const dir = await scratchDir(t);
   const { deck } = normalizeDeck({ title: "Deck", goal: "g", cards: [{ id: "c1", title: "Short", left: "No", right: "Yes" }] });
-  const store = createRounds({ roots: createRoots(), onChange: () => {} });
-  const round = store.create({ spec: deck, outPath: path.join(dir, "d.answers.json"), source: "d", mode: "swipe" });
-  store.swipeAnswer(round, { card: "c1", side: "right", ms: 1000 });
-  assert.equal(round.swipe.answers.c1.hesitated, undefined);
-  store.swipeAnswer(round, { card: "c1", undo: true });
-  store.swipeAnswer(round, { card: "c1", side: "left", ms: 1000 });
-  assert.equal(round.swipe.answers.c1.hesitated, true);
-  assert.match(batchDigest(round.spec, round.swipe.log.slice(-1)), /not sure or hesitated/);
+  const store = createStore({ home: homeOf(dir), roots: createRoots() });
+  try {
+    const project = { root: dir, dataDir: path.join(homeOf(dir), "projects", "p") };
+    const round = store.create({ project, spec: deck, raw: deck, outPath: path.join(dir, "d.answers.json"), source: "d", mode: "swipe" });
+    store.swipeAnswer(round, { card: "c1", side: "right", ms: 1000 });
+    assert.equal(round.state.swipe.answers.c1.hesitated, undefined);
+    store.swipeAnswer(round, { card: "c1", undo: true });
+    store.swipeAnswer(round, { card: "c1", side: "left", ms: 1000 });
+    assert.equal(round.state.swipe.answers.c1.hesitated, true);
+    assert.match(batchDigest(round.spec, round.state.swipe.log.slice(-1)), /not sure or hesitated/);
+  } finally {
+    store.close(); // the log is closed before the scratch dir goes (Windows cannot remove open files)
+  }
 });
 
 function journalWith(dataDir, specFile, outPath, title, questions, answers = {}) {

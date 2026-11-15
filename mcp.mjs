@@ -4,7 +4,7 @@
 // carries protocol messages only.
 
 import { createInterface } from "node:readline";
-import { VERSION } from "./lib/daemon.mjs";
+import { VERSION } from "./lib/server.mjs";
 import { HANDLERS, UserError } from "./lib/tools.mjs";
 
 const PROTOCOLS = ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"];
