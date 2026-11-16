@@ -7,6 +7,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { appendJournal, buildGraph, graphMermaid, readJournal, supersedeJournal } from "../lib/journal.mjs";
 import { normalizeSpec } from "../lib/spec.mjs";
+import { dataDirFor, projectRoot } from "../lib/project.mjs";
+import { homeOf, scratchDir, spawnServer } from "./helpers.mjs";
 
 const opts = (...labels) => labels.map((l) => ({ id: l.toLowerCase(), label: l }));
 const scratch = () => mkdtempSync(path.join(tmpdir(), "decide-journal-"));
@@ -69,4 +71,50 @@ test("the journal line keeps the declared edges as written", () => {
   record(dir, "r-1", [{ id: "a1", title: "A", dependsOn: ["z"] }]);
   const line = JSON.parse(readFileSync(path.join(dir, "journal.jsonl"), "utf8").trim());
   assert.deepEqual(line.edges, [{ from: "z", to: "a1", kind: "dependsOn" }]);
+});
+
+// ---- the page's project switch and round picker (GET /api/map) ----
+
+// Two projects in one scratch home: `a` and `b` decisions each, a chain of dependsOn inside each project.
+export function seedHome(home, { a = 30, b = 20 } = {}) {
+  const roots = [];
+  for (const [name, n] of [["alpha", a], ["beta", b]]) {
+    const root = mkdtempSync(path.join(tmpdir(), `decide-proj-${name}-`));
+    roots.push(root);
+    const dir = dataDirFor(projectRoot(root), home);
+    for (let i = 1; i <= n; i++) {
+      const { spec } = normalizeSpec({ title: `${name} ${i}`, questions: [{ id: "q", title: `${name} question ${i}`, options: opts("A", "B"), ...(i > 1 ? { dependsOn: [`${name}-${i - 1}`] } : {}) }] });
+      const at = `2026-11-${name === "alpha" ? "10" : "11"}T10:${String(i).padStart(2, "0")}:00Z`;
+      appendJournal(dir, { mode: "questions", spec, outPath: "answers.json", project: projectRoot(root) }, { round: `${name}-${i}`, title: `${name} ${i}`, answers: { q: { selected: ["a"] } }, submittedAt: at, digest: "" });
+    }
+  }
+  return roots;
+}
+
+test("/api/map lists the projects, takes project= and round=, and offers rounds only when trimmed", async (t) => {
+  const dir = await scratchDir(t);
+  const home = homeOf(dir);
+  const [alpha] = seedHome(home);
+  const server = await spawnServer(t, home);
+  assert.equal(server.exited, null, server.output.stderr);
+  const map = async (q = "") => (await fetch(`http://127.0.0.1:${server.port}/api/map${q}`)).json();
+
+  const all = await map();
+  assert.equal(all.total, 50);
+  assert.equal(all.nodes.length, 40);
+  assert.deepEqual(all.trimmed, { newest: 40 });
+  assert.ok(all.projects.some((p) => p.project === projectRoot(alpha)), "the project root is the switch value");
+  assert.equal(all.projects.length, 2);
+  assert.equal(all.rounds.length, 50, "every round can be picked");
+  assert.ok(all.rounds[0].at >= all.rounds.at(-1).at, "newest first");
+
+  const one = await map(`?project=${encodeURIComponent(alpha)}`);
+  assert.equal(one.nodes.length, 30);
+  assert.equal(one.trimmed, null);
+  assert.deepEqual(one.rounds, [], "nothing to pick when the map is whole");
+  assert.equal(one.projects.length, 2, "the switch always lists every project");
+
+  const near = await map(`?round=alpha-5`);
+  assert.deepEqual(near.trimmed, { round: "alpha-5" });
+  assert.deepEqual(near.nodes.map((n) => n.round).sort(), ["alpha-4", "alpha-5", "alpha-6"]);
 });

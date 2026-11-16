@@ -548,5 +548,13 @@ export default {
   "map.noEdges": "No links between decisions yet: a question links to what it builds on with dependsOn.",
   "map.count": (n, e) => `${n} decisions, ${e} links.`,
   "map.near": (round, n, total) => `Too many to draw: ${n} of ${total} decisions around round ${round}.`,
+  "journalPage.project": "Project",
+  "journalPage.project.all": "All projects",
+  "map.pick": "Pick a round",
+  "map.pickLabel": "Search rounds by title",
+  "map.pickNone": "No round matches.",
+  "map.back": "Back to the newest",
+  "map.centre": "Show around this round",
+  "map.filtersNote": "Kind and status filters apply to the list.",
   "map.newest": (n, total) => `Too many to draw: the newest ${n} of ${total} decisions.`,
 };

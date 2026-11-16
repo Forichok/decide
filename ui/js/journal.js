@@ -3,7 +3,7 @@
 
 import { h, icon } from "./dom.js";
 import { t } from "./i18n.js";
-import { getJournal } from "./net.js";
+import { getJournal, getMap } from "./net.js";
 import { credit, eyebrow, when } from "./header.js";
 import { paintMap } from "./map.js";
 
@@ -13,7 +13,7 @@ const FILTERS = {
 };
 
 export function renderJournal(env) {
-  const state = { q: "", mode: "", status: "all", view: "list" };
+  const state = { q: "", mode: "", status: "all", view: "list", project: "" };
   const mapBox = h("div.jp-map", { hidden: true });
   const views = h(
     "div.jp-filter",
@@ -27,7 +27,8 @@ export function renderJournal(env) {
           for (const b of e.currentTarget.parentNode.children) b.setAttribute("aria-pressed", String(b === e.currentTarget));
           list.hidden = v === "map";
           mapBox.hidden = v === "list";
-          if (v === "map") paintMap(mapBox);
+          filters.hidden = v === "map";
+          if (v === "map") paintMap(mapBox, { project: state.project });
         },
       }, t(`journalPage.view.${v}`)),
     ),
@@ -69,7 +70,7 @@ export function renderJournal(env) {
   async function load() {
     const mine = ++seq;
     try {
-      const { entries } = await getJournal(state.q, 200, { mode: state.mode, status: state.status });
+      const { entries } = await getJournal(state.q, 200, { mode: state.mode, status: state.status, project: state.project });
       if (mine !== seq) return;
       count.textContent = t("journalPage.count", entries.length);
       list.replaceChildren(...(entries.length ? byDay(entries) : [h("p.jr-empty", {}, t(state.q || state.mode || state.status !== "all" ? "journal.empty" : "journalPage.none"))]));
@@ -79,6 +80,27 @@ export function renderJournal(env) {
   }
   load();
 
+  // The project switch: the projects come from the map route (it lists the owners of every decision).
+  const projectBox = h("div.jp-filter.jp-projects", { role: "group", "aria-label": t("journalPage.project"), hidden: true });
+  const setProject = (value) => {
+    state.project = value;
+    for (const b of projectBox.children) b.setAttribute("aria-pressed", String(b.dataset.project === value));
+    load();
+    if (state.view === "map") paintMap(mapBox, { project: value });
+  };
+  getMap()
+    .then(({ projects = [] }) => {
+      if (projects.length < 2) return;
+      projectBox.replaceChildren(
+        ...[{ project: "", name: t("journalPage.project.all") }, ...projects].map((p) =>
+          h("button.chip", { type: "button", "data-project": p.project, title: p.project, "aria-pressed": String(p.project === state.project), onclick: () => setProject(p.project) }, p.name),
+        ),
+      );
+      projectBox.hidden = false;
+    })
+    .catch(() => {});
+  const filters = h("div.jp-filters", {}, group("mode"), group("status"));
+
   return h(
     "section.journal-view",
     {},
@@ -87,7 +109,8 @@ export function renderJournal(env) {
     h("h1.title", {}, t("journalPage.title")),
     h("p.jp-sub", {}, t("journalPage.sub"), " ", count),
     search,
-    h("div.jp-filters", {}, views, group("mode"), group("status")),
+    h("div.jp-filters", {}, views, projectBox),
+    filters,
     list,
     mapBox,
     credit(),
