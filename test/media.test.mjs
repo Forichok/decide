@@ -18,6 +18,7 @@ import { mkdtemp, rm, writeFile, truncate } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import "./helpers.mjs"; // a scratch DECIDE_HOME for a test that names none
 import { collectMedia, LIMITS } from "../lib/media.mjs";
 import { normalizeSpec } from "../lib/spec.mjs";
 import { normalizeDeck } from "../lib/swipe.mjs";

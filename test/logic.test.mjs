@@ -19,6 +19,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import "./helpers.mjs"; // a scratch DECIDE_HOME for a test that names none
 import { fileURLToPath } from "node:url";
 
 const toolDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");

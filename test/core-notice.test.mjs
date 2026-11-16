@@ -233,14 +233,15 @@ test("CLI --import on a pending round leaves nothing uncollected", async (t) => 
   assert.deepEqual(uncollected(dataDir, { graceMs: 0 }), []);
 });
 
-test("an import with no server running (offline) settles no round log, so nothing is announced", async (t) => {
+test("an import of a round no server knows settles offline, so nothing is announced; the server it asked is only started", async (t) => {
   const dir = await scratchDir(t);
   const specFile = path.join(dir, "colour.questions.json");
   writeFileSync(specFile, JSON.stringify(spec));
   const res = spawnSync(process.execPath, [enginePath, "--import", answersFile(dir, "5-abcdef"), "--spec", specFile, "--project", dir], { env: envOf(dir), encoding: "utf8" });
   assert.equal(res.status, 0, res.stderr + res.stdout);
   assert.equal(notice(dir).stdout, "");
-  assert.equal(existsSync(path.join(homeOf(dir), "daemon.json")), false, "no server was started for it");
+  // Like every command on a round, import starts the server and asks it first; this round is not there (404).
+  assert.equal(existsSync(path.join(homeOf(dir), "daemon.json")), true, "the server was asked");
 });
 
 test("notice with a deleted working directory prints nothing and exits 0 (skipped on win32: needs a POSIX shell)", { skip: process.platform === "win32" }, async (t) => {

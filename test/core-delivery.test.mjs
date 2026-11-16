@@ -26,8 +26,7 @@ import { openProject } from "../lib/project.mjs";
 import { roundDir } from "../lib/store/rounds.mjs";
 import { startServer } from "../lib/server.mjs";
 import { ack, api, ensureServer, findServer, waitNext } from "../lib/client.mjs";
-import { HANDLERS } from "../lib/tools.mjs";
-import { alive, collect, enginePath, envOf, exitOf, fakeServer, homeOf, notePid, ping, pluginDir, scratchDir, silentServer, spawnServer, stopServer, asAgent, asPage } from "./helpers.mjs";
+import { HANDLERS, alive, collect, enginePath, envOf, exitOf, fakeServer, homeOf, notePid, ping, pluginDir, scratchDir, silentServer, spawnServer, stopServer, asAgent, asPage } from "./helpers.mjs";
 
 delete process.env.DECIDE_PORT;
 process.env.DECIDE_NOTIFY = "0";
@@ -598,7 +597,7 @@ test("push and explain name an unknown round and say to ask again", async (t) =>
   await askThrough(agent, dir);
   for (const [tool, args] of [
     ["explain", { project: dir, round: "9-abcdef", question: "color", text: "x" }],
-    ["push", { project: dir, round: "9-abcdef", cards: [] }],
+    ["push", { project: dir, round: "9-abcdef", add: [] }],
   ]) {
     const msg = await agent.call(tool, args).result;
     assert.equal(msg.result.isError, true, tool);

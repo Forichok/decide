@@ -34,10 +34,11 @@ after(() => rmSync(guard, { recursive: true, force: true }));
 const { DEFAULT_PORT, lockPath, portForHome, readInfo } = await import("../lib/home.mjs");
 const { PROTOCOL } = await import("../lib/protocol.mjs");
 const { startServer } = await import("../lib/server.mjs");
-const { api, ensureServer, findServer, postRound } = await import("../lib/client.mjs");
+const { api, ensureServer, findServer } = await import("../lib/client.mjs");
 const { alive, collect, enginePath, exitOf, fakeServer, homeOf, notePid, ping, scratchDir, silentServer } = await import("./helpers.mjs");
-const { HANDLERS } = await import("../lib/tools.mjs");
+const { HANDLERS } = await import("./helpers.mjs");
 const { importAnswers } = await import("../lib/transfer.mjs");
+const { contextFor } = await import("../lib/commands/index.mjs");
 const { openProject } = await import("../lib/project.mjs");
 const { readJournal } = await import("../lib/journal.mjs");
 
@@ -140,9 +141,9 @@ test("three clients on a cold home: one server, three rounds, none gets 404 on i
   const { dir, home } = await scratch(t);
   const engine = loggingEngine(t);
   const script = [
-    `import { ensureServer, postRound } from ${JSON.stringify(clientUrl)};`,
+    `import { api, ensureServer } from ${JSON.stringify(clientUrl)};`,
     `const s = await ensureServer({ home: process.env.DECIDE_HOME, engine: process.env.TEST_ENGINE });`,
-    `const posted = await postRound(s, JSON.parse(process.env.TEST_ROUND));`,
+    `const posted = await api(s, "/api/rounds", { method: "POST", body: JSON.parse(process.env.TEST_ROUND), timeoutMs: 5000 });`,
     "const res = await fetch(`http://127.0.0.1:${s.port}/api/rounds/${posted.id}/next?timeout=300`, { headers: { \"x-decide-token\": s.token } });",
     `console.log(JSON.stringify({ id: posted.id, port: s.port, embedded: Boolean(s.embedded), wait: res.status }));`,
     `process.exit(0);`,
@@ -179,7 +180,7 @@ test("the engine cannot be spawned: the client serves in-process", async (t) => 
   assert.equal(readInfo(home).pid, process.pid);
   assert.equal((await ping(s.port)).home, home);
   // It serves the home it was started for, not the one DECIDE_HOME names.
-  const posted = await postRound(s, roundOf(dir));
+  const posted = await api(s, "/api/rounds", { method: "POST", body: roundOf(dir), timeoutMs: 5000 });
   assert.deepEqual(roundsUnder(home), [posted.id]);
   assert.equal((await api(s, `/api/rounds/${posted.id}`)).status, "pending");
   assert.equal(existsSync(path.join(guard, "projects")), false);
@@ -258,7 +259,7 @@ test("a named server that does not answer is busy, not gone: push, explain and C
   assert.match(waited, new RegExp(`The decide server \\(pid ${process.pid}, port ${silent.port}\\) did not answer during this call\\.`));
   assert.doesNotMatch(waited, GONE);
   const calls = {
-    push: { round: "r1", project: dir, cards: [] },
+    push: { round: "r1", project: dir, add: [] },
     explain: { round: "r1", question: "color", text: "because", project: dir },
   };
   for (const [tool, args] of Object.entries(calls)) {
@@ -293,7 +294,7 @@ test("a named server that does not answer is busy, not gone: push, explain and C
   assert.equal(readInfo(home).pid, process.pid, "nothing was started beside it");
 });
 
-test("import settles offline only when there is no server or the round is unknown there", async (t) => {
+test("import settles offline only when the server does not know the round", async (t) => {
   const { dir, home } = await scratch(t);
   const project = openProject(dir, home);
   const specPath = path.join(dir, "colour.questions.json");
@@ -301,7 +302,7 @@ test("import settles offline only when there is no server or the round is unknow
   const ann = path.join(dir, "ann.answers.json");
   writeFileSync(ann, JSON.stringify({ round: "x1", name: "Ann", answers: { color: { selected: ["pink"] } } }));
   const answers = path.join(dir, "colour.answers.json");
-  const importOnce = () => inHome(home, () => importAnswers({ project, files: [ann], specPath }));
+  const importOnce = () => inHome(home, () => importAnswers({ project, files: [ann], specPath, getServer: () => contextFor({}).server() }));
   const settledNothing = (what) => {
     assert.equal(existsSync(answers), false, `${what}: no answers file`);
     assert.equal(readJournal(project.dataDir).length, 0, `${what}: no journal line`);

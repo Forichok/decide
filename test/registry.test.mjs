@@ -391,7 +391,7 @@ test("a 2.1 round: --lint refuses it and names the place; ask refuses it", async
   const said = output.stdout + output.stderr;
   assert.match(said, /questions\[0\]: unknown field "recommended"; "recommended" is an option field: put it on the option/);
   assert.match(said, /questions\[0\]\.options\[0\]: unknown field "description"; did you mean "detail"\?/);
-  const { HANDLERS } = await import(pathToFileURL(path.join(pluginDir, "lib/tools.mjs")).href);
+  const { HANDLERS } = await import(pathToFileURL(path.join(pluginDir, "test/helpers.mjs")).href);
   const before = process.env.DECIDE_HOME;
   process.env.DECIDE_HOME = homeOf(scratch);
   try {
@@ -985,11 +985,19 @@ test("the schema takes every shape the strict engine takes without an error", as
   assert.match(validate(specSchema(), q({ titel: "x" }), specSchema()).join("\n"), /unknown field "titel"/);
 });
 
-test("the schema is small: specSchema 9,000 bytes, deckSchema 7,000", async () => {
+test("the schema is small: ask's whole input schema 9,000 bytes, swipe's 7,000, tools/list pinned near its size", async () => {
   const { specSchema, deckSchema } = await docs();
   const size = (v) => JSON.stringify(v).length;
   assert.ok(size(specSchema()) <= 9000, `specSchema ${size(specSchema())} bytes`);
   assert.ok(size(deckSchema()) <= 7000, `deckSchema ${size(deckSchema())} bytes`);
+  const { toolList } = await load("lib/commands/index.mjs");
+  const tools = toolList();
+  const input = (name) => tools.find((t) => t.name === name).inputSchema;
+  assert.ok(size(input("ask")) <= 9000 + 1000, `ask inputSchema ${size(input("ask"))} bytes`);
+  assert.ok(size(input("swipe")) <= 7000 + 1000, `swipe inputSchema ${size(input("swipe"))} bytes`);
+  assert.ok(size(input("ask")) >= size(specSchema()), "the whole input schema holds the spec schema, $defs and all");
+  const whole = size({ result: { tools } });
+  assert.ok(whole <= 33_000, `tools/list ${whole} bytes: pinned near the size after Task 13's deck lines, far under 2.1.1's 11,281 plus the 2.1 ask schema growth`);
 });
 
 test("a description sits only where the name does not say it, never on a spelling or a union arm", async () => {

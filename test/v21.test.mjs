@@ -20,7 +20,8 @@ import { checkAnswers, compareAnswers } from "../lib/answers.mjs";
 import { exportRound, importAnswers } from "../lib/transfer.mjs";
 import { captureSim } from "../lib/shot.mjs";
 import { prepareSpec } from "../lib/prepare.mjs";
-import { homeOf, pluginDir, scratchDir } from "./helpers.mjs";
+import { PROTOCOL } from "../lib/protocol.mjs";
+import { fakeServer, homeOf, pluginDir, scratchDir } from "./helpers.mjs";
 
 const choice = (id, title, extra = {}) => ({
   id,
@@ -189,7 +190,7 @@ test("export: one self-contained page, its modules resolved through the import m
   assert.equal(rewriteImports('import { x } from "../dom.js";', "lang/en.js"), 'import { x } from "@decide/dom.js";');
 });
 
-test("import: one file settles the round offline, several show disagreements", async (t) => {
+test("import: a round the server does not know: one file settles it offline, several show disagreements", async (t) => {
   const dir = await scratchDir(t);
   const project = { root: dir, dataDir: path.join(dir, ".data") };
   const specPath = path.join(dir, "pick.questions.json");
@@ -203,19 +204,22 @@ test("import: one file settles the round offline, several show disagreements", a
   writeFileSync(ann, JSON.stringify({ round: id, name: "Ann", answers: { db: { selected: ["a"] }, ui: { selected: ["a"] }, ghost: { text: "?" } } }));
   writeFileSync(bob, JSON.stringify({ round: id, name: "Bob", answers: { db: { selected: ["b"] }, ui: { selected: ["a", "zz"] } } }));
 
-  const both = await importAnswers({ project, files: [ann, bob] });
+  // A server that does not know the round (404): the answers are read offline, as for a round of another version.
+  const fake = await fakeServer(t, homeOf(dir), PROTOCOL, (req, res) => res.writeHead(404, { "content-type": "application/json" }).end('{"error":"no such round"}'));
+  const getServer = async () => fake;
+  const both = await importAnswers({ project, files: [ann, bob], getServer });
   assert.match(both, /They disagree on 1 question:\n- Which database\?/);
   assert.match(both, /ghost.*not in this round/);
   assert.match(both, /zz/);
   assert.equal(readJournal(project.dataDir).length, 0, "several files settle nothing");
 
-  const one = await importAnswers({ project, files: [ann] });
+  const one = await importAnswers({ project, files: [ann], getServer });
   assert.match(one, /answered \(2 answers\) by Ann/);
   const saved = JSON.parse(readFileSync(path.join(dir, "pick.answers.json"), "utf8"));
   assert.equal(saved.name, "Ann");
   assert.deepEqual(saved.answers.db.selected, ["a"]);
   assert.equal(readJournal(project.dataDir)[0].round, id);
-  await assert.rejects(importAnswers({ project, files: [ann] }), /already settled/);
+  await assert.rejects(importAnswers({ project, files: [ann], getServer }), /already settled/);
 });
 
 test("checkAnswers keeps a question only the user may answer out of someone else's auto-fill", () => {

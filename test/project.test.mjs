@@ -16,9 +16,8 @@ import { existsSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from 
 import path from "node:path";
 import test from "node:test";
 import { dataDirPath, fnv1a, gitCommonDir, openProject, projectRoot, worktreeTop } from "../lib/project.mjs";
-import { HANDLERS } from "../lib/tools.mjs";
 import { appendJournal, readJournal } from "../lib/journal.mjs";
-import { hasGit, repoWithWorktree, scratchDir } from "./helpers.mjs";
+import { HANDLERS, hasGit, repoWithWorktree, scratchDir } from "./helpers.mjs";
 
 const skip = hasGit ? false : "git binary not found";
 

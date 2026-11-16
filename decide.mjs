@@ -23,6 +23,8 @@
 //   node decide.mjs notice                            answers the user sent that no agent has collected
 //   node decide.mjs --lint <x.questions.json> | --stop
 //   node decide.mjs serve [--port n]                  run the home's server (started on demand)
+//   Every command also has a name: ask swipe wait push explain screenshot history supersede adr export
+//   import lint stop open notice, as in `node decide.mjs wait <round> --live`, `node decide.mjs open <round>`.
 //   Every command takes --project <dir> (default: the current directory).
 //
 // Zero dependencies, Node >= 20. Agent guide and spec: skills/decide/.
@@ -31,26 +33,18 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startServer } from "./lib/server.mjs";
-import { openProject } from "./lib/project.mjs";
-import { noticeFor } from "./lib/store/scan.mjs";
-import * as cmd from "./lib/commands.mjs";
+import { contextFor, runCommand } from "./lib/commands/index.mjs";
+import { parseArgv } from "./lib/commands/argv.mjs";
 
+// Exit codes: 0 done; 1 lint errors, or a stop that did not happen; 2 an error; EXIT_ASK = 3 (lib/commands/shared.mjs):
+// a --live wait that stopped because the user asked the agent something. A command returns its own as `exit`.
 const ENGINE = fileURLToPath(import.meta.url);
-const VALUE_FLAGS = ["--lang", "--out", "--port", "--lint", "--wait", "--reply", "--question", "--text", "--shot", "--viewport", "--name", "--wait-ms", "--limit", "--query", "--project", "--status", "--topic", "--supersede", "--by", "--reason", "--consequences", "--adr-dir", "--export", "--round", "--spec", "--sim", "--device"];
 const argv = process.argv.slice(2);
 const has = (name) => argv.includes(name);
 function flag(name) {
   const i = argv.indexOf(name);
   const v = i === -1 ? undefined : argv[i + 1];
   return v && !v.startsWith("--") ? v : undefined;
-}
-const positional = argv.filter((a, i) => !a.startsWith("--") && !VALUE_FLAGS.includes(argv[i - 1]));
-
-// The tour comes in English and Russian; the system locale picks one.
-function showcase(lang) {
-  const locale = process.env.LC_ALL || process.env.LC_MESSAGES || process.env.LANG || Intl.DateTimeFormat().resolvedOptions().locale;
-  const ru = lang ? lang === "ru" : /^ru/i.test(locale);
-  return fileURLToPath(new URL(`./examples/showcase${ru ? ".ru" : ""}.questions.json`, import.meta.url));
 }
 
 async function main() {
@@ -75,33 +69,24 @@ async function main() {
     if (busy > 0) setTimeout(() => block(busy), after || 0);
     return null;
   }
-  if (positional[0] === "notice") {
-    // Reads the disk only: no server, nothing created, exit 0 whatever happens (a session-start hook runs it).
-    try {
-      const line = noticeFor(resolve(flag("--project") || process.cwd()));
-      if (line) console.log(line);
-    } catch {}
-    return 0;
+  // A directory that is gone has no notice to give: the session-start hook is never failed for it.
+  let cwd;
+  try {
+    cwd = process.cwd();
+  } catch {}
+  const { command, args, project } = parseArgv(argv, { cwd: cwd ?? resolve("/") });
+  if (!cwd && !project) {
+    if (command === "notice") return 0;
+    throw new Error("the current directory is gone; pass --project <dir>");
   }
-  const project = openProject(flag("--project") || process.cwd());
-  const live = has("--live");
-  if (has("--stop")) return cmd.stop(project);
-  if (has("--lint")) return cmd.lint(resolve(flag("--lint") || positional[0] || ""), project);
-  if (has("--journal")) return cmd.journal({ limit: Number(flag("--limit")) || 10, query: flag("--query") || "", status: flag("--status"), topic: flag("--topic"), project });
-  if (has("--supersede")) return cmd.supersede({ id: flag("--supersede"), by: flag("--by") || "", reason: flag("--reason") || "", project });
-  if (has("--export")) return cmd.exportCmd({ target: flag("--export") || positional[0] || "", out: flag("--out"), project });
-  if (has("--import")) return cmd.importCmd({ files: positional, round: flag("--round"), specPath: flag("--spec"), project });
-  if (has("--adr")) return cmd.adr({ id: positional[0], consequences: flag("--consequences") || "", dir: flag("--adr-dir"), project });
-  if (has("--sim")) return cmd.shot({ simulator: flag("--sim"), device: flag("--device"), name: flag("--name"), project });
-  if (has("--shot")) return cmd.shot({ url: flag("--shot"), viewport: flag("--viewport"), name: flag("--name"), waitMs: Number(flag("--wait-ms")) || undefined, project });
-  if (has("--wait")) return cmd.resume({ id: flag("--wait"), live, project });
-  if (has("--reply")) {
-    return cmd.reply({ id: flag("--reply"), question: flag("--question"), text: flag("--text"), file: positional[0] && resolve(positional[0]), project });
-  }
-  const demo = has("--demo");
-  const questionsPath = demo ? showcase(flag("--lang")) : positional[0] && resolve(positional[0]);
-  if (!questionsPath) throw new Error("questions.json path required");
-  return cmd.round({ questionsPath, out: flag("--out"), demo, open: !has("--no-open"), live, port: Number(flag("--port")) || 0, engine: ENGINE, project });
+  const dir = project || resolve(cwd);
+  // `notice` reads the disk only and fails never: a session-start hook runs it.
+  const ctx = contextFor({ project: dir }, { cli: true, noticeProject: dir, noticeDir: dir });
+  const out = await runCommand(command, args, ctx);
+  if (out.text) console.log(out.text);
+  // Printed: the CLI has what the text carries, so it is acknowledged. Failing to is not an error.
+  await out.delivered?.().catch(() => {});
+  return out.exit ?? 0;
 }
 
 main().then(

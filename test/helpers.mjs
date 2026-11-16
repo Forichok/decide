@@ -3,7 +3,7 @@
 // no daemon, journal or screenshot leaks into the real ~/.decide.
 
 import { spawn, spawnSync } from "node:child_process";
-import { appendFileSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { createServer as createTcpServer } from "node:net";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -11,6 +11,15 @@ import { devNull, tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PING_BODY_MAX, request } from "../lib/request.mjs";
+
+// A test that forgets to name its home must not reach the default one (~/.decide of whoever runs the suite):
+// unless the run names a DECIDE_HOME, every file that loads these helpers gets a scratch one, which its
+// child processes inherit, and which goes with the process.
+if (!process.env.DECIDE_HOME) {
+  const guard = mkdtempSync(path.join(tmpdir(), "decide-test-guard-"));
+  process.env.DECIDE_HOME = guard;
+  process.once("exit", () => rmSync(guard, { force: true, recursive: true }));
+}
 
 export const pluginDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const enginePath = path.join(pluginDir, "decide.mjs");
@@ -251,3 +260,17 @@ export async function fakeServer(context, home, protocol, onRequest) {
   const { port, close } = await listenUntilEnd(context, server);
   return { ...nameInHome(home, port, protocol), close };
 }
+
+// The commands as a test calls them, the way mcp.mjs does: the arguments in, and what the tests read of the
+// result: its text, a content array (screenshot), or { text, delivered, collects } for a result that must be
+// acknowledged. Loaded when called, so a test sets DECIDE_HOME and the other switches first.
+export const HANDLERS = new Proxy(
+  {},
+  {
+    get: (_, name) => async (args = {}, extra = {}) => {
+      const { runCommand, contextFor } = await import("../lib/commands/index.mjs");
+      const out = await runCommand(name, args, contextFor(args, extra));
+      return out.delivered ? out : (out.content ?? out.text);
+    },
+  },
+);
