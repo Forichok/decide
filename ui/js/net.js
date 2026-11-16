@@ -176,6 +176,8 @@ export function listen(onState, onStatus, onDialog, onDeck) {
 // Reactive rounds: bring a ghost back, keep a stale answer.
 export const restoreItem = (id, item) => fetch(`/api/rounds/${id}/restore`, { method: "POST", headers: WRITE, body: JSON.stringify({ id: item }) }).then(json);
 export const keepAnswer = (id, qid) => fetch(`/api/rounds/${id}/keep`, { method: "POST", headers: WRITE, body: JSON.stringify({ qid }) }).then(json);
+// What the user has seen (questions that were in view, swipe cards shown): a patch then ghosts them, never drops them.
+export const markSeen = (id, ids) => fetch(`/api/rounds/${id}/seen`, { method: "POST", headers: WRITE, body: JSON.stringify({ ids }) }).then(json);
 // How much to ask, and the page's own buttons (settings.js, actions.js).
 export const getSettings = (project) => fetch(`/api/settings?${new URLSearchParams({ project })}`, { cache: "no-store" }).then(json);
 export const setLevel = (project, level) => post("/api/settings", { project, level });

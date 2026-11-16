@@ -12,7 +12,8 @@ import { credit, renderHeader } from "./header.js";
 import { renderToc, syncProgress, syncToc, trackCurrent } from "./nav.js";
 import { openLightbox, openModal, openZoom, toast } from "./overlays.js";
 import { emptyAnswer, isResolved, isVisible, progress, withRecommendation } from "./logic.js";
-import { askAgent, holdReload, keepAnswer, restoreItem, uploadFile } from "./net.js";
+import { askAgent, holdReload, keepAnswer, markSeen, restoreItem, uploadFile } from "./net.js";
+import { seenReporter, watchSeen } from "./seen.js";
 import { paintRemoved, paintState, resolve, sigOf } from "./states.js";
 
 const MAX_UPLOAD = 24 * 1024 * 1024;
@@ -391,6 +392,10 @@ export function mountRound(data, env) {
   tracker = trackCurrent(onCurrent);
   syncAll();
   const stopScroll = keepScroll(round.id, () => spec.questions.map((q) => card(q.id)).filter((c) => c && !c.hidden));
+  // What the user has seen goes to the server in batches: an agent's patch then greys it out, never drops it.
+  const seen = watchSeen(seenReporter((ids) => markSeen(round.id, ids), { known: round.view?.seen || [] }));
+  const watchCards = () => seen.observe(spec.questions.map((q) => card(q.id)).filter((c) => c && !c.hidden));
+  watchCards();
 
   return {
     id: round.id,
@@ -421,6 +426,7 @@ export function mountRound(data, env) {
       react.view = view || null;
       stamp();
       syncAll();
+      watchCards();
     },
     toCheck: () => [...states().stale.keys()],
     openCheck,
@@ -429,6 +435,7 @@ export function mountRound(data, env) {
       unsubscribe();
       stopStatus();
       stopScroll();
+      seen.stop();
     },
   };
 }

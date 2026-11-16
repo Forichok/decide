@@ -81,6 +81,17 @@ export function createDeck(s) {
       front.dataset.pre = s.answers()[top.id]?.side || "";
       const q = $(".sw-q", front);
       if (q) q.dataset.recheck = t("sw.recheck");
+      // Why it came back, and one click to keep the earlier pick (the same arrow keeps it too).
+      const why = s.states().stale.get(top.id);
+      const old = s.answers()[top.id];
+      q?.after(
+        h(
+          "div.sw-recheck",
+          { role: "status" },
+          why && h("span.state-reason", {}, why),
+          old && h("button.chip.ghost.state-act", { type: "button", dataset: { act: "keep" }, onclick: () => s.answer(old.side, old.text) }, t("state.keep")),
+        ),
+      );
     }
     const left = $(".sw-left-n", front);
     left.textContent = t("sw.leftN", q.length);

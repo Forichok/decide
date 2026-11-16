@@ -241,3 +241,11 @@ test("validatePatch names unknown items, options and operations", () => {
   // A view works as well as a spec.
   assert.deepEqual(validatePatch(base(), { ops: [{ ghost: "a" }], reason: "fine" }), []);
 });
+
+test("set on a swipe card: a changed side makes its answer stale, keepAnswers does not", () => {
+  const deck = { cards: [{ id: "c1", title: "?", left: { label: "L" }, right: { label: "R" } }] };
+  const v = viewOf(deck, [{ seq: 1, type: "swipe", card: "c1", side: "right" }]);
+  assert.deepEqual(applyPatch(v, patch([{ set: { id: "c1", right: { label: "R2" } } }])).stale, ["c1"]);
+  assert.deepEqual(applyPatch(v, patch([{ set: { id: "c1", right: { label: "R2" } } }], { keepAnswers: true })).stale, []);
+  assert.deepEqual(applyPatch(v, patch([{ set: { id: "c1", body: "more words" } }])).stale, [], "a body edit is not a new question");
+});

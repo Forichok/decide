@@ -498,6 +498,7 @@ export default {
   "sw.ghosts": (n) => `Not relevant (${n})`,
   "sw.recheck": "Check this answer. Your earlier pick is marked.",
   "sw.recheckKept": "Kept",
+  "sw.checkFirst": (n) => `${n} ${n === 1 ? "answer" : "answers"} to check first: ${n === 1 ? "it waits" : "they wait"} at the end of the deck`,
 
   // how much to ask, and the buttons that need no agent
   "rule.never": "Don't ask about this again",

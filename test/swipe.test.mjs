@@ -4,7 +4,8 @@
  * Contract:   skills/swipe/SKILL.md
  * Covers:
  *   - A card has exactly two sides; options, missing sides and bad ids are lint errors
- *   - push adds (next / end), replaces and removes only open cards; answered cards stay as they were
+ *   - 2.x push events (swipe.mjs applyPatch) touch only open cards; answered cards stay as they were
+ *   - 3.0 push goes through the patch engine: removing an answered card leaves a ghost (swipe-r6.test.mjs)
  *   - The card on the user's screen stays put: new "next" cards go behind it, it can't be replaced or removed
  *   - A batch comes early when the deck runs low, so the agent refills it before the user runs out
  *   - Batches carry only what changed since the last one: a re-answer counts once, an undo of an unseen answer not at all
@@ -190,11 +191,14 @@ test("MCP: swipe → batches → push → finish", async (context) => {
       batch: 10,
     }),
   );
-  assert.match(pushed, /1 card added; 2 answered, 6 left of 8/);
-  assert.match(pushed, /remove: "turns" is already answered/);
+  // 3.0: the answered card the agent removed stays as a ghost; its answer leaves the counts.
+  assert.match(pushed, /1 card added; 1 answered, 6 left of 7/);
+  assert.match(pushed, /remove: "turns" is already answered — it stays as a ghost/);
   assert.match(pushed, /replace: "land" is on the user's screen/);
   const after = await view();
   assert.deepEqual(after.spec.cards.map((c) => c.id), ["turns", "land", "weapons", "online", "wind", "timer", "team", "crate"]);
+  assert.deepEqual(Object.keys(after.spec.ghosts), ["turns"]);
+  assert.deepEqual(after.swipe.view.ghosts.map((g) => g.id), ["turns"]);
   assert.deepEqual([after.spec.confidence, after.spec.brief.length, after.swipe.thinking, after.swipe.fresh], [40, 2, false, []]);
   assert.equal(after.spec.cards[1].title, "Акулы ходят по суше?");
   assert.equal(after.spec.cards[2].from, "turns");
@@ -212,7 +216,7 @@ test("MCP: swipe → batches → push → finish", async (context) => {
   const waiting = call("wait", { project: dir, round, timeoutSec: 10 });
   await swipe({ card: "wind", side: "left", rev: 1 });
   const second = text(await waiting);
-  assert.match(second, /Batch 2 .+: 3 new answers; 5 answered, 3 left/);
+  assert.match(second, /Batch 2 .+: 3 new answers; 4 answered, 3 left/);
   assert.match(second, /Only 3 cards left/);
 
   await swipe({ card: "timer", side: "left" });
@@ -229,7 +233,7 @@ test("MCP: swipe → batches → push → finish", async (context) => {
   assert.equal((await view()).spec.done, true);
   await post(url, `api/rounds/${round}/submit`, {});
   const done = text(await call("wait", { project: dir, round, timeoutSec: 5 }));
-  assert.match(done, /finished by the agent: 8 of 8 cards answered \(1 skipped\), confidence 90%/);
+  assert.match(done, /finished by the agent: 7 of 7 cards answered \(1 skipped\), confidence 90%/);
   assert.match(done, /\[land\] Акулы ходят по суше\? → land-R \(right\) ★/);
   const briefFile = done.match(/Brief \(markdown\): (.+)/)[1];
   const md = await readFile(briefFile, "utf8");
