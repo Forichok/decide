@@ -62,7 +62,7 @@ function mockFrame(q, ctx, { frame, theme, mini = false }) {
   const el = h("iframe", { src: q.preview.src, sandbox: "allow-scripts", title: q.title, referrerpolicy: "no-referrer", loading: "lazy" });
   el.style.width = `${w}px`;
   el.style.height = `${hh}px`;
-  const box = h("div.tune-shot", { dataset: { frame, theme } }, el);
+  const box = h("div.tn-shot", { dataset: { frame, theme } }, el);
   const fit = () => {
     const bw = box.clientWidth || (mini ? 150 : 320);
     const s = Math.min(1, bw / w);
@@ -71,12 +71,14 @@ function mockFrame(q, ctx, { frame, theme, mini = false }) {
   };
   if (typeof ResizeObserver !== "undefined") new ResizeObserver(fit).observe(box);
   requestAnimationFrame(fit);
+  setTimeout(fit, 120);
   let last = null;
   const push = (values) => {
     last = values;
     post(el, q, values, theme);
   };
   el.addEventListener("load", () => {
+    fit();
     if (last) {
       post(el, q, last, theme);
       setTimeout(() => last && post(el, q, last, theme), 200);
@@ -328,7 +330,7 @@ export function render(q, ctx) {
         stage.append(h("figure.tn-fig", { dataset: { frame } }, f.box, h("figcaption", {}, f.label)));
       }
     }
-    stage.style.setProperty("--cols", String(q.frames.length));
+    stage.style.gridTemplateColumns = q.frames.map((f) => (f === "desktop" ? "minmax(0, 2.4fr)" : "minmax(0, 1fr)")).join(" ");
   } else {
     stage.hidden = true;
   }

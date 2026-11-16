@@ -51,7 +51,7 @@ export function renderQuestion(q, index, ctx) {
     q.why && h("p.q-why.rich", { html: mdInline(q.why, g) }),
     q.more && renderMore(q, g),
     q.body && h("div.q-text.rich", { html: md(q.body, g) }),
-    renderMedia(q, ctx, q.id),
+    renderMedia(q.type === "tune" ? { ...q, preview: null } : q, ctx, q.id), // a tune question frames its own mockup
     renderInput(q, ctx),
     quick?.state,
     quick?.panel,
