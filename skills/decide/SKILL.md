@@ -169,7 +169,7 @@ Run rounds until nothing important is open. Most tasks need one or two.
    recommendation. Group into sections when there are more than six.
 3. **Follow up**: build the next round from the previous answers.
    - `flag: "explain"` left in the answers: explain in `recap` or the
-     question's `what`/`how`/`why`, add a picture if it helps, ask again.
+     question's `more`, add a picture if it helps, ask again.
    - A custom option (`other`) or a note that changes scope: confirm what you
      understood with a `confirm` question.
    - Answers that contradict each other: show the conflict, ask which wins.
@@ -185,7 +185,7 @@ answers") so the user can catch a misunderstanding early.
 | Rule                                                                                                                                  | Why                                                               |
 | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | The title is a plain question a non-engineer understands. Jargon goes to `glossary`.                                                  | Glossary terms get a tooltip on first use.                        |
-| `tldr`: one line on what depends on the answer. Longer context goes to `what` / `how` / `why` / `goal` / `then` (what happens after each option), which stay folded. | The user reads title and tldr, and opens the rest only if needed. |
+| `tldr`: one line on what depends on the answer. `why`: one line above the options on what depends on the answer. `then` on each option: what happens next if it is picked. Longer context goes to `more`, behind one button. | The user reads title, why and the options, and opens `more` only if needed. |
 | `body`: markdown shown open under the tldr, for the facts the choice rests on: a short table, a quote, a list.                       | Numbers the user must see shouldn't hide behind a fold.           |
 | 2–4 real options. No filler options that exist only to lose.                                                                          | A fake choice is worse than no question.                          |
 | Exactly one option is `recommended`, and the value is the reason: `"recommended": "cheapest to undo"`.                                | Shown as ★ with the reason; can fill questions left unanswered.   |

@@ -105,6 +105,51 @@ test("migrateSpec step 1 to 2: the older singular image of an option becomes ima
   assert.equal(raw.questions[0].options[0].image, "a.png", "the input is untouched");
 });
 
+test("migrateSpec step 2 to 3: what, how, goal and then become one more, why stays, the input is untouched", () => {
+  const raw = {
+    title: "T",
+    questions: [
+      { id: "a", title: "A", why: "Because", what: "It is X.", how: "By Y.", goal: "For Z.", then: "We build W.", options: ["x", "y"] },
+      { id: "b", title: "B", more: "Already here.", what: "W", options: ["x", "y"] },
+      { id: "c", title: "C", why: "Only why", options: ["x", "y"] },
+    ],
+  };
+  const before = JSON.stringify(raw);
+  const { spec, from } = migrateSpec(raw);
+  assert.equal(JSON.stringify(raw), before);
+  assert.equal(from, 2);
+  const [a, b, c] = spec.questions;
+  assert.equal(a.why, "Because");
+  assert.equal(a.more, "**What.** It is X.\n\n**How.** By Y.\n\n**Goal.** For Z.\n\n**What happens next.** We build W.");
+  for (const k of ["what", "how", "goal", "then"]) assert.equal(k in a, false, k);
+  assert.equal(b.more, "Already here.\n\n**What.** W", "a `more` already there comes first");
+  assert.equal("more" in c, false);
+  assert.equal(c.why, "Only why");
+  // A spec that says it is format 3 is not rewritten.
+  assert.equal(migrateSpec({ ...raw, format: 3 }).spec.questions[0].what, "It is X.");
+  // Russian text gets Russian labels.
+  const ru = migrateSpec({ title: "Т", questions: [{ id: "a", title: "Что делаем?", what: "Это X.", then: "Дальше W.", options: ["x"] }] }).spec;
+  assert.equal(ru.questions[0].more, "**Что.** Это X.\n\n**Что будет дальше.** Дальше W.");
+});
+
+test("the 2.0 and 2.1 showcases keep their folded points: they open as `more`, in both languages", () => {
+  for (const v of VERSIONS) {
+    for (const name of ["showcase.questions.json", "showcase.ru.questions.json"]) {
+      const raw = json(fx(v, name));
+      const folded = raw.questions.filter((q) => q.what || q.how || q.goal || q.then);
+      assert.ok(folded.length, `${v}/${name} has folded points`);
+      const { spec, issues } = normalizeSpec(raw, { specDir: examples });
+      assert.deepEqual(errorsOf(issues), [], `${v}/${name}`);
+      for (const q of folded) {
+        const now = spec.questions.find((x) => x.id === q.id);
+        for (const k of ["what", "how", "goal", "then"]) if (q[k]) assert.ok(now.more.includes(q[k].trim()), `${v}/${name} ${q.id}: ${k} is in more`);
+        assert.equal(now.why, (q.why || "").trim(), "why stays");
+        assert.equal("what" in now, false);
+      }
+    }
+  }
+});
+
 test("a 1.x spelling and the migrated spelling normalise to the same round, with no unknown-field issue", () => {
   const old = { title: "T", questions: [{ id: "a", title: "A", note: true, options: [{ id: "x", label: "X", recommended: true, image: "showcase.assets/home-list.png" }, "y"] }] };
   const fresh = JSON.parse(JSON.stringify(old));

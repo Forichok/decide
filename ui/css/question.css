@@ -111,3 +111,32 @@ textarea.note:focus, textarea.answer-text:focus { border-color: var(--accent); b
 .final { margin-top: 44px; padding: 22px 24px; border-radius: var(--r-lg); border: 1.5px dashed var(--line-strong); }
 .final-sub { color: var(--tx-mut); font-size: 14px; margin: 4px 0 14px; }
 .final-tools { margin: 10px 0; }
+
+/* the why line, the "more" button and what happens next */
+.q-why { margin: 0; font-size: var(--step-0, 15px); color: var(--tx-mut); }
+.q-more { display: grid; gap: 8px; justify-items: start; }
+.more-toggle {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 6px; margin-left: -6px;
+  border: 0; border-radius: 10px; background: transparent; color: var(--tx-mut); font: inherit; font-size: 13.5px; cursor: pointer;
+}
+.more-toggle:hover { background: var(--surface-2); color: var(--tx); }
+.more-toggle .chev { width: 14px; height: 14px; transition: transform 0.18s var(--ease); }
+.more-toggle[aria-expanded="false"] .chev { transform: rotate(-90deg); }
+.q-more-text { color: var(--tx-mut); font-size: 14.5px; padding-left: 4px; max-width: 70ch; }
+.opt-then { margin-top: 6px; font-size: 13.5px; color: var(--tx-mut); display: flex; gap: 6px; }
+.opt-then::before { content: "→"; color: var(--tx-dim); flex: none; }
+
+/* ready answers: Yes, but… / None, suggest others / Later */
+.actions > .quick { flex: 1 0 100%; display: flex; flex-wrap: wrap; gap: 6px; }
+.chip.quick-btn.on { background: var(--accent-soft); color: var(--accent-tx); border-color: transparent; }
+.chip.quick-btn.open { border-color: var(--accent-line); }
+.quick-panel { display: grid; gap: 6px; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); }
+.quick-panel[hidden], .quick-state[hidden] { display: none; }
+.quick-hint { font-size: 13px; color: var(--tx-mut); }
+.quick-row { display: flex; gap: 8px; align-items: center; }
+.quick-input {
+  flex: 1; min-width: 0; font: inherit; font-size: 15px; padding: 9px 12px; color: var(--tx);
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: 10px;
+}
+.quick-input:focus { outline: 2px solid var(--accent-line); outline-offset: 1px; }
+.quick-state { margin: 0; font-size: 14px; color: var(--accent-tx); }
