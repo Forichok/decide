@@ -1,5 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+import path from "node:path";
 import { startDecide, spec } from "./helpers.mjs";
+import { prepareSpec } from "../lib/prepare.mjs";
+import { openProject } from "../lib/project.mjs";
 
 let d;
 test.beforeAll(async () => {
@@ -56,8 +60,56 @@ test("a bad round id is an error with a way back, not a blank page", async ({ pa
   await expect(page.locator("body")).toContainText("There is no round 9-nonexistent", { timeout: 10_000 });
 });
 
-test.fixme("the journal switches between projects and the map offers a neighbourhood picker", async () => {
-  // Waits for chunk J (journal project switch and neighbourhood picker). Contract: the journal page has a
-  // project select that reloads the list for that project; above 40 nodes the map has a picker for a round
-  // whose neighbourhood to draw.
+// A second server with two projects: three decisions in one, forty-five in the other (the map trims above 40).
+async function twoProjects() {
+  const d2 = await startDecide({ name: "journal-two" });
+  const other = path.join(d2.dir, "other-project");
+  mkdirSync(other, { recursive: true });
+  const dh = path.join(d2.dir, "dh");
+  const make = async (project, title, n) => {
+    const dataDir = openProject(project, dh).dataDir;
+    const prepared = await prepareSpec(spec({ title: `${title} ${n}` }), { specDir: project, dataDir, shots: false });
+    const out = await d2.must("POST", "/api/rounds", { project, spec: prepared.spec, live: false, open: false });
+    await d2.must("POST", `/api/rounds/${out.id}/submit`, { answers: { db: { selected: ["pg"] } } });
+    return out.id;
+  };
+  for (let n = 1; n <= 45; n++) await make(d2.project, "Big", n);
+  for (let n = 1; n <= 3; n++) await make(other, "Small", n);
+  return { d2, other };
+}
+
+test("the journal switches between projects and the map offers a neighbourhood picker", async ({ page }) => {
+  test.setTimeout(120_000);
+  const { d2, other } = await twoProjects();
+  try {
+    const api = await d2.must("GET", "/api/map");
+    expect(api.projects.map((p) => p.count).sort((a, b) => a - b)).toEqual([3, 45]);
+    expect(api.rounds.length).toBeGreaterThan(40);
+
+    await page.goto(`${d2.origin}/#journal`);
+    await page.locator(".jp-list").waitFor();
+    const buttons = page.locator(".jp-projects button[data-project]");
+    await expect(buttons).toHaveCount(3);
+    const small = page.locator(`.jp-projects button[data-project="${other}"]`);
+    await small.click();
+    await expect(small).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".jp-title", { hasText: "Small 1" })).toBeVisible();
+    await expect(page.locator(".jp-title", { hasText: "Big 1" })).toHaveCount(0);
+    await buttons.first().click();
+    await expect(page.locator(".jp-title", { hasText: "Big 1" }).first()).toBeVisible();
+
+    await page.getByRole("button", { name: "Map", exact: true }).click();
+    const box = page.locator(".jp-map");
+    await expect(box.locator(".map-find")).toBeVisible({ timeout: 15_000 });
+    await box.locator(".map-find").fill("Big 7");
+    const hit = box.locator("button.map-round", { hasText: /Big 7$/ });
+    await expect(hit).toHaveCount(1);
+    await hit.click();
+    await expect(box.locator(".map-back")).toBeVisible();
+    await expect(box.locator("details.map-centres")).toBeVisible();
+    await box.locator(".map-back").click();
+    await expect(box.locator(".map-back")).toHaveCount(0);
+  } finally {
+    await d2.stop();
+  }
 });

@@ -132,6 +132,28 @@ test("a bad round id is an error with a way back", async ({ page }) => {
   await expect(page.locator("body").getByRole("button").or(page.locator("body").getByRole("link")).first()).toBeVisible();
 });
 
-test.fixme("questions that scrolled into view are reported as seen, so a later removal becomes a ghost", async () => {
-  // FINAL WAVE `seen`: the page posts POST /api/rounds/:id/seen {ids}; view.seen is the union; a patch `remove` of a seen item is a ghost.
+test("questions that scrolled into view are reported as seen, so a later removal becomes a ghost", async ({ page }) => {
+  const s = spec();
+  for (let i = 0; i < 12; i++) s.questions.push({ id: `x${i}`, type: "text", title: `Extra ${i}?`, why: "Filler.", priority: 3 });
+  const id = await d.open(s);
+  const posted = [];
+  page.on("request", (r) => {
+    if (r.method() === "POST" && r.url().includes(`/api/rounds/${id}/seen`)) posted.push(...(r.postDataJSON().ids ?? []));
+  });
+  await openRound(page, d, id);
+  await until(async () => (await d.round(id)).view?.seen?.includes("db"));
+  const first = (await d.round(id)).view.seen;
+  expect(first).toContain("db");
+  expect(first, "a question far below the screen is not seen yet").not.toContain("x11");
+  await card(page, "x11").scrollIntoViewIfNeeded();
+  const seen = await until(async () => {
+    const v = (await d.round(id)).view?.seen ?? [];
+    return v.includes("x11") ? v : null;
+  });
+  expect(seen).toEqual(expect.arrayContaining(["db", "x11"]));
+  expect(posted).toContain("x11");
+  // A seen question the agent removes stays as a ghost; one never seen is dropped.
+  await d.patch(id, [{ remove: "x11" }, { remove: "x10" }], { reason: "not needed any more" });
+  await expect(card(page, "x11")).toHaveClass(/st-ghost/);
+  expect((await d.round(id)).view.ghosts.map((g) => g.id)).toContain("x11");
 });
