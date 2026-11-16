@@ -175,7 +175,7 @@ test("nearest: edit distance of at most 2, or a shared prefix of 4; a tie goes t
   assert.equal(nearest("optoins", ["id", "options", "title"]), "options");
   assert.equal(nearest("Options", ["options"]), "options", "case does not count");
   assert.equal(nearest("previewHeigth", ["preview", "previewHeight"]), "previewHeight");
-  assert.equal(nearest("recommendation", ["recommended", "reason"]), "recommended", "a shared prefix of 4 is enough");
+  assert.equal(nearest("recommendation", ["recommended", "reason"]), null, "a shared prefix is not nearness");
   assert.equal(nearest("abx", ["abc", "abd"]), "abc", "on a tie the first in the list wins");
   assert.equal(nearest("abx", ["abd", "abc"]), "abd");
   assert.equal(nearest("tle", ["title", "tile"]), "tile", "the closer one beats the earlier one");
@@ -418,7 +418,7 @@ test("a 2.1 round: --import with its spec imports the answers and prints the war
 test("nearest is strict on short names: no nonsense suggestions", () => {
   const option = Object.keys(OPTION_FIELDS);
   const question = Object.keys(QUESTION_FIELDS);
-  for (const [name, known] of [["title", option], ["note", option], ["label", question], ["img", question], ["kind", question], ["hint", question], ["img", option], ["kind", option]]) {
+  for (const [name, known] of [["note", option], ["img", question], ["kind", question], ["hint", question], ["img", option], ["kind", option]]) {
     assert.equal(nearest(name, known), null, `${name} suggests nothing`);
   }
   assert.equal(nearest("lable", option), "label", "a swapped pair of letters is one edit");
@@ -432,10 +432,13 @@ test("an option or question field met one level away says where it goes", () => 
     const { issues } = normalizeSpec({ questions: [{ id: "a", title: "t", ...q, options: [{ id: "x", label: "X", ...o }, { id: "y", label: "Y" }] }] });
     return errorsOf(issues).map((e) => e.replace(/^[^:]*: /, ""));
   };
-  for (const name of ["recommended", "label", "detail", "danger"]) {
+  for (const name of ["recommended", "danger"]) {
     assert.deepEqual(said({ [name]: true }, {}), [`unknown field "${name}"; "${name}" is an option field: put it on the option`], name);
   }
-  assert.deepEqual(said({}, { how: "x", note: "y", default: ["x"], then: "z" }), ["how", "note", "default", "then"].map((n) => `unknown field "${n}"; "${n}" is a question field: put it on the question`));
+  assert.deepEqual(said({}, { default: ["x"], optional: true }), ["default", "optional"].map((n) => `unknown field "${n}"; "${n}" is a question field: put it on the question`));
+  assert.deepEqual(said({}, { how: "x", note: "y", then: "z" }), ["how", "note", "then"].map((n) => `unknown field "${n}"; "${n}" is a question field; for text on one option use its "detail"`));
+  assert.deepEqual(said({ detail: "d" }, {}), ['unknown field "detail"; "detail" is an option field; the question has no "detail": "tldr" is its one line, "body" its longer text']);
+  assert.deepEqual(said({ label: "l" }, {}), ['unknown field "label"; "label" is an option field; the question has no "label": its words are "title"']);
 });
 
 test("the table of common mistakes", () => {
@@ -448,10 +451,10 @@ test("the table of common mistakes", () => {
 });
 
 test("a field another type reads is one warning, naming the types, however many there are", () => {
-  const { issues } = normalizeSpec({ questions: [{ id: "k", title: "t", type: "scale", default: ["a"] }] });
-  const warns = warnsOf(issues).filter((w) => /"default"/.test(w));
+  const { issues } = normalizeSpec({ questions: [{ id: "k", title: "t", type: "single", options: ["a", "b"], scale: { min: 1, max: 5 } }] });
+  const warns = warnsOf(issues).filter((w) => /"scale"/.test(w));
   assert.equal(warns.length, 1, warns.join("\n"));
-  assert.match(warns[0], /field "default" belongs to single, multi, rank, confirm questions, not to scale ones; leave it out/);
+  assert.match(warns[0], /field "scale" belongs to scale questions, not to single ones; leave it out/);
   assert.ok(!/ignored/.test(warns[0]), "it does not say what is not true");
 });
 
@@ -637,7 +640,7 @@ test("an unknown field inside a media node is an error with its place and the ne
   assert.deepEqual(run({ chart: { series: [{ name: "a", valeus: [1] }] } }), ['error questions[0].chart.series[0]: unknown field "valeus"; did you mean "values"?']);
   assert.deepEqual(run({ table: { columns: [{ id: "a", lable: "A" }], rows: [["1"]] } }), ['error questions[0].table.columns[0]: unknown field "lable"; did you mean "label"?']);
   assert.deepEqual(run({ compare: { before: { src: "before.png", lable: "x" }, after: "after.png" } }), ['error questions[0].compare.before: unknown field "lable"; did you mean "label"?']);
-  assert.deepEqual(run({ code: { text: "x", langauge: "js" } }), ['error questions[0].code: unknown field "langauge"; did you mean "lang"?']);
+  assert.deepEqual(run({ code: { text: "x", langauge: "js" } }), ['error questions[0].code: unknown field "langauge"']);
   assert.deepEqual(run({ links: [{ url: "https://e.com", titel: "x" }] }), ['error questions[0].links[0]: unknown field "titel"']);
   assert.deepEqual(run({ video: { src: "clip.mp4", captoin: "c" } }), ['error questions[0].video: unknown field "captoin"; did you mean "caption"?']);
   assert.deepEqual(run({ html: { source: "<b>x</b>", maxHeigth: 100 } }), ['error questions[0].html: unknown field "maxHeigth"; did you mean "maxHeight"?']);
@@ -1160,4 +1163,20 @@ test("the media table says what the old one did and what is true now", async () 
   assert.match(line, /source text/);
   assert.match(line, /export/);
   assert.match(line, /sandboxed frame/);
+});
+
+test("a near name is a real edit away and valid at that level (stakeholders is not stakes)", () => {
+  const said = (q) => errorsOf(normalizeSpec({ questions: [{ id: "a", title: "t", ...q, options: ["x", "y"] }] }).issues).map((e) => e.replace(/^[^:]*: /, ""));
+  for (const name of ["stakeholders", "consequences", "linkedin", "reversal"]) assert.deepEqual(said({ [name]: 1 }), [`unknown field "${name}"`], name);
+  assert.match(said({ lable: 1 })[0], /"label"/, "lable means label, not table");
+  assert.deepEqual(said({ stakse: "high" }), ['unknown field "stakse"; did you mean "stakes"?']);
+});
+
+test("default is valid on scale and text; a table column may have a number for a label", () => {
+  for (const type of ["scale", "text"]) {
+    const { issues } = normalizeSpec({ questions: [{ id: "k", title: "t", type, default: ["3"] }] });
+    assert.deepEqual(warnsOf(issues).filter((w) => /"default"/.test(w)), [], type);
+  }
+  const { issues } = normalizeSpec({ questions: [{ id: "a", title: "t", options: ["x", "y"], table: { columns: [{ id: "y", label: 2024 }], rows: [["1"]] } }] });
+  assert.deepEqual(errorsOf(issues), []);
 });
