@@ -136,6 +136,7 @@ test("'in words' with no agent that takes events is saved as the note and shown"
   await card(page, "card").locator('[data-act="words"]').click();
   // The words come back as the question's note and the note box shows them.
   await expect(card(page, "card").locator("textarea.note")).toHaveValue(/more airy/);
+  await expect(card(page, "card").locator(".tn-said")).toContainText("saved as a note");
   const a = await until(async () => {
     const x = (await d.answers(id)).card;
     return x?.note ? x : null;

@@ -284,3 +284,23 @@ test("seen reporter: one batch per delay, known ids skipped, a failed batch give
   await new Promise((r) => setTimeout(r, 10));
   assert.equal(calls.length, 2);
 });
+
+test("store: a set on a swipe card with media changes what it names and keeps the media and the answer", async (t) => {
+  const { open, args } = await setup(t);
+  const specDir = path.dirname(args.specFile);
+  writeFileSync(path.join(specDir, "x.png"), "x");
+  writeFileSync(path.join(specDir, "m.html"), "<p>x</p>");
+  const raw = { ...deckRaw, cards: [{ ...card("m1"), images: ["x.png"], preview: "m.html" }, ...deckRaw.cards] };
+  const { deck } = normalizeDeck(raw, { specDir });
+  const s = open();
+  const r = s.create({ ...args, spec: deck, raw });
+  s.swipeAnswer(r, { card: "m1", side: "left" });
+  const before = r.state.swipe.deck.cards.find((c) => c.id === "m1");
+  const res = s.patch(r, { ops: [{ set: { id: "m1", why: "A new reason." } }], reason: "clearer" });
+  const after = r.state.swipe.deck.cards.find((c) => c.id === "m1");
+  assert.equal(after.why, "A new reason.");
+  for (const k of ["images", "preview", "left", "right", "title"]) assert.deepEqual(after[k], before[k], k);
+  assert.deepEqual(res.view.stale, [], "only the reason changed: the answer stands");
+  s.patch(r, { ops: [{ set: { id: "m1", title: "Reworded?" } }] });
+  assert.equal(r.state.swipe.deck.cards.find((c) => c.id === "m1").title, "Reworded?");
+});

@@ -335,6 +335,15 @@ test("in words: a words item for a listening agent; with none, the words become 
   store.words(round, { qid: "card", text: "again" });
   assert.equal(await quiet(store.next(round, { waiter: "w", timeoutMs: 5000 })), "quiet");
 
+  // A picture kept inline (a data URL) is named in the item, not copied into the agent's context.
+  store.saveAnswer(round, { qid: "card", answer: { ...round.answers.card, values: { density: 7, photo: `data:image/jpeg;base64,${"A".repeat(5000)}` } } });
+  const pic = store.next(round, { waiter: "w", events: true, timeoutMs: 5000 });
+  assert.equal(store.words(round, { qid: "card", text: "with the photo" }).sent, true);
+  const withPic = await quiet(pic, 3000);
+  assert.equal(withPic.payload.words.values.photo, "(a picture the user picked, kept inline)");
+  assert.ok(formatWords(withPic.payload).length < 2000);
+  store.ack(round, withPic.seq, "w");
+
   assert.throws(() => store.words(round, { qid: "c", text: "x" }), /tune question/);
   assert.throws(() => store.words(round, { qid: "card", text: "  " }), /empty/);
   assert.throws(() => store.words(round, { qid: "nope", text: "x" }), /unknown question/);

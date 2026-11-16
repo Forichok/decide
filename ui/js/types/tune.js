@@ -324,6 +324,9 @@ const CONTROLS = { range: rangeControl, toggle: toggleControl, select: selectCon
 
 // ---- the question
 
+// What each tune question's "in words" box last said, per round (its answers object): a repaint keeps it.
+const SAID = new WeakMap();
+
 export function render(q, ctx) {
   const { t } = ctx;
   const get = () => ctx.answers[q.id];
@@ -481,7 +484,19 @@ export function render(q, ctx) {
       sendWords();
     }
   } });
-  const wordsSaid = h("p.tn-said", { role: "status" });
+  // What the box last said outlives a repaint of the card (saving the note paints it again).
+  let said = SAID.get(ctx.answers);
+  if (!said) SAID.set(ctx.answers, (said = new Map()));
+  const wordsSaid = h("p.tn-said", { role: "status" }, said.get(q.id) || "");
+  const say = (text) => {
+    said.set(q.id, text);
+    wordsSaid.textContent = text;
+    // The card may have been painted again while the request was out: say it in the live one too.
+    if (!wordsSaid.isConnected) {
+      const live = document.getElementById(`q-${q.id}`)?.querySelector(".tn-said");
+      if (live) live.textContent = text;
+    }
+  };
   const wordsBtn = h("button.tn-btn", { type: "button", dataset: { act: "words" }, onclick: () => sendWords() }, t("tune.wordsSend"));
   const wordsBox = h("div.tn-words", {}, h("div.tn-cap", {}, t("tune.words")), h("div.tn-words-row", {}, wordsIn, wordsBtn), wordsSaid);
   async function sendWords() {
@@ -491,15 +506,15 @@ export function render(q, ctx) {
     try {
       const res = await ctx.words(q.id, text);
       wordsIn.value = "";
-      if (res?.sent) wordsSaid.textContent = t("tune.wordsSent");
+      if (res?.sent) say(t("tune.wordsSent"));
       else {
         const note = typeof res?.note === "string" ? res.note : [String(get().note ?? "").trim(), text].filter(Boolean).join("\n");
+        say(t("tune.wordsNoted"));
         ctx.ui?.note?.add(q.id);
         ctx.set(q.id, { note });
-        wordsSaid.textContent = t("tune.wordsNoted");
       }
     } catch {
-      wordsSaid.textContent = t("tune.wordsFailed");
+      say(t("tune.wordsFailed"));
     } finally {
       wordsBtn.disabled = false;
     }
@@ -517,7 +532,7 @@ export function render(q, ctx) {
     }
     const fields = agentKnobs(q, a, k, k.reason ? t("tune.before", k.reason) : t("tune.beforeAgent"));
     if (!fields) return false;
-    wordsSaid.textContent = k.reason ? t("tune.moved", k.reason) : t("tune.movedPlain");
+    say(k.reason ? t("tune.moved", k.reason) : t("tune.movedPlain"));
     save(fields);
     return true;
   };
