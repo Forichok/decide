@@ -170,3 +170,7 @@ export function listen(onState, onStatus, onDialog, onDeck) {
   };
   return es;
 }
+
+// Reactive rounds: bring a ghost back, keep a stale answer.
+export const restoreItem = (id, item) => fetch(`/api/rounds/${id}/restore`, { method: "POST", headers: WRITE, body: JSON.stringify({ id: item }) }).then(json);
+export const keepAnswer = (id, qid) => fetch(`/api/rounds/${id}/keep`, { method: "POST", headers: WRITE, body: JSON.stringify({ qid }) }).then(json);

@@ -156,3 +156,7 @@ export function listen(onState, onStatus) {
   queueMicrotask(() => onStatus(true));
   return { close() {} };
 }
+
+// Reactive rounds need a daemon: in an exported file the page keeps these to itself.
+export const restoreItem = async () => ({});
+export const keepAnswer = async () => ({});

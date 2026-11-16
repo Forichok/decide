@@ -12,7 +12,8 @@ import { t } from "../i18n.js";
 import { eyebrow } from "../header.js";
 import { hideBar } from "../round.js";
 import { modalOpen, openLightbox, openModal, openZoom, toast } from "../overlays.js";
-import { askAgent, digDeeper, holdReload, submitRound, swipeCard } from "../net.js";
+import { askAgent, digDeeper, holdReload, keepAnswer, restoreItem, submitRound, swipeCard } from "../net.js";
+import { resolve, sigOf, swipeQueues } from "../states.js";
 import { createBrief } from "./brief.js";
 import { createDeck } from "./deck.js";
 import { confirmFinish } from "./end.js";
@@ -108,12 +109,29 @@ export function mountSwipe(round, env) {
     return out;
   };
   s.byId = () => new Map(s.deck.cards.map((c) => [c.id, c]));
+  // Ghost cards (rules, the agent's push) leave the queue; answers to check come back at the end.
+  s.react = { restored: new Set(), kept: new Map() };
+  const norm = (a) => (a ? { side: a.side, text: a.text } : a);
+  s.states = () => {
+    const a = s.answers();
+    const view = s.server.view || {};
+    const dropped = Object.entries(s.deck.ghosts || {}).map(([id, reason]) => ({ id, reason }));
+    const plain = Object.fromEntries(Object.entries(a).map(([id, v]) => [id, norm(v)]));
+    return resolve(s.deck, plain, { ...view, ghosts: [...(view.ghosts || []), ...dropped] }, s.react);
+  };
+  s.isRecheck = (id) => Boolean(s.answers()[id]) && s.states().stale.has(id);
   s.queue = () => {
     const a = s.answers();
-    const open = s.deck.cards.filter((c) => !a[c.id]);
+    const { open, recheck } = swipeQueues(s.deck, Object.fromEntries(Object.entries(a).map(([id, v]) => [id, norm(v)])), s.states());
     const i = s.pinned ? open.findIndex((c) => c.id === s.pinned) : -1;
     if (i > 0) open.unshift(...open.splice(i, 1));
-    return open;
+    return [...open, ...recheck];
+  };
+  s.ghosts = () => swipeQueues(s.deck, {}, s.states()).ghosts.map((c) => ({ card: c, reason: s.states().ghosts.get(c.id) }));
+  s.restore = (id) => {
+    s.react.restored.add(id);
+    restoreItem(round.id, id).catch(() => {});
+    s.paint();
   };
   // Boxes the user left open before a reload come back on the card they were for.
   {
@@ -155,7 +173,8 @@ export function mountSwipe(round, env) {
   s.paint = function paint() {
     const a = s.answers();
     const { deck } = s;
-    counter.textContent = t("sw.count", deck.cards.filter((c) => a[c.id]).length, deck.cards.length);
+    const live = deck.cards.filter((c) => !s.states().ghosts.has(c.id));
+    counter.textContent = t("sw.count", live.filter((c) => a[c.id]).length, live.length);
     confFill.style.transform = `scaleX(${deck.confidence / 100})`;
     confFill.dataset.level = deck.confidence >= 80 ? "high" : deck.confidence >= 45 ? "mid" : "low";
     confNum.textContent = `${deck.confidence}%`;
@@ -213,10 +232,19 @@ export function mountSwipe(round, env) {
     s.ownDraft = "";
     s.persist();
     if (s.pinned === c.id) s.pinned = null;
+    // An answer to check: the same side keeps it; another side takes the old answer back first.
+    const old = s.isRecheck(c.id) ? s.answers()[c.id] : null;
+    if (old && side === old.side && side !== "own") {
+      s.react.kept.set(c.id, sigOf(norm(old)));
+      keepAnswer(round.id, c.id).catch(() => {});
+      await deckView.fly(side);
+      return s.paint();
+    }
     s.inflight.set(c.id, side === "own" ? { side, text, at: Date.now() } : { side, at: Date.now() });
     trail.push(c.id);
+    const send = () => swipeCard(round.id, { card: c.id, side, ...(side === "own" ? { text } : {}), rev: c.rev || 0, ms });
     // Sent before the card flies off, so the daemon knows which card is on screen next as soon as possible.
-    const sent = swipeCard(round.id, { card: c.id, side, ...(side === "own" ? { text } : {}), rev: c.rev || 0, ms });
+    const sent = old ? swipeCard(round.id, { card: c.id, undo: true }).then(send) : send();
     sent.catch(() => {});
     await deckView.fly(side);
     s.paint();

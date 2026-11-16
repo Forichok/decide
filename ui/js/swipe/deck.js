@@ -67,7 +67,8 @@ export function createDeck(s) {
     endSig = null;
     s.readFor(top.id);
     const back = q.slice(1, 3).map((c, i) => backCard(c, i + 1, s.arrived.has(c.id)));
-    const sig = JSON.stringify([top, s.dialog.filter((d) => d.qid === top.id), s.asking === top.id, s.writing === top.id, deck.glossary]);
+    const recheck = s.isRecheck(top.id);
+    const sig = JSON.stringify([top, s.dialog.filter((d) => d.qid === top.id), s.asking === top.id, s.writing === top.id, deck.glossary, recheck]);
     const old = $(".sw-card.front", stack);
     let front = old;
     if (!old || sig !== frontSig || old.dataset.card !== top.id || old.matches(".fly-left, .fly-right, .fly-up")) {
@@ -75,6 +76,12 @@ export function createDeck(s) {
       if (old?.dataset.card !== top.id) front.classList.add("enter");
     }
     frontSig = sig;
+    if (recheck && !front.classList.contains("recheck")) {
+      front.classList.add("recheck");
+      front.dataset.pre = s.answers()[top.id]?.side || "";
+      const q = $(".sw-q", front);
+      if (q) q.dataset.recheck = t("sw.recheck");
+    }
     const left = $(".sw-left-n", front);
     left.textContent = t("sw.leftN", q.length);
     if (s.arrived.size) {

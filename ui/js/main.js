@@ -303,6 +303,7 @@ function onState(st) {
   if (app.view === "round") {
     const current = st.rounds.find((r) => r.id === app.round.id);
     if (!current) return openRound(app.round.id, false);
+    if (current.view !== undefined) app.round.setView?.(current.view);
     if (app.round.mode === "swipe") app.round.setListening(current.listening !== false);
     else updatePresence(current.listening !== false);
     refreshTabs();
@@ -347,6 +348,12 @@ function rerenderStatic() {
 function review() {
   if (app.view !== "round" || app.sending) return;
   if (app.round.mode === "swipe") return app.round.finish();
+  // An answer marked "check" must be kept or answered again before the round can go.
+  const unchecked = app.round.toCheck?.() || [];
+  if (unchecked.length) {
+    toast(t("check.refuse", unchecked.length));
+    return app.round.openCheck();
+  }
   const open = $("#overlay .review .btn.primary");
   if (open) return open.click();
   const r = app.round;

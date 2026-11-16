@@ -52,12 +52,28 @@ export function createBrief(s) {
           ),
         )
       : null;
+    const ghosts = s.ghosts();
+    const ghostBox = ghosts.length
+      ? h(
+          "section.sw-group.sw-ghosts",
+          {},
+          h("h3.sw-group-h", {}, t("sw.ghosts", ghosts.length)),
+          h(
+            "ul",
+            {},
+            ghosts.map(({ card, reason }) =>
+              h("li", {}, h("span.t", {}, card.title), reason && h("span.state-reason", {}, t("state.notRelevant", reason)), h("button.chip.ghost", { type: "button", onclick: () => s.restore(card.id) }, t("state.restore"))),
+            ),
+          ),
+        )
+      : null;
     const empty = !deck.brief.length && !fresh;
     body.replaceChildren(
       ...[
         h("div.sw-brief-head", {}, h("div.sw-brief-label", {}, t("sw.brief")), deck.goal && h("h2.sw-goal", {}, deck.goal)),
         ...groups,
         fresh,
+        ghostBox,
         empty && h("p.sw-brief-empty", {}, t("sw.briefEmpty")),
       ].filter(Boolean),
     );
