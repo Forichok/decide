@@ -38,6 +38,7 @@ const app = {
   advanceFor: null, // the done round the countdown already ran for
   advanceTimer: null,
   spec: null, // spec of the round on the done screen
+  idleError: null, // why the idle screen shows, e.g. a round id that does not exist
 };
 let rail = null;
 
@@ -70,6 +71,7 @@ function env() {
     connected: app.connected,
     delivery: app.done && deliveryOf(app.done.id),
     closing: app.closing,
+    idleError: app.view === "idle" ? app.idleError : null,
     closeTab,
     spec: app.spec,
     nextRound: app.view === "done" ? nextRound(app.inbox.length ? app.inbox : [], app.done?.id) : null,
@@ -96,14 +98,14 @@ function env() {
 }
 
 // ---- views
-async function openRound(id, fallback = true) {
+async function openRound(id, fallback = false) {
   let data;
   try {
     data = await getRound(id);
   } catch {
     const next = fallback && app.state.rounds.find((r) => r.id !== id);
     if (next) return openRound(next.id, false);
-    return showIdle(t("idle.inactive"));
+    return showIdle(t("idle.badRound", id));
   }
   history.replaceState(null, "", `#r=${data.id}`);
   app.seen.add(data.id);
@@ -117,7 +119,9 @@ function showRound(data) {
   app.view = "round";
   app.done = null;
   app.round = data.mode === "swipe" ? mountSwipe(data, env()) : mountRound(data, env());
-  window.scrollTo({ top: 0 });
+  const y = savedScroll(data.id);
+  window.scrollTo({ top: y, behavior: "instant" });
+  if (y) for (const ms of [60, 250, 700]) setTimeout(() => app.view === "round" && Math.abs(scrollY - y) > 4 && scrollY < 10 && window.scrollTo({ top: y, behavior: "instant" }), ms);
   syncRail();
 }
 
@@ -194,7 +198,7 @@ function showIdle(message) {
   app.view = "idle";
   app.done = null;
   hideBar();
-  $("#main").replaceChildren(renderIdle(env()));
+  $("#main").replaceChildren(renderIdle(((app.idleError = message || null), env())));
   document.title = "decide";
   syncRail();
   if (message) toast(message);
@@ -500,8 +504,48 @@ function bindFrameFocus() {
   );
 }
 
+// ---- scroll position survives a reload (per round, this tab only)
+const scrollKey = (id) => `decide-scroll-${id}`;
+function savedScroll(id) {
+  try {
+    return Math.max(0, Number(sessionStorage.getItem(scrollKey(id))) || 0);
+  } catch {
+    return 0;
+  }
+}
+function trackScroll() {
+  let timer = null;
+  addEventListener("scroll", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (app.view !== "round" || !app.round) return;
+      try {
+        sessionStorage.setItem(scrollKey(app.round.id), String(Math.round(scrollY)));
+      } catch {}
+    }, 120);
+  }, { passive: true });
+}
+
+// ---- skip link: first stop in the tab order
+function skipLink() {
+  const main = $("#main");
+  main.setAttribute("tabindex", "-1");
+  const a = document.createElement("a");
+  a.className = "skip-link";
+  a.href = "#main";
+  a.textContent = t("a11y.skip");
+  a.addEventListener("click", (e) => {
+    e.preventDefault();
+    main.focus();
+    main.scrollIntoView();
+  });
+  document.body.prepend(a);
+}
+
 async function boot() {
   document.documentElement.lang = lang;
+  skipLink();
+  trackScroll();
   $("#toc").setAttribute("aria-label", t("toc"));
   $(".boot").textContent = t("boot");
   loadTheme();

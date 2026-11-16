@@ -65,3 +65,10 @@ textarea {
   padding: 80px 0;
   text-align: center;
 }
+.skip-link {
+  position: fixed; z-index: 100; top: 8px; left: 8px; padding: 10px 16px; border-radius: 999px;
+  background: var(--accent); color: var(--on-accent); font-weight: 620; text-decoration: none;
+  transform: translateY(-200%);
+}
+.skip-link:focus { transform: none; }
+#main:focus { outline: none; }

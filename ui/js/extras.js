@@ -19,6 +19,7 @@ export function renderExtras(q, ctx) {
           value: a.other,
           oninput: (e) => {
             const patch = { other: e.target.value };
+            e.target.closest(".other-wrap")?.classList.toggle("sel", !!e.target.value.trim());
             if (q.type === "single" && e.target.value.trim()) patch.selected = [];
             if (ctx.answers[q.id].flag !== "explain") patch.flag = null;
             ctx.set(q.id, patch, { quiet: !patch.selected });
@@ -54,7 +55,10 @@ export function noteArea(placeholder, value, ctx, onText, onFile) {
 export function syncExtras(card, q, ctx) {
   const a = ctx.answers[q.id];
   const other = $(".other-wrap", card);
-  if (other) other.hidden = !(a.other || ctx.ui.other.has(q.id));
+  if (other) {
+    other.hidden = !(a.other || ctx.ui.other.has(q.id));
+    other.classList.toggle("sel", !!a.other.trim());
+  }
   const note = $(".note-wrap", card);
   if (note) note.hidden = !(q.noteOpen || a.note || ctx.ui.note.has(q.id) || a.attachments.length);
   const files = $(".files", card);

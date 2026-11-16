@@ -167,6 +167,7 @@ export function renderIdle(env) {
       {},
       h("div.ring.idle", { html: icon("spark") }),
       h("h2", {}, t("idle.title")),
+      env.idleError && h("p.done-sub.idle-error", { role: "alert" }, env.idleError),
       h("p.done-sub", {}, env.connected ? t("idle.sub") : t("idle.ended")),
     ),
     journalPanel({ open: true }),

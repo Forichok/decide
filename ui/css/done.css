@@ -58,3 +58,4 @@
 .stopped[hidden] { display: none; }
 .stopped strong { display: block; font-size: 15px; }
 .stopped p { margin: 4px 0 10px; color: var(--tx-mut); font-size: 14px; }
+.idle-error { color: var(--danger); font-weight: 620; overflow-wrap: anywhere; }
