@@ -26,7 +26,7 @@
   margin-top: 18px; padding: 22px 24px; border-radius: var(--r-lg, 18px);
   background: var(--glass-bg, color-mix(in srgb, var(--surface) 82%, transparent));
   border: 1px solid var(--glass-edge, var(--line)); box-shadow: var(--glass-shadow, var(--shadow-1));
-  -webkit-backdrop-filter: blur(var(--glass-blur, 18px)); backdrop-filter: blur(var(--glass-blur, 18px));
+  -webkit-backdrop-filter: var(--glass-blur, blur(22px)); backdrop-filter: var(--glass-blur, blur(22px));
 }
 .sum-h { margin: 0 0 12px; font-size: var(--step-1, 17px); font-weight: 680; letter-spacing: -0.01em; }
 .sum-list { list-style: none; margin: 0; padding: 0; display: grid; }
@@ -52,7 +52,7 @@
   position: fixed; z-index: 70; top: 12px; left: 50%; transform: translateX(-50%);
   width: min(560px, calc(100% - 24px)); padding: 14px 16px; border-radius: 16px;
   background: var(--glass-bg, color-mix(in srgb, var(--surface) 90%, transparent));
-  -webkit-backdrop-filter: blur(var(--glass-blur, 18px)); backdrop-filter: blur(var(--glass-blur, 18px));
+  -webkit-backdrop-filter: var(--glass-blur, blur(22px)); backdrop-filter: var(--glass-blur, blur(22px));
   border: 1px solid var(--danger); box-shadow: var(--glass-shadow, var(--shadow-3));
 }
 .stopped[hidden] { display: none; }
@@ -62,8 +62,11 @@
 
 /* how much to ask, and the buttons that need no agent */
 .rule-row { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin-top: 6px; font-size: 13px; }
-.rule-input { flex: 1 1 260px; min-width: 0; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--tx); font: inherit; }
+.rule-input { flex: 1 1 260px; min-width: 0; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface-solid); color: var(--tx); font: inherit; line-height: 1.45; resize: vertical; field-sizing: content; min-height: 44px; }
 .rule-state { color: var(--tx-mut); }
+/* a pair of these sits under every answer: quiet until pointed at */
+.rule-row .link-btn { color: var(--tx-mut); text-decoration-color: var(--line-strong); }
+.rule-row .link-btn:hover { color: var(--accent-tx); text-decoration-color: currentColor; }
 .actions-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
 .set-title { margin: 8px 0 20px; }
 .set-levels { display: grid; gap: 10px; margin: 8px 0 28px; }
@@ -71,6 +74,9 @@
 .set-level span { color: var(--tx-mut); font-size: 14px; }
 .set-level[aria-checked="true"] { border-color: var(--accent); }
 .set-rules { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 10px; }
-.set-rules li { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
-.set-rule-mode { color: var(--tx-mut); font-size: 13px; }
-.set-rule-text { flex: 1 1 240px; overflow-wrap: anywhere; }
+/* a rule is a card like a level: what it is on top, its text under it, Remove at the side */
+.set-rules li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 16px; align-items: center; padding: 12px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.set-rule-mode { grid-column: 1; color: var(--tx-mut); font-size: 13px; font-weight: 600; }
+.set-rule-text { grid-column: 1; overflow-wrap: anywhere; }
+.set-rules .link-btn { grid-column: 2; grid-row: 1 / span 2; color: var(--tx-mut); text-decoration-color: var(--line-strong); }
+.set-rules .link-btn:hover { color: var(--danger); text-decoration-color: currentColor; }

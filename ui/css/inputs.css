@@ -15,7 +15,7 @@
   transition: box-shadow var(--dur), background var(--dur);
 }
 .opt:hover { background: color-mix(in srgb, var(--surface-solid) 80%, transparent); box-shadow: inset 0 0 0 1px var(--line-strong); }
-.opt:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent-line), 0 0 0 3px var(--accent-soft); }
+.opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .opt.sel { box-shadow: inset 0 0 0 1.5px var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--surface-solid)); }
 .opt.danger.sel { box-shadow: inset 0 0 0 1.5px var(--danger); background: var(--danger-soft); }
 /* one badge per option at rest: the first (a danger badge always stays), the rest on hover, focus or selection */
@@ -39,6 +39,14 @@
 .opts.compare .opt { grid-template-columns: auto minmax(0, 1fr); }
 .opts.compare .opt-key { display: none; }
 .opts.compare .opt-body .media { order: -1; }
+.opts.compare .proscons { font-size: 14px; }
+/* a compare tile with a picture: the picture and the text take the tile's full width, the mark sits beside the name */
+.opts.compare .opt:has(.opt-body > .media) { column-gap: 10px; row-gap: var(--space-2); align-items: start; align-content: start; }
+.opts.compare .opt:has(.opt-body > .media) .opt-body { display: contents; }
+.opts.compare .opt:has(.opt-body > .media) .opt-body > * { grid-column: 1 / -1; }
+.opts.compare .opt:has(.opt-body > .media) .opt-body > .media { grid-row: 1; margin-top: 0; }
+.opts.compare .opt:has(.opt-body > .media) > .mark { grid-row: 2; grid-column: 1; }
+.opts.compare .opt:has(.opt-body > .media) .opt-body > .opt-top { grid-row: 2; grid-column: 2; }
 
 /* confirm: three pills */
 .opts.confirm { display: flex; flex-wrap: wrap; gap: var(--space-3); }
@@ -70,7 +78,7 @@
   padding: 12px 10px 12px 12px; border: 0; border-radius: var(--r-md);
   background: color-mix(in srgb, var(--surface-solid) 55%, transparent); box-shadow: inset 0 0 0 1px var(--line); cursor: grab; outline: none;
 }
-.rank-item:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent-line), 0 0 0 3px var(--accent-soft); }
+.rank-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .rank-item.dragging { opacity: 0.45; }
 .grip { color: var(--tx-dim); display: grid; }
 .grip .i { fill: currentColor; stroke: none; }
@@ -93,3 +101,8 @@
 .seg-l { font-size: 12px; color: var(--tx-dim); text-align: center; line-height: 1.25; }
 .seg.sel { background: var(--accent); box-shadow: none; color: var(--on-accent); }
 .seg.sel .seg-l { color: inherit; opacity: 0.9; }
+
+@media (pointer: coarse) {
+  .seg { min-height: 58px; }
+  .rank-item { min-height: 52px; }
+}

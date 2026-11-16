@@ -495,12 +495,13 @@ export function mountRound(data, env) {
     },
     toCheck: () => [...states().stale.keys()],
     openCheck,
-    stop: () => {
+    // settled: the round has its result, so the server takes no more "seen" marks for it
+    stop: ({ settled = false } = {}) => {
       tracker.stop();
       unsubscribe();
       stopStatus();
       stopScroll();
-      seen.stop();
+      seen.stop({ settled });
     },
   };
 }

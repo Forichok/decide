@@ -157,7 +157,7 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
 .sw-body .md-table { margin: 2px 0 4px; }
 .sw-card .sw-facets-toggle { margin: 0; align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; min-height: 36px; }
 .sw-facets-toggle span { display: inline-flex; align-items: center; gap: 6px; }
-.sw-facets-toggle kbd { font-size: 11px; opacity: 0.7; }
+.sw-facets-toggle kbd { font-size: 12px; opacity: 0.7; }
 .sw-card .sw-facets { margin: 0; user-select: text; }
 .sw-card .sw-facets .facet { font-size: var(--step--1, 14px); }
 /* media and code stay solid inside the glass card */
@@ -218,7 +218,7 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
 .sw-ask { display: grid; gap: var(--space-2, 8px); }
 .sw-ask-input {
   width: 100%; resize: vertical; padding: var(--space-3, 12px) var(--space-4, 14px); border-radius: var(--r-md);
-  border: 1px solid var(--line-strong); background: var(--solid); outline: none; font: inherit; font-size: 16px;
+  border: 1px solid var(--line-strong); background: var(--solid); font: inherit; font-size: 16px;
 }
 .sw-ask-input:focus { border-color: var(--accent); }
 .sw-ask-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3, 10px); }
@@ -230,7 +230,7 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
 }
 .sw-own:hover { color: var(--tx); background: var(--surface-2); }
 .sw-own .i { width: 15px; height: 15px; }
-.sw-own kbd { font-size: 11px; }
+.sw-own kbd { font-size: 12px; }
 
 /* ---- the end of the deck: one card, one set of controls */
 .sw-end {
@@ -264,6 +264,8 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
 .sw-key:hover { color: var(--tx); border-color: var(--line-strong); }
 .sw-key:active { transform: scale(0.95); }
 .sw-key kbd { min-width: 24px; text-align: center; font-size: 13px; background: none; border: 0; padding: 0; color: inherit; }
+.sw-key-ic { display: none; }
+.sw-key-ic .i { width: 20px; height: 20px; }
 .sw-key.right { color: var(--on-accent, #fff); background: var(--accent); border-color: transparent; }
 .sw-key.right:hover { color: var(--on-accent, #fff); filter: brightness(1.05); }
 .sw-foot { display: flex; justify-content: center; }
@@ -288,10 +290,8 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
   .sw-stage > .eyebrow { order: 0; align-self: stretch; margin-top: var(--space-2, 8px); }
   .sw > .sw-brief { order: 1; align-self: stretch; }
   .sw-stage > .sw-stack { flex: 0 1 auto; min-height: 0; }
-  .sw-brief {
-    position: relative; z-index: 5; margin: 0 calc(var(--space-3, 12px) * -1); padding: 0; max-height: none; overflow: visible;
-    border-radius: 0 0 var(--r-lg) var(--r-lg); border-width: 0 0 1px;
-  }
+  /* the brief is one more pill under the header, not a band across the screen */
+  .sw-brief { position: relative; z-index: 5; margin: 0; padding: 0; max-height: none; overflow: visible; border-radius: var(--r-md); }
   .sw-brief-toggle {
     display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 var(--space-4, 16px); border: 0; background: none;
     font: inherit; font-weight: 650; font-size: var(--step--1, 14px); color: inherit; cursor: pointer; text-align: left;
@@ -301,10 +301,10 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
   .sw-brief-toggle .chev { margin-left: auto; transition: transform 0.2s; }
   .sw-brief.open .chev { transform: rotate(180deg); }
   .sw-brief-body {
-    display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 60vh; max-height: 60dvh; overflow: auto;
+    display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0; max-height: 60vh; max-height: 60dvh; overflow: auto;
     padding: var(--space-2, 8px) var(--space-4, 16px) var(--space-4, 16px);
-    background: var(--solid); border-bottom: 1px solid var(--line); box-shadow: var(--shadow-2);
-    border-radius: 0 0 var(--r-lg) var(--r-lg);
+    background: var(--solid); border: 1px solid var(--line); box-shadow: var(--shadow-3);
+    border-radius: var(--r-md);
   }
   .sw-brief.open .sw-brief-body { display: block; }
   .sw-title { font-size: var(--step-1, 18px); }
@@ -326,6 +326,7 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
   .sw-key.left, .sw-key.right { flex: 1.5 1 0; }
   .sw-key span { display: none; }
   .sw-key kbd { min-width: 0; font-size: 18px; }
+  .sw-card .sw-facets-toggle { min-height: 44px; }
   .sw-foot .btn, .sw-own { min-height: 44px; }
   .sw-end { padding: var(--space-5, 24px) var(--space-4, 16px); }
   .sw-end .btn { min-height: 44px; }
@@ -352,4 +353,10 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
 @media (prefers-reduced-motion: reduce) {
   .sw-card.front, .sw-side, .sw-key { transition: none; }
   .sw-card.front.enter, .sw-card.front.back-in, .sw-card.back.arrive { animation: none; }
+}
+
+/* A finger has no ␣, ↵ or ⌫: on touch the middle keys show what they do, the two arrows stay (they are the swipe). */
+@media (hover: none) and (max-width: 900px) {
+  .sw-key:not(.left, .right) kbd { display: none; }
+  .sw-key:not(.left, .right) .sw-key-ic { display: grid; }
 }

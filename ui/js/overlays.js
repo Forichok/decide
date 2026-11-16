@@ -9,6 +9,13 @@ import { sameOrigin } from "./media.js";
 import { startAnnotate } from "./annotate.js";
 
 let closeCurrent = null;
+let closeBox = null; // the open lightbox, if any
+
+// Another view is coming (a hash change, Back): a dialog or a picture of the old one must not stay over it.
+export function closeOverlays() {
+  closeCurrent?.();
+  closeBox?.();
+}
 
 export function openModal(content, { wide = false, onClose } = {}) {
   closeCurrent?.();
@@ -57,6 +64,7 @@ export const modalOpen = () => Boolean(closeCurrent) || !$("#lightbox").hidden;
 
 // onAnnotate(file): enables the mark-up button; annotate: open straight in drawing mode.
 export function openLightbox(images, start, { onAnnotate, annotate = false, pick = null } = {}) {
+  closeBox?.();
   const root = $("#lightbox");
   let i = start;
   let annotating = false;
@@ -137,7 +145,9 @@ export function openLightbox(images, start, { onAnnotate, annotate = false, pick
     document.body.classList.remove("locked");
     document.removeEventListener("keydown", onKey, true);
     root.removeEventListener("click", onClick);
+    closeBox = null;
   }
+  closeBox = close;
   document.addEventListener("keydown", onKey, true);
   root.addEventListener("click", onClick);
   if (annotate && onAnnotate && sameOrigin(images[i].src)) startMarks();
@@ -153,6 +163,8 @@ export function openReview({ spec, answers, comment, onSend, onJump, askName = n
   const mine = missingMine(spec, answers);
   const words = reviewWords();
   const list = h("div.rv-list");
+  // The digest marks "left to the agent" with an emoji; on the page it is the same hand as the "Agent decides" chip.
+  const handed = (text) => (text.startsWith("🤝 ") ? [h("i.rv-ic", { html: icon("hand") }), text.slice("🤝 ".length)] : [text]);
   const render = () => {
     const final = finalizeAnswers(spec, answers, { fill: fillMode });
     list.replaceChildren(
@@ -162,7 +174,7 @@ export function openReview({ spec, answers, comment, onSend, onJump, askName = n
           { type: "button", class: open.includes(q) ? "auto" : "", onclick: () => (close(), onJump(q.id)) },
           h("span.rv-n", {}, String(i + 1)),
           h("span.rv-q", { html: mdInline(q.title) }),
-          h("span.rv-a", {}, describe(q, final[q.id], words), extrasNote(final[q.id])),
+          h("span.rv-a", {}, ...handed(describe(q, final[q.id], words)), extrasNote(final[q.id])),
         ),
       ),
     );

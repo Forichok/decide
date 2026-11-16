@@ -82,13 +82,20 @@ h1.title {
 details.panel > summary {
   cursor: pointer;
   list-style: none;
-  margin: 0;
+  /* the whole strip is the target, not the line of text in it */
+  margin: calc(var(--space-4) * -1) calc(var(--space-5) * -1) 0;
+  padding: var(--space-4) var(--space-5) var(--space-2);
+  border-radius: var(--r-lg);
+}
+details.panel > summary .panel-h {
+  margin-bottom: 0;
+}
+details.panel:not([open]) > summary {
+  margin-bottom: calc(var(--space-4) * -1);
+  padding-bottom: var(--space-4);
 }
 details.panel > summary::-webkit-details-marker {
   display: none;
-}
-details.panel:not([open]) .panel-h {
-  margin-bottom: 0;
 }
 .left-out-sub {
   margin: 0 0 6px;

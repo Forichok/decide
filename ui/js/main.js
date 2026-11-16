@@ -17,7 +17,7 @@ import { showStopped } from "./stopped.js";
 import { renderJournal } from "./journal.js";
 import { renderSettings } from "./settings.js";
 import { bindKeys } from "./nav.js";
-import { confirmCancel, openHelp, openReview, toast } from "./overlays.js";
+import { closeOverlays, confirmCancel, openHelp, openReview, toast } from "./overlays.js";
 import { finalizeAnswers, isResolved, recommendedIds } from "./logic.js";
 import { typeOf } from "./types/index.js";
 import { badgeCount, registerShell, setBadge, wrongPort } from "./pwa.js";
@@ -129,7 +129,7 @@ function showRound(data) {
 
 function showDone(id, result, spec = null) {
   app.spec = spec || app.round?.spec || null;
-  app.round?.stop();
+  app.round?.stop({ settled: true });
   app.round = null;
   app.view = "done";
   app.done = { id, result };
@@ -554,10 +554,13 @@ async function boot() {
   app.state.rounds.forEach((r) => app.seen.add(r.id));
   if (app.connected && !offline) app.inbox = (await loadInbox(app.state)) || [];
   window.addEventListener("hashchange", () => {
-    if (location.hash === "#journal") return app.view !== "journal" && showJournal();
-    if (location.hash === "#settings") return app.view !== "settings" && showSettings();
+    if (location.hash === "#journal") return app.view !== "journal" && (closeOverlays(), showJournal());
+    if (location.hash === "#settings") return app.view !== "settings" && (closeOverlays(), showSettings());
     const id = new URLSearchParams(location.hash.slice(1)).get("r");
-    if (id && id !== app.round?.id && id !== app.done?.id) openRound(id);
+    if (id && id !== app.round?.id && id !== app.done?.id) {
+      closeOverlays();
+      openRound(id);
+    }
   });
   const id = new URLSearchParams(location.hash.slice(1)).get("r");
   if (location.hash === "#journal") showJournal();

@@ -407,7 +407,7 @@ export default {
   "journalPage.titleAll": "Decisions in all projects",
   "journalPage.titleOne": (name) => `Decisions in ${name}`,
   "journalPage.sub": "Every answered round, newest first. A decision the agent marked superseded no longer holds.",
-  "journalPage.count": (n) => `· ${n1(n, "decision", "decisions")}`,
+  "journalPage.count": (n) => n1(n, "decision", "decisions"),
   "journalPage.mode": "Kind",
   "journalPage.mode.all": "All kinds",
   "journalPage.mode.questions": "Questions",

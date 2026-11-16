@@ -44,10 +44,13 @@ body.locked { overflow: hidden; }
   width: 100%; text-align: left; padding: 9px 10px; border: 0; border-radius: 9px; background: none; cursor: pointer;
 }
 .rv-row:hover { background: var(--surface-2); }
-.rv-row.auto { background: var(--warn-soft); }
+/* a question the user left open: the answer line is amber, the row is not painted (most rows can be open) */
+.rv-row.auto .rv-a { color: var(--warn); }
 .rv-n { font: 650 12px/1.6 var(--mono); color: var(--tx-dim); }
 .rv-q { font-size: 14px; color: var(--tx-mut); }
 .rv-a { font-size: 14px; font-weight: 600; }
+.rv-ic { display: inline-flex; vertical-align: -3px; margin-right: 6px; }
+.rv-ic .i { width: 16px; height: 16px; }
 .rv-extra { display: block; font-size: 12.5px; font-weight: 500; color: var(--tx-dim); margin-top: 2px; }
 @media (max-width: 560px) { .rv-row { grid-template-columns: 22px minmax(0, 1fr); } .rv-a { grid-column: 2; } }
 .rv-comment { font-size: 14px; color: var(--tx-mut); border-top: 1px solid var(--line); padding-top: 12px; margin: 12px 0 0; white-space: pre-wrap; }
@@ -93,7 +96,7 @@ body.locked { overflow: hidden; }
   background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-2);
   display: grid; justify-items: center; gap: 10px;
 }
-.done-card h2 { margin: 6px 0 0; font-size: 24px; letter-spacing: -0.02em; }
+.done-card h2 { margin: 6px 0 0; font-size: 24px; line-height: 1.2; letter-spacing: -0.02em; text-wrap: balance; }
 .done-sub { margin: 0 0 8px; color: var(--tx-mut); max-width: 44ch; }
 .ring {
   width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center;
@@ -125,6 +128,6 @@ body.locked { overflow: hidden; }
   width: 100%; padding: 9px 12px; border-radius: 10px; font: inherit; font-size: 14.5px; font-weight: 400;
   border: 1px solid var(--line-strong); background: var(--surface); color: var(--tx);
 }
-.rv-name-input:focus { outline: none; border-color: var(--accent); }
+.rv-name-input:focus { border-color: var(--accent); }
 .lb-pick-row { display: flex; justify-content: center; margin-top: 4px; }
 @media (max-width: 560px) { .lb-stage { padding-bottom: 72px; } }

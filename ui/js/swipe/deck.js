@@ -2,7 +2,7 @@
 // behind it), the key strip under it and the "enough" button. When no card is left the stack shows
 // the end card (end.js) and the strip goes away: the end card carries its own controls.
 
-import { h, $ } from "../dom.js";
+import { h, icon, $ } from "../dom.js";
 import { t } from "../i18n.js";
 import { FACETS } from "../question.js";
 import { backCard, frontCard } from "./card.js";
@@ -12,8 +12,9 @@ const FLY_MS = 320;
 const PRELOAD = 2; // cards behind the front one whose media loads ahead
 const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 
-function keyBtn(cls, key, label, onclick) {
-  return h(`button.sw-key.${cls}`, { type: "button", onclick, title: label, "aria-label": label }, h("kbd", {}, key), h("span", {}, label));
+// A key of the strip: its keyboard key, its label, and a picture for touch screens, where the key means nothing.
+function keyBtn(cls, key, label, onclick, pic) {
+  return h(`button.sw-key.${cls}`, { type: "button", onclick, title: label, "aria-label": label }, h("kbd", {}, key), pic && h("i.sw-key-ic", { html: icon(pic) }), h("span", {}, label));
 }
 
 export function createDeck(s) {
@@ -22,11 +23,11 @@ export function createDeck(s) {
     "div.sw-keys",
     {},
     keyBtn("left", "←", t("sw.keyLeft"), () => s.answer("left")),
-    keyBtn("up", "↑", t("sw.keySkip"), () => s.answer("skip")),
-    keyBtn("down", "↓", t("sw.keyExplain"), () => s.openAsk()),
-    keyBtn("fold", "␣", t("sw.keyFacets"), () => s.toggleFacets()),
-    keyBtn("own", "↵", t("sw.keyOwn"), () => s.openOwn()),
-    keyBtn("undo", "⌫", t("sw.keyUndo"), () => s.undo()),
+    keyBtn("up", "↑", t("sw.keySkip"), () => s.answer("skip"), "skip"),
+    keyBtn("down", "↓", t("sw.keyExplain"), () => s.openAsk(), "help"),
+    keyBtn("fold", "␣", t("sw.keyFacets"), () => s.toggleFacets(), "chevron"),
+    keyBtn("own", "↵", t("sw.keyOwn"), () => s.openOwn(), "pen"),
+    keyBtn("undo", "⌫", t("sw.keyUndo"), () => s.undo(), "undo"),
     keyBtn("right", "→", t("sw.keyRight"), () => s.answer("right")),
   );
   const foot = h("div.sw-foot");

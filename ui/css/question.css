@@ -84,17 +84,18 @@ details:not([open]) .chev { transform: rotate(-90deg); }
   border-radius: 999px; background: color-mix(in srgb, var(--surface-solid) 55%, transparent);
   box-shadow: inset 0 0 0 1px var(--line);
 }
-.other-wrap:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.other-wrap:focus-within { outline: 2px solid var(--accent); outline-offset: -1px; }
 .other-mark { color: var(--tx-dim); display: grid; }
-.other-input { flex: 1; border: 0; background: none; padding: 12px 0; outline: none; }
+.other-input { flex: 1; border: 0; background: none; padding: 12px 0; }
+.other-input:focus-visible { outline: none; } /* the ring is on the pill around it */
 textarea.note, textarea.answer-text {
   width: 100%; resize: none; min-height: 52px; padding: 13px 16px;
   border: 0; border-radius: var(--r-md);
   background: color-mix(in srgb, var(--surface-solid) 55%, transparent); box-shadow: inset 0 0 0 1px var(--line);
-  outline: none; line-height: 1.5; transition: box-shadow var(--dur), background var(--dur);
+  line-height: 1.5; transition: box-shadow var(--dur), background var(--dur);
 }
 textarea.answer-text { min-height: 96px; font-size: var(--step-0); }
-textarea.note:focus, textarea.answer-text:focus { box-shadow: inset 0 0 0 1.5px var(--accent); background: var(--surface-solid); }
+textarea.note:focus, textarea.answer-text:focus { background: var(--surface-solid); }
 .files { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .file {
   display: flex; align-items: center; gap: 8px; max-width: 260px; padding: 4px;
@@ -124,7 +125,9 @@ textarea.note:focus, textarea.answer-text:focus { box-shadow: inset 0 0 0 1.5px 
 .opt-then::before { content: "→"; color: var(--tx-dim); flex: none; }
 
 /* ready answers: Yes, but… / None, suggest others / Later */
-.actions > .quick { flex: 1 0 100%; display: flex; flex-wrap: wrap; gap: 6px; }
+/* two rows at most on a desktop card: ready answers and tools share the first, the flags take the second */
+.actions > .quick { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.actions:has(> .quick) > .flags { flex: 1 0 100%; }
 .chip.quick-btn.on { background: var(--accent-soft); color: var(--accent-tx); border-color: transparent; }
 .chip.quick-btn.open { border-color: var(--accent-line); }
 .quick-panel { display: grid; gap: 6px; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); }

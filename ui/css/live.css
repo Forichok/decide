@@ -52,10 +52,11 @@
 }
 .shot-mark .i { width: 13px; height: 13px; }
 .shot:hover .shot-mark, .shot-mark:focus-visible { opacity: 1; }
-@media (hover: none) { .shot-mark { opacity: 1; } }
+/* on touch the button would cover the picture for good: a tap opens the picture, and Mark up is there */
+@media (hover: none) { .shot-mark { display: none; } }
 
-.lb-mark { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
-.lb-mark:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.lightbox .lb-mark { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
+.lightbox .lb-mark:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
 .lb-mark[hidden] { display: none; }
 .anno-bar { flex-wrap: wrap; }
 .anno-tools { display: inline-flex; gap: 4px; padding: 3px; border-radius: 11px; background: rgba(255, 255, 255, 0.1); }
@@ -65,8 +66,8 @@
 }
 .anno-tool .i { width: 15px; height: 15px; }
 .anno-tool[aria-pressed="true"] { background: #fff; color: #111; }
-.anno-cancel { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
-.anno-cancel:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.lightbox .anno-cancel { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
+.lightbox .anno-cancel:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
 .anno-wrap { position: relative; display: inline-block; line-height: 0; }
 .anno-img { max-width: 100%; max-height: calc(100vh - 150px); border-radius: 8px; user-select: none; }
 .anno-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
@@ -83,7 +84,7 @@
   width: 100%; margin: 4px 0 12px; padding: 8px 12px; border-radius: 10px; font: inherit; font-size: 14px;
   border: 1px solid var(--line-strong); background: var(--surface); color: var(--tx);
 }
-.jr-search:focus { outline: none; border-color: var(--accent); }
+.jr-search:focus { border-color: var(--accent); }
 .jr-empty { margin: 0; font-size: 14px; color: var(--tx-dim); }
 
 /* journal page (2.1) */
@@ -92,7 +93,7 @@
 .jp-back { display: inline-flex; align-items: center; gap: 6px; margin: 18px 0 6px; font-size: 14px; text-decoration: none; }
 .jp-back .i { width: 15px; height: 15px; }
 .jp-sub { margin: 4px 0 14px; color: var(--tx-mut); font-size: 14.5px; }
-.jp-count { color: var(--tx-dim); font: 500 13px/1 var(--mono); }
+.jp-count { display: block; margin-top: 6px; color: var(--tx-dim); font: 500 13px/1 var(--mono); white-space: nowrap; }
 .jp-filters { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 18px; }
 .jp-filter { display: flex; flex-wrap: wrap; gap: 6px; }
 .jp-filter .chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-tx); border-color: transparent; }

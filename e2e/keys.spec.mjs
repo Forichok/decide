@@ -89,3 +89,27 @@ test("Ctrl+Enter opens the review dialog and Escape closes it", async ({ page })
   await page.keyboard.press("Escape");
   await expect(page.locator("#overlay")).toBeHidden();
 });
+
+test("leaving the round closes the review dialog: it does not stay over the next screen", async ({ page }) => {
+  const id = await d.open(twoSingles());
+  await openRound(page, d, id);
+  await page.keyboard.press("Control+Enter");
+  await expect(page.locator("#overlay")).toBeVisible();
+  await page.evaluate(() => (location.hash = "#journal"));
+  await expect(page.locator(".jp-list")).toBeVisible();
+  await expect(page.locator("#overlay")).toBeHidden();
+});
+
+test("nothing is posted to a round after it is sent: no refused request in the console", async ({ page }) => {
+  const id = await d.open(twoSingles());
+  const refused = [];
+  page.on("response", (r) => r.status() >= 400 && refused.push(`${r.status()} ${new URL(r.url()).pathname}`));
+  await openRound(page, d, id);
+  // the answer scrolls the next question into view, and the round is sent before the "seen" batch goes out
+  await page.keyboard.press("1");
+  await page.keyboard.press("Control+Enter");
+  await page.locator("#overlay .btn.primary", { hasText: "Send to the agent" }).click();
+  await expect(page.locator(".done-card")).toBeVisible();
+  await page.waitForTimeout(1500);
+  expect(refused).toEqual([]);
+});

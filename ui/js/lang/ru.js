@@ -414,7 +414,7 @@ export default {
   "journalPage.titleAll": "Решения во всех проектах",
   "journalPage.titleOne": (name) => `Решения: ${name}`,
   "journalPage.sub": "Все раунды с ответами, свежие сверху. Решение, которое агент пометил как заменённое, больше не действует.",
-  "journalPage.count": (n) => `· ${n} ${plural(n, "решение", "решения", "решений")}`,
+  "journalPage.count": (n) => `${n} ${plural(n, "решение", "решения", "решений")}`,
   "journalPage.mode": "Тип",
   "journalPage.mode.all": "Все типы",
   "journalPage.mode.questions": "Вопросы",

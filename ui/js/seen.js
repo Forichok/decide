@@ -33,13 +33,19 @@ export function seenReporter(send, { delay = SEEN_DELAY_MS, known = [] } = {}) {
     },
     flush,
     stop: flush,
+    // The round is settled: what is still waiting has nowhere to go.
+    drop() {
+      clearTimeout(timer);
+      timer = null;
+      queue = new Set();
+    },
   };
 }
 
 // Watches question cards (elements with data-qid): one that is half in view, or fills half the screen,
 // counts as seen. Returns { observe(elements), stop() }; without IntersectionObserver it does nothing.
 export function watchSeen(reporter) {
-  if (typeof IntersectionObserver !== "function") return { observe() {}, stop: () => reporter.stop() };
+  if (typeof IntersectionObserver !== "function") return { observe() {}, stop: ({ settled = false } = {}) => (settled ? reporter.drop() : reporter.stop()) };
   const watched = new WeakSet();
   const io = new IntersectionObserver(
     (entries) => {
@@ -61,9 +67,10 @@ export function watchSeen(reporter) {
         io.observe(el);
       }
     },
-    stop() {
+    stop({ settled = false } = {}) {
       io.disconnect();
-      reporter.stop();
+      if (settled) reporter.drop();
+      else reporter.stop();
     },
   };
 }

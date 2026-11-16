@@ -6,8 +6,8 @@
 .rail {
   display: flex; flex-direction: column; gap: 6px;
   background: var(--glass-bg, color-mix(in srgb, var(--surface) 82%, transparent));
-  -webkit-backdrop-filter: blur(var(--glass-blur, 22px)) saturate(1.5);
-  backdrop-filter: blur(var(--glass-blur, 22px)) saturate(1.5);
+  -webkit-backdrop-filter: var(--glass-blur, blur(22px));
+  backdrop-filter: var(--glass-blur, blur(22px));
   border: 1px solid var(--glass-edge, var(--line));
   box-shadow: var(--glass-shadow, var(--shadow-2));
   padding: 14px 10px 12px;

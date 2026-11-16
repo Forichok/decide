@@ -13,20 +13,21 @@
   --line-strong: rgba(20, 16, 12, 0.16);
   --tx: #17161a;
   --tx-mut: #55525c;
-  --tx-dim: #6d6973;
+  --tx-dim: #66626c;
   /* one accent: crimson. Primary action and selection only. */
   --accent: #d6245f;
   --accent-tx: #b81c52;
   --accent-soft: rgba(214, 36, 95, 0.08);
   --accent-line: rgba(214, 36, 95, 0.45);
   --on-accent: #ffffff;
-  --ok: #0a7a58;
+  /* state colours are text too: each holds 4.5:1 on its own soft fill over any surface of the page */
+  --ok: #076a4b;
   --ok-soft: rgba(15, 154, 110, 0.1);
-  --warn: #a8670a;
+  --warn: #875106;
   --warn-soft: rgba(192, 122, 12, 0.12);
-  --danger: #c93434;
+  --danger: #b02828;
   --danger-soft: rgba(210, 59, 59, 0.1);
-  --info: #2f6fe4;
+  --info: #1f58c0;
   --info-soft: rgba(47, 111, 228, 0.1);
   --c-what: #2f6fe4;
   --c-how: #0f9a6e;
@@ -57,7 +58,7 @@
   --state-answered: #0a7a58;
   --state-current: #d6245f;
   --state-skipped: #8a8690;
-  --state-stale: #a8670a;
+  --state-stale: #875106;
   /* radii */
   --r-sm: 10px;
   --r-md: 14px;
@@ -98,7 +99,7 @@
     --line-strong: rgba(255, 255, 255, 0.16);
     --tx: #ececf1;
     --tx-mut: #a9a9b5;
-    --tx-dim: #8a8a97;
+    --tx-dim: #9494a1;
     --accent: #ff5d8f;
     --accent-tx: #ff7aa3;
     --accent-soft: rgba(255, 93, 143, 0.13);
@@ -153,7 +154,7 @@
   --line-strong: rgba(255, 255, 255, 0.16);
   --tx: #ececf1;
   --tx-mut: #a9a9b5;
-  --tx-dim: #8a8a97;
+  --tx-dim: #9494a1;
   --accent: #ff5d8f;
   --accent-tx: #ff7aa3;
   --accent-soft: rgba(255, 93, 143, 0.13);

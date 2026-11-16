@@ -1,5 +1,5 @@
 /* evidence labels */
-.ev { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: var(--step--2, 11.5px); font-weight: 600; line-height: 1.6; vertical-align: 1px; white-space: nowrap; background: var(--surface-3); color: var(--tx-mut); }
+.ev { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.6; vertical-align: 1px; white-space: nowrap; background: var(--surface-3); color: var(--tx-mut); }
 .ev-measured { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
 .ev-guess { background: color-mix(in srgb, var(--warn, #b7791f) 16%, transparent); color: var(--warn, #b7791f); }
 

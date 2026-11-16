@@ -15,7 +15,8 @@ export function ruleButtons(project, row) {
   const box = h("div.rule-row");
   const state = h("span.rule-state");
   const open = (mode) => {
-    const input = h("input.rule-input", { type: "text", value: ruleText(row.title, row.answer, mode), "aria-label": t("rule.edit") });
+    const input = h("textarea.rule-input", { rows: 2, "aria-label": t("rule.edit") });
+    input.value = ruleText(row.title, row.answer, mode);
     const save = h("button.btn.sm.primary", { type: "button" }, t("rule.save"));
     save.onclick = async () => {
       save.disabled = true;

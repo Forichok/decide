@@ -65,7 +65,7 @@
 .tn-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); margin-top: 4px; }
 .tn-btn, .tn-chip { font: inherit; font-size: 14px; border-radius: 999px; padding: 7px 14px; border: 1px solid var(--line-strong); background: var(--surface-solid); color: var(--tx); cursor: pointer; transition: background 0.12s var(--ease), transform 0.12s var(--ease); }
 .tn-btn:active, .tn-chip:active { transform: scale(0.97); }
-.tn-btn.primary { background: var(--accent); border-color: transparent; color: var(--on-accent); font-weight: 600; }
+.tn-btn.primary { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-tx); font-weight: 600; }
 .tn-btn.ghost { border-color: transparent; background: transparent; color: var(--tx-mut); }
 .tn-chip[aria-pressed="true"], .tn-btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-tx); font-weight: 600; }
 
@@ -76,7 +76,7 @@
 .tn-slot.picked { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .tn-slot.cand { border-color: var(--accent-line); background: var(--accent-soft); }
 .tn-slot-head { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
-.tn-x { border: 0; background: none; color: var(--tx-dim); font-size: 18px; line-height: 1; cursor: pointer; border-radius: 6px; }
+.tn-x { border: 0; background: none; color: var(--tx-dim); font-size: 18px; line-height: 1; cursor: pointer; border-radius: 6px; min-width: 24px; min-height: 24px; }
 .tn-load { display: block; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 8px; overflow: hidden; }
 .tn-load .tn-shot { pointer-events: none; }
 .tn-slot-act { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -104,3 +104,15 @@
 .tn-table td.now { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--tx); }
 
 @media (prefers-reduced-motion: reduce) { .tn-thumb, .tn-knob, .tn-switch, .tn-btn, .tn-chip { transition: none; } }
+
+@media (pointer: coarse) {
+  .tn-btn, .tn-chip, .tn-opt, .tn-slot-act .tn-chip { min-height: 44px; }
+  .tn-slider { height: 44px; }
+  .tn-track { inset: 5px 8px; }
+  .tn-color { height: 44px; }
+  .tn-hex { display: inline-flex; align-items: center; min-height: 44px; }
+  .tn-switch { width: 60px; height: 44px; border-radius: 22px; padding: 7px; }
+  .tn-switch .tn-knob { width: 30px; height: 30px; }
+  .tn-switch[aria-checked="true"] .tn-knob { transform: translateX(16px); }
+  .tn-x { width: 44px; height: 44px; margin: -10px -10px -10px 0; }
+}

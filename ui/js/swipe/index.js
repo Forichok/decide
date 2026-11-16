@@ -420,10 +420,11 @@ export function mountSwipe(round, env) {
       if (!s.queue().length) deckView.paint();
     },
     finish: () => (s.deck.done && !s.queue().length ? s.finish() : confirmFinish(s)),
-    stop() {
+    stop({ settled = false } = {}) {
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("visibilitychange", readTick);
-      seen.stop();
+      if (settled) seen.drop();
+      else seen.stop();
       document.body.classList.remove("swipe-mode");
       deckView.stop();
     },
