@@ -185,3 +185,21 @@ export function digest(spec, result) {
   for (const f of result.attachments || []) lines.push(`📎 ${f}`);
   return lines.join("\n");
 }
+
+// What a reply changed, as a list the page shows under it: [{op: "add"|"replace"|"remove", title}].
+// From reply.changes (already a list) or from reply.patch ({add, replace, remove} of questions or cards).
+export function changesOf(reply) {
+  if (!reply || typeof reply !== "object") return [];
+  const named = (x) => (typeof x === "string" ? x : x?.title || x?.label || x?.id || "");
+  if (Array.isArray(reply.changes)) {
+    return reply.changes.map((c) => ({ op: ["add", "replace", "remove"].includes(c?.op) ? c.op : "replace", title: named(c) })).filter((c) => c.title);
+  }
+  const patch = reply.patch;
+  if (!patch || typeof patch !== "object") return [];
+  const out = [];
+  for (const op of ["add", "replace", "remove"]) {
+    const list = Array.isArray(patch[op]) ? patch[op] : patch[op] ? [patch[op]] : [];
+    for (const item of list) if (named(item)) out.push({ op, title: named(item) });
+  }
+  return out;
+}

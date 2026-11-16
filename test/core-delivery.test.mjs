@@ -604,3 +604,53 @@ test("push and explain name an unknown round and say to ask again", async (t) =>
     assert.match(msg.result.content[0].text, /Round 9-abcdef is unknown to the decide server of .+Ask again/, tool);
   }
 });
+
+// ---- R8: "None, suggest others" is a request for a listening agent, a flag for none
+
+test("none, suggest others: a request item for a listening agent, only a flag when nobody listens", async (t) => {
+  const { mkdtempSync, rmSync, realpathSync, writeFileSync } = await import("node:fs");
+  const os = await import("node:os");
+  const { createStore } = await import("../lib/store/rounds.mjs");
+  const { createRoots } = await import("../lib/assets.mjs");
+  const { prepareSpec, formatRequest } = await import("../lib/prepare.mjs");
+  const dir = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), "decide-req-")));
+  const prev = process.env.DECIDE_HOME;
+  process.env.DECIDE_HOME = path.join(dir, ".home");
+  const project = openProject(dir);
+  const raw = { title: "R", questions: [{ id: "c", title: "Colour?", options: [{ id: "a", label: "A" }, { id: "b", label: "B" }] }] };
+  const { spec } = await prepareSpec(raw, { specDir: dir, dataDir: project.dataDir, shots: false });
+  const store = createStore({ home: process.env.DECIDE_HOME, roots: createRoots(), listenGraceMs: 0 });
+  t.after(() => {
+    store.close();
+    if (prev === undefined) delete process.env.DECIDE_HOME;
+    else process.env.DECIDE_HOME = prev;
+    rmSync(dir, { recursive: true, force: true });
+  });
+  const round = store.create({ project, spec, raw, outPath: path.join(dir, "r.answers.json"), live: true, mode: "questions" });
+  const none = (note) => ({ answers: { c: { selected: [], flag: "none", note } } });
+
+  // Nobody listens: the flag stays in the draft, nothing is queued.
+  store.saveDraft(round, none("nope"));
+  assert.equal(round.draft.answers.c.flag, "none");
+
+  // An agent waits: a new press is handed out like an ask.
+  store.saveDraft(round, { answers: { c: { selected: [] } } });
+  const held = store.next(round, { waiter: "w", events: true, timeoutMs: 5000 });
+  store.saveDraft(round, none("try warm colours"));
+  const item = await Promise.race([held, new Promise((r) => setTimeout(() => r(null), 3000))]);
+  assert.equal(item.kind, "request");
+  assert.deepEqual(item.payload.request, { qid: "c", title: "Colour?", note: "try warm colours" });
+  assert.match(formatRequest(item.payload), /None, suggest others.*\[c\].*warm colours/s);
+  store.ack(round, item.seq, "w");
+  // The same flag saved again asks nothing new.
+  store.saveDraft(round, none("try warm colours"));
+  const again = await Promise.race([store.next(round, { waiter: "w", events: true, timeoutMs: 5000 }), new Promise((r) => setTimeout(() => r("quiet"), 1200))]);
+  assert.equal(again, "quiet");
+});
+
+test("an explain reply lists what it changed", async () => {
+  const { changesOf } = await import("../ui/js/logic.js");
+  assert.deepEqual(changesOf({ patch: { add: [{ id: "n", title: "New one" }], remove: ["old"] } }), [{ op: "add", title: "New one" }, { op: "remove", title: "old" }]);
+  assert.deepEqual(changesOf({ changes: [{ op: "replace", title: "Q2" }, { title: "Q3" }] }), [{ op: "replace", title: "Q2" }, { op: "replace", title: "Q3" }]);
+  assert.deepEqual(changesOf({ text: "only text" }), []);
+});
