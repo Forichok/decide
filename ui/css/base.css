@@ -12,12 +12,12 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background: radial-gradient(900px 480px at 85% -8%, var(--bg-glow), transparent 70%), var(--bg);
+  background: var(--bg);
   color: var(--tx);
-  font: 15px/1.55 var(--font);
+  font: var(--step-0)/1.6 var(--font);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  padding-bottom: 140px;
+  padding-bottom: 160px;
 }
 [hidden] {
   display: none !important;
@@ -46,8 +46,8 @@ textarea {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   justify-content: center;
-  gap: 40px;
-  padding: 0 16px;
+  gap: var(--space-7);
+  padding: 0 var(--space-4);
 }
 @media (min-width: 1180px) {
   .layout {
@@ -58,7 +58,7 @@ textarea {
   width: 100%;
   max-width: 780px;
   margin: 0 auto;
-  padding-top: 44px;
+  padding-top: var(--space-6);
 }
 .boot {
   color: var(--tx-dim);

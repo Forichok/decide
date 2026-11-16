@@ -1,0 +1,82 @@
+/* glass.css — the one material. A translucent surface with a soft edge, a
+   top-edge highlight and layered shadows, over a quiet colour field.
+   Used on floating chrome (header strip, footer bar, popovers, dialogs) and on
+   cards at rest. Anything that shows a mockup, screenshot or code is solid
+   inside the card. Fallbacks at the bottom turn it into plain surfaces. */
+
+/* the colour field behind the page */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 560px at 88% -6%, var(--field-1), transparent 70%),
+    radial-gradient(760px 520px at -6% 28%, var(--field-2), transparent 70%),
+    radial-gradient(900px 600px at 70% 112%, var(--field-3), transparent 70%);
+}
+
+.glass,
+.card,
+.bar,
+.panel,
+.modal,
+.round-tab[aria-selected="true"],
+.eyebrow-glass,
+.done-card,
+.pv-note {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 var(--glass-hl), var(--glass-shadow);
+}
+
+/* floating pieces are a little more opaque so text stays readable over content */
+.bar,
+.modal {
+  background: var(--glass-bg-strong);
+}
+
+/* inside a glass card, media and code are solid */
+.card :is(.preview, .code, .chart, .table-wrap, .diagram, .compare, .diffbox, .html-block, .md-table, .shot-btn, .video video) {
+  background: var(--surface-solid);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.card .code pre,
+.card .diff-scroll {
+  background: var(--surface-solid);
+}
+
+/* ---- fallbacks: solid surfaces ---- */
+@media (prefers-reduced-transparency: reduce) {
+  :root:root:root:root {
+    --glass-bg: var(--surface-solid);
+    --glass-bg-strong: var(--surface-solid);
+    --glass-blur: none;
+    --glass-edge: var(--line);
+    --glass-hl: transparent;
+    --field-1: transparent;
+    --field-2: transparent;
+    --field-3: transparent;
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root:root:root:root {
+    --glass-bg: var(--surface-solid);
+    --glass-bg-strong: var(--surface-solid);
+    --glass-blur: none;
+    --glass-edge: var(--line);
+    --glass-hl: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root:root {
+    --dur: 0.01ms;
+  }
+  .bar.complete .bar-done {
+    animation: none;
+  }
+}

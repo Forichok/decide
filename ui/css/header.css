@@ -5,12 +5,17 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: var(--step-0);
   font-weight: 650;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--tx-dim);
-  margin-bottom: 14px;
+  color: var(--tx-mut);
+  margin-bottom: var(--space-6);
+  padding: 6px 8px 6px 14px;
+  border-radius: 999px;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 var(--glass-hl), var(--glass-shadow);
 }
 .eyebrow .logo {
   width: 20px;
@@ -32,48 +37,41 @@
 .eyebrow .brand { display: inline-flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; }
 .eyebrow .brand:hover { color: var(--tx); }
 h1.title {
-  font-size: clamp(24px, 3.4vw, 32px);
-  line-height: 1.15;
-  letter-spacing: -0.025em;
+  font-size: var(--step-4);
+  line-height: 1.12;
+  letter-spacing: -0.03em;
   font-weight: 720;
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-4);
   text-wrap: balance;
 }
 .meta-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 16px;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
 }
 .intro {
   color: var(--tx-mut);
-  max-width: 66ch;
+  font-size: var(--step-1);
+  line-height: 1.6;
+  max-width: 62ch;
 }
 .panel {
-  margin-top: 16px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  border-radius: var(--r-md);
-  padding: 14px 16px;
-  box-shadow: var(--shadow-1);
+  margin-top: var(--space-5);
+  border-radius: var(--r-lg);
+  padding: var(--space-4) var(--space-5);
 }
 .panel .panel-h {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--tx-dim);
-  margin-bottom: 6px;
-}
-.panel.recap {
-  border-color: var(--info-soft);
-  background: linear-gradient(var(--info-soft), var(--info-soft)), var(--surface);
+  font-size: var(--step--1);
+  font-weight: 650;
+  color: var(--tx-mut);
+  margin-bottom: var(--space-2);
 }
 .panel.recap .panel-h {
-  color: var(--info);
+  color: var(--tx);
 }
 details.panel > summary {
   cursor: pointer;
@@ -154,3 +152,30 @@ abbr.term:focus::after {
   box-shadow: var(--shadow-3);
   white-space: normal;
 }
+
+/* ---- footer progress: one segment per question, coloured by state ---- */
+.bar-status { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-3); row-gap: 8px; align-items: baseline; }
+.bar-status .bar-segs { grid-row: 1; grid-column: 1 / -1; }
+.bar-status .bar-count { grid-row: 2; }
+.bar-status .bar-hint { grid-row: 2; }
+.bar-segs { display: flex; gap: 3px; align-items: center; min-width: 0; }
+.seg-dot {
+  flex: 1 1 0; max-width: 40px; min-width: 6px; height: 8px; padding: 0; border: 0; border-radius: 999px;
+  background: var(--line-strong); cursor: pointer; position: relative;
+  transition: background var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.seg-dot::after { content: ""; position: absolute; inset: -8px -1px; } /* a bigger touch target */
+.seg-dot:hover { transform: scaleY(1.5); }
+.seg-dot[data-state="answered"] { background: var(--state-answered); }
+.seg-dot[data-state="current"] { background: var(--state-current); transform: scaleY(1.5); }
+.seg-dot[data-state="skipped"] { background: var(--state-skipped); opacity: 0.6; }
+.seg-dot[data-state="stale"] { background: var(--state-stale); }
+.seg-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* hints: keys with a keyboard, a tap hint on touch, "ready" when everything is decided */
+.bar-hint .hint-touch, .bar-hint .hint-ready { display: none; }
+@media (hover: none), (pointer: coarse) {
+  .bar-hint .hint-keys { display: none; }
+  .bar-hint .hint-touch { display: inline; }
+}
+.bar.complete .bar-hint .hint-keys, .bar.complete .bar-hint .hint-touch { display: none; }
+.bar.complete .bar-hint .hint-ready { display: inline; }

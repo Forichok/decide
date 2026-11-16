@@ -8,7 +8,7 @@ import { renderMedia } from "./media.js";
 import { renderQuestion, syncQuestion } from "./question.js";
 import { noteArea, paintFiles } from "./extras.js";
 import { credit, renderHeader } from "./header.js";
-import { renderToc, syncToc, trackCurrent } from "./nav.js";
+import { renderToc, syncProgress, syncToc, trackCurrent } from "./nav.js";
 import { openLightbox, openZoom, toast } from "./overlays.js";
 import { emptyAnswer, isResolved, isVisible, progress, withRecommendation } from "./logic.js";
 import { askAgent, holdReload, saveDraft, uploadFile } from "./net.js";
@@ -200,18 +200,12 @@ export function mountRound(round, env) {
     const left = p.total - p.resolved;
     syncToc(spec, answers, tracker?.get());
     const bar = $("#bar");
-    $(".bar-fill", bar).style.transform = `scaleX(${p.total ? p.resolved / p.total : 1})`;
-    $(".bar-count", bar).textContent = left
-      ? t("progress.count", p.resolved, p.total)
-      : t("progress.all");
-    $(".bar-hint", bar).textContent = left
-      ? t("progress.left", left)
-      : t("progress.ready");
+    syncProgress(spec, answers, tracker?.get(), env.go);
     bar.classList.toggle("complete", left === 0);
     document.title = `${left ? `(${left}) ` : "✓ "}${spec.title} — decide`;
   }
 
-  const onCurrent = () => syncToc(spec, answers, tracker?.get());
+  const onCurrent = () => (syncToc(spec, answers, tracker?.get()), syncProgress(spec, answers, tracker?.get(), env.go));
 
   // ---- render
   const main = $("#main");
@@ -250,7 +244,7 @@ export function mountRound(round, env) {
     !env.offline && h("div.final-tools", {}, h("button.chip.ghost", { type: "button", html: `${icon("clip")}${t("final.attach")}`, onclick: () => pickFiles((f) => ctx.attach(null, f)) })),
     commentFilesBox,
   );
-  main.replaceChildren(renderHeader(spec, { ...env, live, listening: round.listening }), ...blocks, final, credit());
+  main.replaceChildren(renderHeader(spec, { ...env, answers, live, listening: round.listening }), ...blocks, final, credit());
   paintComment();
   document.body.classList.toggle("no-toc", spec.questions.length < 4);
   renderToc(spec, env.go);
@@ -287,11 +281,10 @@ function renderBar(env) {
   const bar = $("#bar");
   bar.hidden = false;
   bar.replaceChildren(
-    h("div.bar-track", {}, h("div.bar-fill")),
     h(
       "div.bar-inner",
       {},
-      h("div.bar-status", {}, h("div.bar-count"), h("div.bar-hint")),
+      h("div.bar-status", {}, h("div.bar-count"), h("div.bar-segs", { role: "group", "aria-label": t("progress.label") }), h("div.bar-hint", {}, h("span.hint-keys", {}, t("progress.keys")), h("span.hint-touch", {}, t("progress.touch")), h("span.hint-ready", {}, t("progress.ready")))),
       h(
         "div.bar-actions",
         {},

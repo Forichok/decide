@@ -275,3 +275,37 @@ test("a round nobody has waited on for the grace period is not listened to", asy
   store.close(); // frees the waiter and the log before the directory goes
   assert.equal(await waiting, null);
 });
+
+test("progressOf counts one thing everywhere: visible questions with an answer, rank and scale included", () => {
+  const { spec } = normalizeSpec(
+    {
+      questions: [
+        choice("mode"),
+        { ...choice("detail"), showIf: { q: "mode", in: ["b"] } },
+        { ...choice("order"), type: "rank" },
+        { id: "level", title: "Level", type: "scale", scale: { min: 1, max: 5 } },
+        choice("skipped"),
+        choice("handed"),
+      ],
+    },
+    { specDir: tmpdir() },
+  );
+  const [mode, detail, order, level, skipped, handed] = spec.questions;
+  const answers = {
+    mode: { ...logic.emptyAnswer(mode), selected: ["a"], touched: true },
+    detail: logic.emptyAnswer(detail),
+    order: logic.emptyAnswer(order),
+    level: logic.emptyAnswer(level),
+    skipped: { ...logic.emptyAnswer(skipped), flag: "skip" },
+    handed: { ...logic.emptyAnswer(handed), flag: "delegate" },
+  };
+  // detail is hidden, order and level are untouched, skip is not an answer, delegating is
+  assert.deepEqual(logic.progressOf(spec, answers), { answered: 2, total: 5 });
+  answers.order = { ...answers.order, touched: true };
+  answers.level = { ...answers.level, value: 4 };
+  assert.deepEqual(logic.progressOf(spec, answers), { answered: 4, total: 5 });
+  assert.deepEqual(
+    logic.segmentsOf(spec, answers, "order").map((x) => x.state),
+    ["answered", "current", "answered", "skipped", "answered"],
+  );
+});
