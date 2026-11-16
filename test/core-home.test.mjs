@@ -7,7 +7,8 @@
  *   - three clients on a cold home share one server; the embedded fallback when no engine starts
  *   - a server given a home never resolves one from the environment (its rounds go under its home)
  *   - a load that fails leaves no half-server behind
- *   - a named server that does not answer is busy, never "not running": wait, push, explain, --wait, --reply, import
+ *   - a named server that does not answer is busy, never "not running": push, explain, --reply, import say so at once;
+ *     MCP wait and CLI --wait keep waiting, and say the server did not answer
  *   - import settles offline only when there is no server or the round is unknown there (404)
  *   - stop says so when the server does not answer its stop in time
  * Isolation:  DECIDE_HOME names a scratch guard home before anything runs, and every test passes its own
@@ -142,7 +143,7 @@ test("three clients on a cold home: one server, three rounds, none gets 404 on i
     `import { ensureServer, postRound } from ${JSON.stringify(clientUrl)};`,
     `const s = await ensureServer({ home: process.env.DECIDE_HOME, engine: process.env.TEST_ENGINE });`,
     `const posted = await postRound(s, JSON.parse(process.env.TEST_ROUND));`,
-    "const res = await fetch(`http://127.0.0.1:${s.port}/api/rounds/${posted.id}/wait?timeout=300`);",
+    "const res = await fetch(`http://127.0.0.1:${s.port}/api/rounds/${posted.id}/next?timeout=300`);",
     `console.log(JSON.stringify({ id: posted.id, port: s.port, embedded: Boolean(s.embedded), wait: res.status }));`,
     `process.exit(0);`,
   ].join("\n");
@@ -246,11 +247,17 @@ async function cli(t, dir, home, args) {
 const BUSY = /is not answering/;
 const GONE = /not running/;
 
-test("a named server that does not answer is busy, not gone: MCP wait, push, explain and CLI --wait, --reply say so", async (t) => {
+test("a named server that does not answer is busy, not gone: push, explain and CLI --reply say so; a wait keeps waiting", async (t) => {
   const { dir, home } = await scratch(t);
   const silent = await silentServer(t, home, PROTOCOL);
+  // A wait keeps trying within its own time, and then says the server did not answer during the call.
+  const started = Date.now();
+  const waited = await inHome(home, () => HANDLERS.wait({ round: "r1", project: dir, timeoutSec: 5 }));
+  assert.ok(Date.now() - started >= 4_000, "it waited its time out");
+  assert.match(waited, /Still waiting for the user on round r1/);
+  assert.match(waited, new RegExp(`The decide server \\(pid ${process.pid}, port ${silent.port}\\) did not answer during this call\\.`));
+  assert.doesNotMatch(waited, GONE);
   const calls = {
-    wait: { round: "r1", project: dir, timeoutSec: 5 },
     push: { round: "r1", project: dir, cards: [] },
     explain: { round: "r1", question: "color", text: "because", project: dir },
   };
@@ -264,12 +271,25 @@ test("a named server that does not answer is busy, not gone: MCP wait, push, exp
     assert.match(err.message, new RegExp(`pid ${process.pid}, port ${silent.port}`), tool);
     assert.ok(err.user || err.constructor.name === "UserError", `${tool}: the agent sees the text as it is`);
   }
-  for (const args of [["--wait", "r1"], ["--reply", "r1", "--question", "color", "--text", "because"]]) {
-    const run = await cli(t, dir, home, args);
-    assert.notEqual(run.code, 0, args[0]);
-    assert.match(run.stderr, BUSY, `${args[0]}: ${run.stderr}`);
-    assert.doesNotMatch(run.stderr + run.stdout, GONE, args[0]);
-  }
+  const run = await cli(t, dir, home, ["--reply", "r1", "--question", "color", "--text", "because"]);
+  assert.notEqual(run.code, 0, "--reply");
+  assert.match(run.stderr, BUSY, `--reply: ${run.stderr}`);
+  assert.doesNotMatch(run.stderr + run.stdout, GONE, "--reply");
+
+  // CLI --wait has no time of its own: it says the server is not answering and goes on waiting.
+  const child = spawn(process.execPath, [enginePath, "--wait", "r1", "--project", dir], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, DECIDE_HOME: home, DECIDE_NOTIFY: "0" } });
+  notePid(child.pid);
+  t.after(async () => {
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    child.kill();
+    await exitOf(child);
+  });
+  const output = collect(child);
+  await until(() => /still waiting/i.test(output.stderr) || child.exitCode !== null, "--wait to say it is still waiting", 10_000);
+  assert.equal(child.exitCode, null, `--wait exited: ${output.stderr}`);
+  assert.match(output.stderr, BUSY, `--wait: ${output.stderr}`);
+  assert.match(output.stderr, /still waiting/i, `--wait: ${output.stderr}`);
+  assert.doesNotMatch(output.stderr + output.stdout, GONE, "--wait");
   assert.equal(readInfo(home).pid, process.pid, "nothing was started beside it");
 });
 

@@ -172,6 +172,15 @@ test("the page knows whether the agent is listening and whether the answers reac
   const call = async (name, args) => (await rpc("tools/call", { name, arguments: args })).result;
   const text = (result) => result.content.map((c) => c.text).join("\n");
   const state = async (url) => (await fetch(`${url}api/state`)).json();
+  // The ack follows the tool result: the server hears it a moment after the agent has the text.
+  const delivered = async (url, id) => {
+    for (let i = 0; i < 100; i++) {
+      const entry = (await state(url)).history.find((h) => h.id === id);
+      if (entry?.delivered) return true;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    return false;
+  };
 
   // Sent while nobody waits: saved, but not delivered until the agent comes back.
   const [, first, url] = text(await call("ask", { project: dir, spec, open: false })).match(/Round (\S+) .+: (http:\/\/127\.0\.0\.1:\d+\/)/);
@@ -179,7 +188,7 @@ test("the page knows whether the agent is listening and whether the answers reac
   assert.deepEqual([(await state(url)).history[0].id, (await state(url)).history[0].delivered], [first, false]);
   assert.equal((await (await fetch(`${url}api/rounds/${first}`)).json()).delivered, false);
   assert.match(text(await call("wait", { project: dir, round: first, timeoutSec: 5 })), /Розовый/);
-  assert.equal((await state(url)).history[0].delivered, true, "the late wait delivers the answers");
+  assert.equal(await delivered(url, first), true, "the late wait delivers the answers");
 
   // Sent while the agent waits: delivered at once, and the round showed as listened to.
   const [, second] = text(await call("ask", { project: dir, spec, open: false })).match(/Round (\S+) /);
@@ -188,5 +197,6 @@ test("the page knows whether the agent is listening and whether the answers reac
   assert.equal((await state(url)).rounds.find((r) => r.id === second).listening, true);
   await post(url, `api/rounds/${second}/submit`, { answers: { color: { selected: ["blue"] } } });
   assert.match(text(await waiting), /Синий/);
-  assert.deepEqual([(await state(url)).history[0].id, (await state(url)).history[0].delivered], [second, true]);
+  assert.equal((await state(url)).history[0].id, second);
+  assert.equal(await delivered(url, second), true);
 });

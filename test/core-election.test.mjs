@@ -5,7 +5,7 @@
  *   - Election: the home's port elects one server; the lock file elects one when a foreign process
  *     holds the port; daemon.json naming a dead or a foreign pid does not stop a new server
  *   - daemon.json is private and carries the token POST /api/stop needs
- *   - The interim wait route: acknowledged once the response is written, a dismissed round answers at once
+ *   - GET …/next and POST …/ack: acknowledged only by ack, a dismissed round answers at once
  *   - Explanation media are published once; the page hears when an agent stops listening; idle stop
  * Isolation:  every test has its own DECIDE_HOME; no test binds 47474; every server is stopped by pid.
  */
@@ -315,20 +315,23 @@ test("a round lives in its own project; the journal line goes there; a round nee
   assert.deepEqual(all.entries.map((e) => e.round), [id]);
 });
 
-test("wait: an item is acknowledged once its response is written, and not handed out again", async (t) => {
+test("next: an item is acknowledged only by ack, and not handed out after it", async (t) => {
   const { dir, port } = await serving(t);
   const id = await openRound(port, dir);
   assert.equal((await post(port, `/api/rounds/${id}/ask`, { question: "color", text: "Why pink?" })).status, 200);
   assert.equal((await get(port, `/api/rounds/${id}`)).dialog[0].seen, false);
-  const asked = await get(port, `/api/rounds/${id}/wait?events=1&timeout=5000`);
-  assert.deepEqual([asked.event, asked.round, asked.ask.question, asked.ask.text], ["ask", id, "color", "Why pink?"]);
-  await until(async () => (await get(port, `/api/rounds/${id}`)).dialog[0].seen, "the ask to be seen");
-  const again = await fetch(`http://127.0.0.1:${port}/api/rounds/${id}/wait?events=1&timeout=1000`);
+  const asked = await get(port, `/api/rounds/${id}/next?waiter=a&events=1&timeout=5000`);
+  assert.equal(asked.kind, "ask");
+  assert.deepEqual([asked.payload.event, asked.payload.round, asked.payload.ask.question, asked.payload.ask.text], ["ask", id, "color", "Why pink?"]);
+  assert.equal((await get(port, `/api/rounds/${id}`)).dialog[0].seen, false, "a response written is not an acknowledgement");
+  assert.equal((await post(port, `/api/rounds/${id}/ack`, { seq: asked.seq, waiter: "a" })).status, 200);
+  assert.equal((await get(port, `/api/rounds/${id}`)).dialog[0].seen, true);
+  const again = await fetch(`http://127.0.0.1:${port}/api/rounds/${id}/next?waiter=a&events=1&timeout=1000`);
   assert.equal(again.status, 204, "an acknowledged ask is not handed out twice");
 
   // An agent that gave up before the answers came: nothing was handed to it, nothing is acknowledged.
   const gone = new AbortController();
-  const held = fetch(`http://127.0.0.1:${port}/api/rounds/${id}/wait?timeout=20000`, { signal: gone.signal }).catch(() => null);
+  const held = fetch(`http://127.0.0.1:${port}/api/rounds/${id}/next?waiter=a&timeout=20000`, { signal: gone.signal }).catch(() => null);
   await until(async () => (await get(port, "/api/state")).rounds[0]?.waiting, "the waiter to be held");
   gone.abort();
   await held;
@@ -337,9 +340,12 @@ test("wait: an item is acknowledged once its response is written, and not handed
   assert.equal((await get(port, `/api/rounds/${id}`)).delivered, false);
   assert.equal((await get(port, "/api/state")).history[0].delivered, false);
 
-  const result = await get(port, `/api/rounds/${id}/wait?timeout=5000`);
-  assert.deepEqual([result.round, result.answers.color.selected, result.file], [id, ["blue"], path.join(dir, "colour.answers.json")]);
-  await until(async () => (await get(port, `/api/rounds/${id}`)).delivered, "the answers to be delivered");
+  const final = await get(port, `/api/rounds/${id}/next?waiter=a&timeout=5000`);
+  const result = final.payload;
+  assert.deepEqual([final.kind, result.round, result.answers.color.selected, result.file], ["final", id, ["blue"], path.join(dir, "colour.answers.json")]);
+  assert.equal((await get(port, `/api/rounds/${id}`)).delivered, false);
+  assert.equal((await post(port, `/api/rounds/${id}/ack`, { seq: final.seq, waiter: "a" })).status, 200);
+  assert.equal((await get(port, `/api/rounds/${id}`)).delivered, true);
   assert.equal((await get(port, "/api/state")).history[0].delivered, true);
 });
 
@@ -347,18 +353,18 @@ test("a dismissed round answers a wait at once, held or new", async (t) => {
   const { dir, port } = await serving(t);
   const id = await openRound(port, dir);
   await fetch(`http://127.0.0.1:${port}/api/rounds/${id}/draft`, { method: "PUT", headers: WRITE, body: JSON.stringify({ answers: { color: { selected: ["pink"] } } }) });
-  const held = get(port, `/api/rounds/${id}/wait?timeout=20000`);
+  const held = get(port, `/api/rounds/${id}/next?waiter=a&timeout=20000`);
   await until(async () => (await get(port, "/api/state")).rounds[0]?.waiting, "the waiter to be held");
   const res = await post(port, `/api/rounds/${id}/dismiss`);
   assert.equal(res.status, 200);
   const first = await held;
-  assert.deepEqual([first.status, first.dismissed, first.round, first.answers.color.selected], ["dismissed", true, id, ["pink"]]);
+  assert.deepEqual([first.kind, first.payload.dismissed, first.payload.round, first.payload.answers.color.selected], ["dismissed", true, id, ["pink"]]);
   const started = Date.now();
-  const second = await get(port, `/api/rounds/${id}/wait?timeout=20000`);
+  const second = await get(port, `/api/rounds/${id}/next?waiter=a&timeout=20000`);
   assert.ok(Date.now() - started < 5_000);
-  assert.equal(second.status, "dismissed");
+  assert.equal(second.kind, "dismissed");
   assert.equal((await post(port, `/api/rounds/${id}/dismiss`)).status, 409);
-  const text = formatResult(second, second.file);
+  const text = formatResult({ ...second.payload, status: "dismissed" }, second.payload.file);
   assert.match(text.split("\n")[0], /^The user dismissed round «Colour»/);
   assert.match(text, /Pink/);
 });

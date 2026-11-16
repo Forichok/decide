@@ -196,22 +196,76 @@ const TOOLS = [
   },
 ];
 
-const send = (msg) => process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", ...msg })}\n`);
+// done (optional) runs once the line is handed to the OS.
+const send = (msg, done) => process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", ...msg })}\n`, done);
 
-async function callTool(name, args) {
+// Requests running now: id → AbortController, aborted by notifications/cancelled.
+const running = new Map();
+// Acknowledgements still on their way. A tool call waits for them first, so a wait that follows a
+// delivered item never gets that item again.
+const deliveries = new Set();
+
+// A handler returns a string, a content array, or { text, delivered? }. delivered() tells the server the
+// agent has what the text carries: it runs after the answer is on stdout, and only for a call nobody cancelled.
+async function callTool(name, args, signal) {
   const handler = HANDLERS[name];
-  if (!handler) return { content: [{ type: "text", text: `Unknown tool ${name}` }], isError: true };
+  if (!handler) return { result: { content: [{ type: "text", text: `Unknown tool ${name}` }], isError: true } };
   try {
-    const out = await handler(args || {});
-    return { content: typeof out === "string" ? [{ type: "text", text: out }] : out };
+    const out = await handler(args || {}, { signal });
+    if (out && typeof out === "object" && !Array.isArray(out)) return { result: { content: [{ type: "text", text: out.text }] }, delivered: out.delivered };
+    return { result: { content: typeof out === "string" ? [{ type: "text", text: out }] : out } };
   } catch (e) {
     const text = e instanceof UserError || e.user ? e.message : `decide failed: ${e.message}`;
-    return { content: [{ type: "text", text }], isError: true };
+    return { result: { content: [{ type: "text", text }], isError: true } };
   }
+}
+
+// A call is in `running` from the moment it arrives until its answer is decided: a cancel that comes while
+// it waits for earlier acks, while it runs, or while its answer is being written is never lost.
+async function toolsCall(id, params) {
+  const ctl = new AbortController();
+  const key = JSON.stringify(id);
+  running.set(key, ctl);
+  // Only this call's own entry goes: a reused id may name a newer call by then.
+  const done = () => running.get(key) === ctl && running.delete(key);
+  let answer;
+  try {
+    await Promise.all(deliveries);
+    if (ctl.signal.aborted) return done();
+    answer = await callTool(params?.name, params?.arguments, ctl.signal);
+  } catch (e) {
+    done();
+    throw e;
+  }
+  // A cancelled call gets no answer (MCP: the receiver should not answer it) and acknowledges nothing.
+  if (ctl.signal.aborted) return done();
+  if (!answer.delivered) {
+    done();
+    return send({ id, result: answer.result });
+  }
+  let settle;
+  const delivery = new Promise((r) => (settle = r));
+  deliveries.add(delivery);
+  send({ id, result: answer.result }, async (err) => {
+    // Not written, or a cancel crossed the answer (a host drops a response that comes after its own cancel):
+    // not acknowledged, and it comes again as it was, unmarked, since the agent most likely never saw it.
+    const crossed = ctl.signal.aborted;
+    done();
+    try {
+      if (err || crossed) return;
+      await answer.delivered();
+    } catch (e) {
+      process.stderr.write(`decide: the delivery could not be recorded, so it comes again on the next wait: ${e.message}\n`);
+    } finally {
+      deliveries.delete(delivery);
+      settle();
+    }
+  });
 }
 
 async function handle(msg) {
   const { id, method, params } = msg;
+  if (method === "notifications/cancelled") return running.get(JSON.stringify(params?.requestId))?.abort();
   if (method === "initialize") {
     const asked = params?.protocolVersion;
     return send({
@@ -225,7 +279,7 @@ async function handle(msg) {
     });
   }
   if (method === "tools/list") return send({ id, result: { tools: TOOLS } });
-  if (method === "tools/call") return send({ id, result: await callTool(params?.name, params?.arguments) });
+  if (method === "tools/call") return toolsCall(id, params);
   if (method === "ping") return send({ id, result: {} });
   if (id !== undefined && id !== null) send({ id, error: { code: -32601, message: `Method not found: ${method}` } });
 }
@@ -239,4 +293,8 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     return send({ id: null, error: { code: -32700, message: "Parse error" } });
   }
   handle(msg).catch((e) => msg.id != null && send({ id: msg.id, error: { code: -32603, message: e.message } }));
-}).on("close", () => process.exit(0));
+}).on("close", async () => {
+  // Acknowledgements on their way are finished first: the agent has those items.
+  await Promise.all(deliveries);
+  process.exit(0);
+});

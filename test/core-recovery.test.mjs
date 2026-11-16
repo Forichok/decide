@@ -183,7 +183,7 @@ test("the server stops idleMs after the last waiter and page left, with a round 
   const page = stream(t, port);
   await until(() => page.seen.length, "the stream to open");
   const waiting = new AbortController();
-  const held = fetch(url(port, `/api/rounds/${id}/wait?timeout=10000`), { signal: waiting.signal }).catch(() => {});
+  const held = fetch(url(port, `/api/rounds/${id}/next?timeout=10000`), { signal: waiting.signal }).catch(() => {});
   await until(async () => (await get(port, "/api/state")).rounds[0].waiting, "the waiter to be held");
   await sleep(500);
   assert.ok(await ping(port), "held waiter and page: still serving");
@@ -204,7 +204,7 @@ test("the server does not stop while a waiter is connected", async (t) => {
   const id = await openRound(port, dir);
   const waiting = new AbortController();
   t.after(() => waiting.abort());
-  fetch(url(port, `/api/rounds/${id}/wait?timeout=10000`), { signal: waiting.signal }).catch(() => {});
+  fetch(url(port, `/api/rounds/${id}/next?timeout=10000`), { signal: waiting.signal }).catch(() => {});
   await until(async () => (await get(port, "/api/state")).rounds[0].waiting, "the waiter to be held");
   await sleep(1_000);
   assert.ok(await ping(port), "three idle periods with a waiter held");
