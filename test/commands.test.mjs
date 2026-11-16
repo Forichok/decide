@@ -706,3 +706,52 @@ test("patch: the tool ghosts a question, explain carries a patch, the page resto
   assert.equal(sent.ok, true);
   assert.deepEqual(Object.keys(sent.result.answers), ["color"]);
 });
+
+// ---- K8: "in words" from the page reaches a waiting agent; its knobs patch moves the page
+
+test("in words: the page's words reach wait, the patch tool answers with knobs, the view carries them", async (t) => {
+  const { dir, home } = await scratch(t);
+  mkdirSync(path.join(dir, "m"));
+  writeFileSync(path.join(dir, "m", "card.html"), "<!doctype html><p data-knob=density>x</p>");
+  writeFileSync(path.join(dir, "m", "calm.html"), "<!doctype html><p data-knob=density>calm</p>");
+  const server = await spawnServer(t, home);
+  const base = `http://127.0.0.1:${server.port}`;
+  const raw = { title: "Card", questions: [{ id: "card", type: "tune", title: "How dense?", preview: "m/card.html", knobs: [{ id: "density", kind: "range", min: 0, max: 10, default: 4 }] }] };
+  const { prepareSpec } = await import("../lib/prepare.mjs");
+  const { openProject } = await import("../lib/project.mjs");
+  const tuneSpec = (await inHome(home, () => prepareSpec(raw, { specDir: dir, dataDir: openProject(dir).dataDir, shots: false }))).spec;
+  const posted = await fetch(`${base}/api/rounds`, {
+    method: "POST",
+    headers: asAgent(server.port),
+    body: JSON.stringify({ project: dir, spec: tuneSpec, raw, outPath: path.join(dir, "k.answers.json"), source: "k.questions.json", open: false, live: true }),
+  }).then((r) => r.json());
+  assert.ok(posted.id, JSON.stringify(posted));
+  const round = () => fetch(`${base}/api/rounds/${posted.id}`).then((r) => r.json());
+  const words = (text) => fetch(`${base}/api/rounds/${posted.id}/words`, { method: "POST", headers: asPage(server.port), body: JSON.stringify({ qid: "card", text }) }).then(async (r) => ({ status: r.status, ...(await r.json()) }));
+
+  // (With no agent the words become the question's note: test/live.test.mjs, on a store with no listening grace.
+  // Here the agent that just opened the round counts as listening.)
+  assert.equal((await words("  ")).status, 400, "empty words are refused");
+
+  // The agent waits: the page's words come back from wait, written like a request.
+  const waiting = call(home, "wait", { project: dir, round: posted.id });
+  for (let i = 0; i < 100 && !(await round()).listening; i++) await new Promise((r) => setTimeout(r, 50));
+  const sent = await words("calmer still");
+  assert.deepEqual([sent.status, sent.sent], [200, true]);
+  const got = await waiting;
+  assert.match(got.text, /asks in words to change the knobs of question \[card\] «How dense\?»/);
+  assert.match(got.text, /> calmer still/);
+  assert.match(got.text, /knobs op/);
+
+  // The answer: a knobs patch through the tool; the preview path is read from the project.
+  const out = await call(home, "patch", { project: dir, round: posted.id, ops: [{ knobs: { question: "card", values: { density: 2 }, preview: "m/calm.html" } }], reason: "calmer" });
+  assert.match(out.text, /Round .* changed\./);
+  const knobs = (await round()).view.knobs.card;
+  assert.deepEqual(knobs.values, { density: 2 });
+  assert.equal(knobs.reason, "calmer");
+  assert.match(knobs.preview, /^\/r\/[0-9a-f]+\/calm\.html$/);
+  const served = await fetch(`${base}${knobs.preview}`, { headers: { referer: `${base}/` } });
+  assert.equal(served.status, 200);
+  assert.match(await served.text(), /data-decide-bridge/, "the swapped-in mockup gets the knobs bridge");
+  await assert.rejects(call(home, "patch", { project: dir, round: posted.id, ops: [{ knobs: { question: "card", preview: "m/gone.html" } }] }), /missing file/);
+});

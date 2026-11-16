@@ -267,3 +267,111 @@ test("live questions round: a batch after the pause; a round without live sends 
   plain.store.finish(plain.round, { answers: { q1: { selected: ["a"] } } });
   assert.equal((await plain.store.next(plain.round, { waiter: "w", events: true })).kind, "final");
 });
+
+// ---- K8: "in words" on a tune question, and the agent's knobs patch
+
+async function tuneRound(t) {
+  const { writeFileSync, mkdirSync } = await import("node:fs");
+  const dir = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), "decide-knobs-")));
+  const prev = process.env.DECIDE_HOME;
+  process.env.DECIDE_HOME = path.join(dir, ".home");
+  mkdirSync(path.join(dir, "m"));
+  writeFileSync(path.join(dir, "m", "card.html"), "<!doctype html><title>card</title><p data-knob=names>x</p>");
+  writeFileSync(path.join(dir, "m", "calm.html"), "<!doctype html><title>calm</title><p data-knob=names>y</p>");
+  const project = openProject(dir);
+  const raw = {
+    title: "Card",
+    questions: [
+      { id: "card", type: "tune", title: "How dense?", preview: "m/card.html", knobs: [{ id: "density", kind: "range", min: 0, max: 10, default: 4 }, { id: "photo", kind: "image" }] },
+      { id: "c", title: "Colour?", options: [{ id: "a", label: "A" }, { id: "b", label: "B" }] },
+    ],
+  };
+  const { spec, errors } = await prepareSpec(raw, { specDir: dir, dataDir: project.dataDir, shots: false });
+  assert.deepEqual(errors, []);
+  const roots = createRoots();
+  const store = createStore({ home: process.env.DECIDE_HOME, roots, listenGraceMs: 0 });
+  t.after(() => {
+    store.close();
+    if (prev === undefined) delete process.env.DECIDE_HOME;
+    else process.env.DECIDE_HOME = prev;
+    rmSync(dir, { recursive: true, force: true });
+  });
+  const round = store.create({ project, spec, raw, outPath: path.join(dir, "x.answers.json"), mode: "questions" });
+  return { dir, store, round, roots };
+}
+
+test("in words: a words item for a listening agent; with none, the words become the question's note", async (t) => {
+  const { formatWords } = await import("../lib/prepare.mjs");
+  const { store, round } = await tuneRound(t);
+  store.saveAnswer(round, { qid: "card", answer: { values: { density: 7 }, tuned: true, note: "keep it warm" } });
+
+  // Nobody listens: a note, added to the one the question has.
+  const noted = store.words(round, { qid: "card", text: "  make it calmer " });
+  assert.equal(noted.sent, false);
+  assert.equal(noted.note, "keep it warm\nmake it calmer");
+  assert.equal(round.answers.card.note, "keep it warm\nmake it calmer");
+  assert.equal(round.answers.card.values.density, 7, "the rest of the answer stays");
+
+  // A waiter that takes no events (`ask` on the command line) would never get the words: a note again.
+  const deaf = store.next(round, { waiter: "cli", timeoutMs: 5000 });
+  assert.equal(store.words(round, { qid: "card", text: "softer" }).sent, false);
+  assert.equal(round.answers.card.note, "keep it warm\nmake it calmer\nsofter");
+  void deaf;
+
+  // An agent waits: an outbox item it gets like a request, with the values the user sees now.
+  const held = store.next(round, { waiter: "w", events: true, timeoutMs: 5000 });
+  assert.equal(store.words(round, { qid: "card", text: "calmer still" }).sent, true);
+  const item = await quiet(held, 3000);
+  assert.equal(item.kind, "words");
+  assert.deepEqual(item.payload.words, { qid: "card", title: "How dense?", text: "calmer still", values: { density: 7, photo: "" } });
+  const text = formatWords(item.payload);
+  assert.match(text, /in words .*\[card\] «How dense\?»/);
+  assert.match(text, /> calmer still/);
+  assert.match(text, /density 7/);
+  assert.match(text, /"knobs":\{"question":"card"/);
+  assert.equal(round.answers.card.note, "keep it warm\nmake it calmer\nsofter", "sent words are not a note");
+  store.ack(round, item.seq, "w");
+  // A waiter that takes no events (the CLI without --live) is not handed it.
+  store.words(round, { qid: "card", text: "again" });
+  assert.equal(await quiet(store.next(round, { waiter: "w", timeoutMs: 5000 })), "quiet");
+
+  assert.throws(() => store.words(round, { qid: "c", text: "x" }), /tune question/);
+  assert.throws(() => store.words(round, { qid: "card", text: "  " }), /empty/);
+  assert.throws(() => store.words(round, { qid: "nope", text: "x" }), /unknown question/);
+});
+
+test("a knobs patch: the preview is resolved from the project and served with the bridge; a bad one is refused", async (t) => {
+  const { dir, store, round, roots } = await tuneRound(t);
+  const out = store.patch(round, { ops: [{ knobs: { question: "card", values: { density: 99 }, preview: "m/calm.html" } }], reason: "calmer" });
+  const k = out.view.knobs.card;
+  assert.equal(k.reason, "calmer");
+  assert.equal(k.seq, out.seq);
+  assert.deepEqual(k.values, { density: 10 });
+  assert.match(k.preview, /^\/r\/[0-9a-f]+\/calm\.html$/, "the page gets a URL, not a path");
+  assert.equal(roots.fileFor(k.preview), path.join(dir, "m", "calm.html"));
+  assert.equal(roots.bridgeFor(k.preview), true, "the swapped-in mockup gets the knobs bridge");
+  assert.deepEqual(store.roundView(round).knobs.card, k, "a reload sees the same");
+  // On disk the event keeps the absolute path.
+  const event = round.state.trail.findLast((e) => e.type === "patch");
+  assert.equal(event.ops[0].knobs.preview, path.join(dir, "m", "calm.html"));
+  // A second swap back keeps the first one served: a snapshot may go back to it.
+  const back = store.patch(round, { ops: [{ knobs: { question: "card", preview: path.join(dir, "m", "card.html") } }], reason: "back" });
+  assert.notEqual(back.view.knobs.card.preview, k.preview);
+  assert.equal(roots.fileFor(k.preview), path.join(dir, "m", "calm.html"));
+
+  assert.throws(() => store.patch(round, { ops: [{ knobs: { question: "card", preview: "m/missing.html" } }] }), /missing file/);
+  assert.throws(() => store.patch(round, { ops: [{ knobs: { question: "card", preview: "https://example.com/x.html" } }] }), /not a local file/);
+  assert.throws(() => store.patch(round, { ops: [{ knobs: { question: "card", preview: "m" } }] }), /not an .html file/);
+  assert.throws(() => store.patch(round, { ops: [{ knobs: { question: "c", values: { density: 1 } } }] }), /not tune/);
+});
+
+test("an image knob's picture is uploaded with the round: the answer keeps the path, the page gets a URL", async (t) => {
+  const { store, round, roots } = await tuneRound(t);
+  const up = store.saveUpload(round, "photo.jpg", "image/jpeg", Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+  assert.ok(up.path.startsWith(path.join(round.dir, "files")), up.path);
+  assert.equal(roots.fileFor(up.url), up.path);
+  store.saveAnswer(round, { qid: "card", answer: { values: { density: 4, photo: up.path }, tuned: true } });
+  const result = store.finish(round, { answers: { card: { values: { density: 4, photo: up.path }, tuned: true } } });
+  assert.equal(result.answers.card.values.photo, up.path, "the agent reads the stored file's path");
+  assert.equal(store.files(round)[up.path]?.url ?? Object.values(store.files(round))[0]?.url, up.url);
+});

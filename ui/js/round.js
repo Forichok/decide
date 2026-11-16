@@ -12,7 +12,7 @@ import { credit, renderHeader } from "./header.js";
 import { renderToc, syncProgress, syncToc, trackCurrent } from "./nav.js";
 import { openLightbox, openModal, openZoom, toast } from "./overlays.js";
 import { emptyAnswer, isResolved, isVisible, progress, withRecommendation } from "./logic.js";
-import { askAgent, holdReload, keepAnswer, restoreItem, uploadFile } from "./net.js";
+import { askAgent, holdReload, keepAnswer, restoreItem, sendWords, uploadFile } from "./net.js";
 import { paintRemoved, paintState, resolve, sigOf } from "./states.js";
 
 const MAX_UPLOAD = 24 * 1024 * 1024;
@@ -223,6 +223,19 @@ export function mountRound(data, env) {
       c?.classList.add("shake");
     },
   };
+
+  // K8 knobs (tune.js): the agent's knobs entry from the view, "in words", and an image knob's file uploaded
+  // with the round (the answer keeps its path; s.files maps it to the URL the mockup gets).
+  Object.assign(ctx, {
+    knobsOf: (qid) => react.view?.knobs?.[qid] ?? null,
+    words: (qid, text) => sendWords(round.id, qid, text),
+    async uploadKnob(file) {
+      if (file.size > MAX_UPLOAD) throw Object.assign(new Error("too big"), { tooBig: true });
+      const up = await uploadFile(round.id, file);
+      s.files.set(up.path, { url: up.url, name: up.name, type: up.type || file.type || "" });
+      return up;
+    },
+  });
 
   function focusIn(qid, sel) {
     requestAnimationFrame(() => card(qid)?.querySelector(sel)?.focus());

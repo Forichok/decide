@@ -177,6 +177,8 @@ export function listen(onState, onStatus, onDialog, onDeck) {
 // Reactive rounds: bring a ghost back, keep a stale answer.
 export const restoreItem = (id, item) => fetch(`/api/rounds/${id}/restore`, { method: "POST", headers: WRITE, body: JSON.stringify({ id: item }) }).then(json);
 export const keepAnswer = (id, qid) => fetch(`/api/rounds/${id}/keep`, { method: "POST", headers: WRITE, body: JSON.stringify({ qid }) }).then(json);
+// K8 "in words" on a tune question: {sent: true} when an agent listens, else {sent: false, note} (saved as its note).
+export const sendWords = (id, qid, text) => fetch(`/api/rounds/${id}/words`, { method: "POST", headers: WRITE, body: JSON.stringify({ qid, text }) }).then(json);
 // How much to ask, and the page's own buttons (settings.js, actions.js).
 export const getSettings = (project) => fetch(`/api/settings?${new URLSearchParams({ project })}`, { cache: "no-store" }).then(json);
 export const setLevel = (project, level) => post("/api/settings", { project, level });

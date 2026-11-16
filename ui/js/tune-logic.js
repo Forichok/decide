@@ -66,3 +66,39 @@ export function tuneAnswer(q, a) {
 }
 
 export const isTuned = (a) => Boolean(a.tuned) || a.picked != null || (a.candidates?.length ?? 0) > 0;
+
+// ---- K8: the agent's knobs patch and image knobs kept as files
+
+// A snapshot name not taken yet: the name itself, else "name 2", "name 3"…
+export function uniqueName(name, snapshots = []) {
+  const base = String(name ?? "").replace(/\s+/g, " ").trim().slice(0, 60) || "Before";
+  const used = new Set(snapshots.map((s) => s.name));
+  if (!used.has(base)) return base;
+  for (let i = 2; ; i += 1) if (!used.has(`${base} ${i}`)) return `${base} ${i}`;
+}
+
+// The agent's knobs entry (view.knobs[qid]: {values?, preview?, seq, reason}) applied to the page's answer:
+// what the user had is kept as a snapshot called `name`, the knobs move, the mockup is swapped (`mockup`,
+// a URL; none means the spec's own). Returns the fields to save, or null when this entry was applied already
+// (the answer's knobsSeq).
+export function agentKnobs(q, a, k, name) {
+  if (!k || !Number.isFinite(k.seq) || k.seq <= (Number(a.knobsSeq) || 0)) return null;
+  const snapshots = a.snapshots ?? [];
+  const before = { name: uniqueName(name, snapshots), values: { ...a.values }, ...(a.mockup ? { mockup: a.mockup } : {}) };
+  return {
+    values: cleanValues(q.knobs, { ...a.values, ...(k.values ?? {}) }, a.values),
+    snapshots: [...snapshots, before],
+    knobsSeq: k.seq,
+    ...(k.preview ? { mockup: k.preview } : {}),
+  };
+}
+
+// What a mockup gets for an image knob's value: a data:, blob: or http(s) URL and a /r/ URL as they are; a
+// stored file's path (the answer keeps it) through the round's files ({path: {url}} or a Map of the same).
+export function imageSrc(v, files) {
+  const s = typeof v === "string" ? v : "";
+  if (!s) return "";
+  if (/^(data:image\/|blob:|https?:)/i.test(s) || s.startsWith("/r/")) return s;
+  const f = files instanceof Map ? files.get(s) : files?.[s];
+  return typeof f?.url === "string" ? f.url : "";
+}
