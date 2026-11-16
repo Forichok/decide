@@ -313,6 +313,8 @@ test("the six 2.1 types normalise exactly as before", () => {
   for (const q of now.spec.questions) delete q.more;
   // The new lint asks for `why` and `then`; the 2.1 showcase has few of them.
   now.issues = now.issues.filter((i) => !/^("[^"]+" has no "why"|no "then" on )/.test(i.message));
+  for (const q of now.spec.questions) { delete q.dependsOn; for (const o of q.options) delete o.evidence; }
+  delete now.spec.brief;
   assert.deepEqual(tokenise(now, examples), before);
   const types = new Set(now.spec.questions.map((q) => q.type));
   assert.deepEqual([...types].sort(), [...REGISTRY.keys()].sort(), "the showcase uses all six types, so the snapshot covers them");
@@ -1226,4 +1228,39 @@ test("pinned sizes after 3.0 milestone 2: the spec schema is 8,704 bytes, the de
   const { specSchema, deckSchema } = await docs();
   assert.equal(JSON.stringify(specSchema()).length, 8704);
   assert.equal(JSON.stringify(deckSchema()).length, 6928);
+});
+
+test("evidence labels: a point is a string or {text, evidence, source}; the text stays a string", () => {
+  const { spec, issues } = normalizeSpec({
+    questions: [{ id: "a", title: "t", options: [
+      { id: "x", label: "X", recommended: { text: "fast", evidence: "measured", source: "bench.txt" }, pros: ["plain", { text: "cheap", evidence: "estimate" }], cons: [{ text: "odd", evidence: "guess" }], metrics: { ms: { text: "12ms", evidence: "measured", source: "bench.txt" }, speed: 4 } },
+      { id: "y", label: "Y" },
+    ] }],
+  });
+  const o = spec.questions[0].options[0];
+  assert.equal(o.reason, "fast");
+  assert.deepEqual(o.pros, ["plain", "cheap"]);
+  assert.deepEqual(o.evidence.pros, [null, { kind: "estimate", source: "" }]);
+  assert.deepEqual(o.evidence.cons, [{ kind: "guess", source: "" }]);
+  assert.deepEqual(o.evidence.reason, { kind: "measured", source: "bench.txt" });
+  assert.deepEqual(o.evidence.metrics, { ms: { kind: "measured", source: "bench.txt" } });
+  assert.deepEqual(o.metrics, [{ label: "ms", value: "12ms" }, { label: "speed", value: 4 }]);
+  assert.equal(errorsOf(issues).length, 0);
+  assert.ok(!warnsOf(issues).some((w) => /measured/.test(w)));
+});
+
+test("lint warns on measured without a source and on an unknown label", () => {
+  const { issues } = normalizeSpec({
+    questions: [{ id: "a", title: "t", options: [{ id: "x", label: "X", pros: [{ text: "quick", evidence: "measured" }], cons: [{ text: "x", evidence: "sure" }] }, { id: "y", label: "Y" }] }],
+  });
+  const w = warnsOf(issues);
+  assert.ok(w.some((m) => /pros\[0\].*measured but has no source/.test(m)));
+  assert.ok(w.some((m) => /unknown evidence "sure"/.test(m)));
+});
+
+test("a round brief and dependsOn are read", () => {
+  const { spec, issues } = normalizeSpec({ brief: ["the task", { kind: "open", text: "naming" }], questions: [{ id: "a", title: "t", dependsOn: ["b", "r-1"], options: opts("A", "B") }] });
+  assert.deepEqual(spec.brief.map((b) => [b.kind, b.text]), [["decision", "the task"], ["open", "naming"]]);
+  assert.deepEqual(spec.questions[0].dependsOn, ["b", "r-1"]);
+  assert.ok(!errorsOf(issues).some((m) => /unknown field/.test(m)));
 });
