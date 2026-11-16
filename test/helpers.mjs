@@ -3,11 +3,14 @@
 // no daemon, journal or screenshot leaks into the real ~/.decide.
 
 import { spawn, spawnSync } from "node:child_process";
-import { appendFileSync, mkdirSync, realpathSync } from "node:fs";
+import { appendFileSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
+import { createServer as createHttpServer } from "node:http";
+import { createServer as createTcpServer } from "node:net";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { devNull, tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { PING_BODY_MAX, request } from "../lib/request.mjs";
 
 export const pluginDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const enginePath = path.join(pluginDir, "decide.mjs");
@@ -48,7 +51,7 @@ export async function stopServer(home) {
   if (pong?.app !== "decide" || pong.home !== path.resolve(home) || pong.pid !== info.pid) return;
   notePid(info.pid);
   try {
-    await fetch(`http://127.0.0.1:${info.port}/api/stop`, { method: "POST", headers: { ...WRITE, "x-decide-token": String(info.token) }, signal: AbortSignal.timeout(2_000) });
+    await request(info.port, "/api/stop", { method: "POST", headers: { ...WRITE, "x-decide-token": String(info.token) }, timeoutMs: 2_000 });
   } catch {
     // server already gone
   }
@@ -73,21 +76,23 @@ export function notePid(pid) {
 }
 
 // GET /api/ping on a port: the answer, or null when nothing (or nothing that speaks JSON) answers.
+// Through node:http, not fetch: the port may be held by something that is not a decide server.
 export async function ping(port) {
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/api/ping`, { signal: AbortSignal.timeout(1_500) });
-    return res.ok ? await res.json() : null;
+    const res = await request(port, "/api/ping", { timeoutMs: 1_500, maxBytes: PING_BODY_MAX });
+    return res.status === 200 ? res.data : null;
   } catch {
     return null;
   }
 }
 
-// `node decide.mjs serve` for a home. Resolves once the process serves ({ pid, port, exited: null })
+// `node decide.mjs serve` for a home (engine: another script that prints the same line, such as
+// fixtures/server-next.mjs). Resolves once the process serves ({ pid, port, exited: null })
 // or has exited ({ pid, exited: <code> }). A process still running is stopped by its pid after the test.
-export function spawnServer(context, home, { env = {} } = {}) {
+export function spawnServer(context, home, { env = {}, engine = enginePath } = {}) {
   const childEnv = { ...process.env, DECIDE_HOME: home, DECIDE_NOTIFY: "0", ...env };
   if (!("DECIDE_PORT" in env)) delete childEnv.DECIDE_PORT;
-  const child = spawn(process.execPath, [enginePath, "serve"], { stdio: ["ignore", "pipe", "pipe"], env: childEnv });
+  const child = spawn(process.execPath, [engine, "serve"], { stdio: ["ignore", "pipe", "pipe"], env: childEnv });
   notePid(child.pid);
   const output = collect(child);
   context.after(async () => {
@@ -182,4 +187,48 @@ export async function repoWithWorktree(context) {
   git(main, "commit", "-q", "--allow-empty", "-m", "init");
   git(main, "worktree", "add", "-q", "-b", "side", wt);
   return { dir, main, wt, git };
+}
+
+// Listens on 127.0.0.1 in this process until the test ends: every socket is cut, then the listener closed.
+async function listenUntilEnd(context, server) {
+  const sockets = new Set();
+  server.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.on("error", () => {});
+    socket.on("close", () => sockets.delete(socket));
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const close = () => new Promise((r) => (sockets.forEach((s) => s.destroy()), server.close(() => r())));
+  context.after(close);
+  return { port: server.address().port, close };
+}
+
+// What daemon.json says about a server this process stands in for: its pid is this live process.
+function nameInHome(home, port, protocol) {
+  mkdirSync(home, { recursive: true });
+  const info = { pid: process.pid, port, protocol, version: "2.1.1", home: path.resolve(home), token: "fake-token", startedAt: new Date().toISOString() };
+  writeFileSync(path.join(home, "daemon.json"), JSON.stringify(info));
+  return info;
+}
+
+// A server the home's daemon.json names (with this live pid) that accepts and never answers: busy, or hung.
+export async function silentServer(context, home, protocol) {
+  const { port, close } = await listenUntilEnd(context, createTcpServer(() => {}));
+  return { ...nameInHome(home, port, protocol), close };
+}
+
+// A stand-in decide server of the home, in this process: it answers ping as decide of that home
+// (protocol given), and hands every other request to onRequest(req, res, body).
+export async function fakeServer(context, home, protocol, onRequest) {
+  const server = createHttpServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    if (req.url === "/api/ping") {
+      res.writeHead(200, { "content-type": "application/json" });
+      return res.end(JSON.stringify({ ok: true, app: "decide", home: path.resolve(home), pid: process.pid, protocol, version: "2.1.1" }));
+    }
+    onRequest(req, res, body);
+  });
+  const { port, close } = await listenUntilEnd(context, server);
+  return { ...nameInHome(home, port, protocol), close };
 }

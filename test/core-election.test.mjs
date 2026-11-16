@@ -12,7 +12,7 @@
 
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { request, createServer } from "node:http";
 import { connect, createServer as createTcpServer } from "node:net";
 import { homedir, tmpdir } from "node:os";
@@ -554,7 +554,7 @@ test("a server that has begun to stop answers 503 to a request in flight and wri
   }
 });
 
-test("ensureDaemon throws, naming the pid and port, when the named server does not answer and nothing could start", async (t) => {
+test("ensureServer throws, naming the pid, the port and how to check them, when the named server does not answer; it starts nothing beside it", async (t) => {
   const { dir, home: h, port: fixed } = await homeWithPortHeld(t, { silent: true });
   // A live pid that is not decide, named by the lock and by daemon.json on the silent port: a hung server.
   const hung = spawn(process.execPath, ["-e", "setTimeout(() => {}, 120000)"], { stdio: "ignore" });
@@ -572,17 +572,20 @@ test("ensureDaemon throws, naming the pid and port, when the named server does n
   const saved = process.env.DECIDE_HOME;
   process.env.DECIDE_HOME = h;
   t.after(() => (saved === undefined ? delete process.env.DECIDE_HOME : (process.env.DECIDE_HOME = saved)));
-  const { ensureDaemon } = await import("../lib/client.mjs");
-  await assert.rejects(ensureDaemon({ engine }), (err) => {
+  const { ensureServer } = await import("../lib/client.mjs");
+  await assert.rejects(ensureServer({ home: h, engine }), (err) => {
     assert.match(err.message, new RegExp(`pid ${hung.pid}`));
     assert.match(err.message, new RegExp(`port ${fixed}`));
     assert.doesNotMatch(err.message, /\bkill\b/, "nobody confirmed that pid is decide: the user is not told to kill it");
+    // Removing the files of a live decide server lets a second one start: the message says how to check first.
+    if (process.platform !== "win32") assert.match(err.message, new RegExp(`ps -p ${hung.pid} -o command=`));
+    assert.match(err.message, /decide\.mjs serve/);
     return true;
   });
-  const spawned = readFileSync(pids, "utf8").trim().split("\n").map(Number);
-  assert.equal(spawned.length, 1);
+  // A busy server is never doubled, and the in-process fallback is not for it either.
+  const spawned = existsSync(pids) ? readFileSync(pids, "utf8").trim().split("\n").map(Number) : [];
   spawned.forEach(notePid);
-  await until(() => spawned.every((pid) => !alive(pid)), "the spawned serve to step back and exit", 10_000);
+  assert.deepEqual(spawned, [], "no serve was started beside it");
   assert.equal(readInfo(h).pid, hung.pid, "nothing replaced the named server");
 });
 
