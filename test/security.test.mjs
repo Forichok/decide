@@ -407,7 +407,7 @@ test("an html block is served from its own URL with the sandbox policy, not as s
   const res = await fetch(url(port, block.src));
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("content-security-policy"), ASSET_CSP);
-  assert.equal(ASSET_CSP, "sandbox allow-scripts allow-popups", "no allow-same-origin: the document gets an opaque origin");
+  assert.match(ASSET_CSP, /; sandbox allow-scripts allow-popups$/, "no allow-same-origin: the document gets an opaque origin");
   assert.match(res.headers.get("content-type"), /^text\/html/);
   const doc = await res.text();
   assert.ok(doc.includes(BLOCK), "the snippet is in the document");
@@ -635,6 +635,52 @@ test("a round's roots go when the round is released, and stay for another round 
   assert.equal(roots.htmlFor(h1), null, "an html block only round 1 had is gone");
   roots.release("2-bbbbbb");
   assert.equal(roots.fileFor(a), null);
+});
+
+// ---- hardening (final fix wave A3)
+
+test("a served file or html block is refused to another site unless it comes from the server's own pages or their sandboxed frames; every response says nosniff", async (t) => {
+  const files = { "mock/card.html": '<img src="a.png">', "mock/a.png": PNG };
+  const { port, view } = await servedFiles(t, files, { title: "T", questions: [{ id: "q", title: "Q", preview: "mock/card.html", html: { source: BLOCK }, options: two }] });
+  const q = view.spec.questions[0];
+  const targets = [q.preview.src, q.preview.src.replace(/card\.html$/, "a.png"), q.html.src];
+  const own = `http://127.0.0.1:${port}`;
+  for (const target of targets) {
+    const status = async (headers) => (await fetch(url(port, target), { headers })).status;
+    for (const site of ["same-site", "Cross-Site", "bogus"]) assert.equal(await status({ "sec-fetch-site": site }), 403, `${target} ${site} without a referer`);
+    for (const site of ["cross-site", "same-site", "Cross-Site", "bogus"]) {
+      assert.equal(await status({ "sec-fetch-site": site, referer: `http://127.0.0.1:${port + 1}/` }), 403, `${target} ${site} from another port`);
+      assert.equal(await status({ "sec-fetch-site": site, referer: "https://evil.example/" }), 403, `${target} ${site} from another site`);
+      assert.equal(await status({ "sec-fetch-site": site, referer: "not a url" }), 403, `${target} ${site} with a broken referer`);
+    }
+    // A sandboxed frame of the page (opaque origin): Chrome sends cross-site and no Referer at all.
+    assert.equal(await status({ "sec-fetch-site": "cross-site", "sec-fetch-dest": "image" }), 200, `${target} from a sandboxed frame`);
+    assert.equal(await status({ "sec-fetch-site": "cross-site", "sec-fetch-dest": "iframe" }), 200, `${target} as a nested frame of a sandboxed frame`);
+    // The page itself names its origin as Referer.
+    assert.equal(await status({ "sec-fetch-site": "cross-site", referer: `${own}/` }), 200, `${target} from the server's own page`);
+    assert.equal(await status({ "sec-fetch-site": "cross-site", referer: `${own}${q.preview.src}` }), 200, `${target} with a full referer`);
+    assert.equal(await status({ "sec-fetch-site": "cross-site", referer: `http://localhost:${port}/` }), 200, `${target} via localhost`);
+    for (const site of ["same-origin", "none"]) assert.equal(await status({ "sec-fetch-site": site }), 200, `${target} ${site}`);
+    assert.equal(await status({}), 200, `${target} without fetch metadata`);
+  }
+  const nosniff = async (route, init) => {
+    const res = await fetch(url(port, route), init);
+    await res.body?.cancel();
+    return [res.status, res.headers.get("x-content-type-options")];
+  };
+  for (const route of ["/", "/ui/js/main.js", "/api/state", "/api/ping", "/api/journal", "/api/events", "/r/00000000/x.png", "/ui/nothing.js", ...targets]) {
+    assert.equal((await nosniff(route))[1], "nosniff", route);
+  }
+  assert.deepEqual(await nosniff(targets[1], { headers: { "sec-fetch-site": "cross-site", referer: "https://evil.example/" } }), [403, "nosniff"]);
+  assert.deepEqual(await nosniff("/api/rounds/1-abcdef/draft", { method: "PUT", headers: { "content-type": "application/json" }, body: "{}" }), [403, "nosniff"]);
+  assert.deepEqual(await nosniff("/ui//x.js"), [400, "nosniff"]);
+});
+
+test("served files and html blocks may not reach the network: the policy allows the server's own files, data and blob only", async (t) => {
+  assert.equal(ASSET_CSP, "default-src 'self' data: blob: 'unsafe-inline' 'unsafe-eval'; sandbox allow-scripts allow-popups");
+  assert.doesNotMatch(ASSET_CSP, /https?:|\*|allow-same-origin/);
+  const { port, view } = await servedFiles(t, { "mock/card.html": "<p>x</p>" }, { title: "T", questions: [{ id: "q", title: "Q", preview: "mock/card.html", html: { source: BLOCK }, options: two }] });
+  for (const src of [view.spec.questions[0].preview.src, view.spec.questions[0].html.src]) assert.equal((await fetch(url(port, src))).headers.get("content-security-policy"), ASSET_CSP, src);
 });
 
 // ---- a mockup's directory (final fix wave A1)

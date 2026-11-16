@@ -712,3 +712,24 @@ test("a live server on another port whose lock file is gone keeps its home: a ri
   assert.equal(readInfo(h).pid, first.pid);
   assert.equal((await ping(first.port))?.pid, first.pid);
 });
+
+test("a process that squats the home's port and answers as this home is not stepped back for: its pid is in no lock and no daemon.json", async (t) => {
+  for (let i = 0; i < 20; i++) {
+    const { home: h, port: fixed } = await homeWithFreePort(t);
+    // It says app: "decide" and this home, with a live pid (this test's) that neither the lock nor daemon.json names.
+    const squatter = createServer((req, res) => res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, app: "decide", protocol: PROTOCOL, version: "2.1.1", home: h, pid: process.pid })));
+    t.after(() => new Promise((r) => (squatter.closeAllConnections(), squatter.close(() => r()))));
+    const bound = await new Promise((resolve) => {
+      squatter.once("error", () => resolve(false));
+      squatter.listen(fixed, "127.0.0.1", () => resolve(true));
+    });
+    if (!bound) continue;
+    const server = await spawnServer(t, h);
+    assert.equal(server.exited, null, server.output.stdout + server.output.stderr);
+    assert.notEqual(server.port, fixed);
+    assert.deepEqual([readInfo(h).pid, readInfo(h).port], [server.pid, server.port], "daemon.json names the real server");
+    assert.equal(readFileSync(lockPath(h), "utf8").trim(), String(server.pid));
+    return;
+  }
+  throw new Error("no scratch home with a free port");
+});

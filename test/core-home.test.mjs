@@ -17,7 +17,7 @@
 
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -337,4 +337,46 @@ test("stop says the server did not answer in time, naming its pid and port, rath
   assert.match(run.stdout, new RegExp(`pid ${process.pid}.*port ${fake.port}|port ${fake.port}.*pid ${process.pid}`));
   assert.match(run.stdout, /did not answer within 5 s/);
   assert.notEqual(run.code, 0);
+});
+
+// ---- a private home (final fix wave A3)
+
+const posix = process.platform === "win32" ? "POSIX file modes and owners" : false;
+const modeOf = (p) => statSync(p).mode & 0o777;
+
+test("the home, round dirs and round files are private: 0700 and 0600, an existing home of ours is tightened (skipped on win32: POSIX file modes)", { skip: posix }, async (t) => {
+  const { dir, home } = await scratch(t);
+  chmodSync(home, 0o755);
+  const s = await startServer({ home, embedded: true });
+  assert.ok(s);
+  t.after(() => s.stop());
+  assert.equal(modeOf(home), 0o700, "the home");
+  const res = await fetch(`http://127.0.0.1:${s.port}/api/rounds`, { method: "POST", headers: { "content-type": "application/json", "x-decide-token": s.token }, body: JSON.stringify({ ...roundOf(dir), outPath: path.join(dir, "c.answers.json") }) });
+  const { id } = await res.json();
+  assert.equal(res.status, 200);
+  const roundDir = path.join(home, "projects", readdirSync(path.join(home, "projects"))[0], "rounds", id);
+  assert.equal(modeOf(path.dirname(roundDir)), 0o700, "rounds/");
+  assert.equal(modeOf(roundDir), 0o700, "the round dir");
+  const upload = await fetch(`http://127.0.0.1:${s.port}/api/rounds/${id}/upload`, { method: "POST", headers: { origin: `http://127.0.0.1:${s.port}`, "content-type": "text/plain", "x-file-name": "n.txt" }, body: "note" });
+  assert.equal(upload.status, 200);
+  const submitted = await fetch(`http://127.0.0.1:${s.port}/api/rounds/${id}/submit`, { method: "POST", headers: { origin: `http://127.0.0.1:${s.port}`, "content-type": "application/json" }, body: JSON.stringify({ answers: {} }) });
+  assert.equal(submitted.status, 200);
+  assert.equal(modeOf(path.join(roundDir, "files")), 0o700, "files/");
+  for (const name of ["meta.json", "spec.json", "raw.json", "events.jsonl", "answers.json", ...readdirSync(path.join(roundDir, "files")).map((f) => path.join("files", f))]) {
+    assert.equal(modeOf(path.join(roundDir, name)), 0o600, name);
+  }
+});
+
+test("a home that is not ours, or stays open to others, is refused with a clear message (skipped on win32: POSIX owners)", { skip: posix }, async (t) => {
+  const { ensureHome } = await import("../lib/home.mjs");
+  const { home } = await scratch(t);
+  chmodSync(home, 0o777);
+  assert.throws(() => ensureHome(home, { uid: process.getuid() + 1 }), (err) => err.user === true && err.message.includes(home) && /belongs to uid \d+, not to this user/.test(err.message));
+  assert.equal(modeOf(home), 0o777, "someone else's home is not touched");
+  assert.throws(() => ensureHome(home, { chmod: () => {} }), (err) => err.user === true && /writable by group or others/.test(err.message) && err.message.includes(`chmod 700 ${home}`));
+  ensureHome(home);
+  assert.equal(modeOf(home), 0o700, "ours: tightened");
+  const fresh = path.join(home, "new", "home");
+  ensureHome(fresh);
+  assert.equal(modeOf(fresh), 0o700, "created private");
 });
