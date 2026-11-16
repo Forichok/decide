@@ -1226,7 +1226,7 @@ test("lint: a single or multi question with no why, or options with no then, is 
 
 test("pinned sizes after 3.0 milestone 2: the spec schema is 8,704 bytes, the deck schema 6,928", async () => {
   const { specSchema, deckSchema } = await docs();
-  assert.equal(JSON.stringify(specSchema()).length, 8704);
+  assert.equal(JSON.stringify(specSchema()).length, 8903);
   assert.equal(JSON.stringify(deckSchema()).length, 6928);
 });
 

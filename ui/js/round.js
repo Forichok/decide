@@ -5,6 +5,7 @@ import { h, icon, $, $$ } from "./dom.js";
 import { shortcut, t } from "./i18n.js";
 import { md } from "./md.js";
 import { renderMedia } from "./media.js";
+import { taskPanel } from "./brief.js";
 import { renderQuestion, syncQuestion } from "./question.js";
 import { noteArea, paintFiles } from "./extras.js";
 import { credit, renderHeader } from "./header.js";
@@ -195,7 +196,9 @@ export function mountRound(round, env) {
     syncChrome();
   }
 
+  let panel = null;
   function syncChrome() {
+    panel?.paint(spec.questions.filter((q) => isVisible(q, answers) && !isResolved(q, answers[q.id])).map((q) => q.title));
     const p = progress(spec, answers);
     const left = p.total - p.resolved;
     syncToc(spec, answers, tracker?.get());
@@ -244,7 +247,8 @@ export function mountRound(round, env) {
     !env.offline && h("div.final-tools", {}, h("button.chip.ghost", { type: "button", html: `${icon("clip")}${t("final.attach")}`, onclick: () => pickFiles((f) => ctx.attach(null, f)) })),
     commentFilesBox,
   );
-  main.replaceChildren(renderHeader(spec, { ...env, answers, live, listening: round.listening }), ...blocks, final, credit());
+  panel = spec.brief?.length ? taskPanel(spec) : null;
+  main.replaceChildren(renderHeader(spec, { ...env, answers, live, listening: round.listening }), ...(panel ? [panel.el] : []), ...blocks, final, credit());
   paintComment();
   document.body.classList.toggle("no-toc", spec.questions.length < 4);
   renderToc(spec, env.go);
