@@ -14,7 +14,9 @@ export function summarize(spec, result, w) {
   for (const q of spec?.questions || []) {
     const r = answers[q.id];
     if (!r) continue;
-    let text = describe(q, r, w);
+    // describe() writes the ready answers too; here they are said in the summary's own words below.
+    const ready = r.flag === "later" || r.flag === "none";
+    let text = describe(q, { ...r, condition: undefined, revisit: undefined, ...(ready ? { flag: null, note: r.flag === "none" ? "" : r.note } : {}) }, w);
     const recommended = STAR.test(text);
     text = text.replace(STAR, "");
     const lead = [r.flag === "later" && w.later(r.revisit || ""), r.flag === "none" && w.none].filter(Boolean);

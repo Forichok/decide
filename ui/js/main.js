@@ -119,9 +119,6 @@ function showRound(data) {
   app.view = "round";
   app.done = null;
   app.round = data.mode === "swipe" ? mountSwipe(data, env()) : mountRound(data, env());
-  const y = savedScroll(data.id);
-  window.scrollTo({ top: y, behavior: "instant" });
-  if (y) for (const ms of [60, 250, 700]) setTimeout(() => app.view === "round" && Math.abs(scrollY - y) > 4 && scrollY < 10 && window.scrollTo({ top: y, behavior: "instant" }), ms);
   syncRail();
 }
 
@@ -504,28 +501,6 @@ function bindFrameFocus() {
   );
 }
 
-// ---- scroll position survives a reload (per round, this tab only)
-const scrollKey = (id) => `decide-scroll-${id}`;
-function savedScroll(id) {
-  try {
-    return Math.max(0, Number(sessionStorage.getItem(scrollKey(id))) || 0);
-  } catch {
-    return 0;
-  }
-}
-function trackScroll() {
-  let timer = null;
-  addEventListener("scroll", () => {
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      if (app.view !== "round" || !app.round) return;
-      try {
-        sessionStorage.setItem(scrollKey(app.round.id), String(Math.round(scrollY)));
-      } catch {}
-    }, 120);
-  }, { passive: true });
-}
-
 // ---- skip link: first stop in the tab order
 function skipLink() {
   const main = $("#main");
@@ -545,7 +520,6 @@ function skipLink() {
 async function boot() {
   document.documentElement.lang = lang;
   skipLink();
-  trackScroll();
   $("#toc").setAttribute("aria-label", t("toc"));
   $(".boot").textContent = t("boot");
   loadTheme();
