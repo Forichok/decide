@@ -912,7 +912,7 @@ test("typeLines names every type and every media kind once", async () => {
 test("npm run docs is the generator and is the only script this task added", () => {
   const pkg = JSON.parse(readFileSync(path.join(pluginDir, "package.json"), "utf8"));
   assert.equal(pkg.scripts.docs, "node lib/registry/docs.mjs --write");
-  assert.equal(pkg.version, "2.1.1");
+  assert.equal(pkg.version, "2.2.0");
 });
 
 test("nothing in the engine switches on a media kind outside the registry", () => {

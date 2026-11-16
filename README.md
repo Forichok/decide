@@ -313,6 +313,33 @@ To keep a decision in the repository, ask for an ADR. The agent writes
 `docs/decisions/NNNN-title.md` with context, options, the decision and its
 consequences. Superseding the decision later updates its status there too.
 
+## What changed in 2.2
+
+2.2 replaces the engine under the page. The page itself looks as it did in 2.1.
+
+- **Answers survive a crash.** A round is a log on disk, in
+  `~/.decide/projects/<project>/rounds/<id>/`. If the server dies, the next
+  command starts a new one, and a reload brings back every answer, note and
+  question to the agent.
+- **One server for every project.** It listens on 127.0.0.1:47474. Several
+  sessions that start at the same moment share it.
+- **Answers reach the agent once.** The agent confirms what it took. Answers
+  no session collected are announced to the next session in that project.
+- **Worktrees of one repository are one project.** They share rounds and the
+  decision journal; history from 2.1's per-worktree folders is still read.
+- **Specs are checked.** A spec the agent sends must use known fields: an
+  unknown one is an error that names the nearest valid field. A spec read back
+  from an export or an ADR only gets warnings. 2.x specs and answers still work.
+- **Two new tools:** `lint` checks a spec without opening a page, and `stop`
+  stops the server.
+- **Diagrams** are drawn by a copy of Mermaid 11.17.2 that ships with the
+  plugin, in a sandboxed frame. Nothing is loaded from a CDN.
+- **Export** writes only inside the project unless you pass `--outside`
+  (`outside: true` from the agent).
+
+Sessions started before the update keep their 2.1 server until they end, and
+new sessions use the 2.2 one. Both can run at the same time.
+
 ## Smaller things in 2.1
 
 - **A time budget.** A spec can say the user has five minutes. The page asks
@@ -382,19 +409,20 @@ you about the current task. See [Swipe interview](#swipe-interview).
 
 ## How it works
 
-The plugin ships an MCP server with eleven tools: `ask` opens a round,
+The plugin ships an MCP server with thirteen tools: `ask` opens a round,
 `swipe` opens a card interview, `wait` blocks until you answer or ask
 something, `push` updates the deck and brief of a card interview, `explain`
 puts the agent's answer on the page, `screenshot` captures a running page or
 a simulator, `history` searches past decisions, `supersede` marks one as no
-longer holding, `adr` writes one into the repo, and `export` and `import`
-carry a round to someone else and back. Agents without MCP can run the same
+longer holding, `adr` writes one into the repo, `export` and `import`
+carry a round to someone else and back, `lint` checks a spec without opening a
+page, and `stop` stops the server. Agents without MCP can run the same
 engine as a CLI (`node decide.mjs --help`).
 
-A small server per project serves the page on 127.0.0.1. It starts on demand
-and stops after 30 idle minutes. Its state, the decision journal and
+One server serves every project's page on 127.0.0.1:47474. It starts on
+demand and stops after 30 idle minutes. Rounds, the decision journal and
 screenshots live in `~/.decide/projects/<project>/` (set `DECIDE_HOME` to
-move them). There are no dependencies, no build step and no telemetry.
+move them; another home gets a server and port of its own). There are no dependencies, no build step and no telemetry.
 
 The agent's guides are [skills/decide/SKILL.md](skills/decide/SKILL.md) and
 [skills/swipe/SKILL.md](skills/swipe/SKILL.md), and
@@ -423,7 +451,10 @@ The server listens on 127.0.0.1 only, rejects requests with a foreign `Host`
 header and any `Origin` that is not its own, and takes a change only from the
 page (its own `Origin`) or from a holder of the token in `daemon.json`. The page
 runs under a Content-Security-Policy with no inline code and no CDN. Mockups and
-HTML blocks run in a sandboxed frame of their own, with no access to the page. Screenshots take http(s) URLs only.
+HTML blocks run in a sandboxed frame of their own, with no access to the page
+and no network beyond the server. A mockup's folder serves web files only,
+never dotfiles. `~/.decide` is readable by you alone, and the server refuses to
+start in a home that others can write to. Screenshots take http(s) URLs only.
 
 ## FAQ
 
