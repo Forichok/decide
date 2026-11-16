@@ -20,6 +20,7 @@
 //   node decide.mjs --import <a.answers.json> [more.answers.json…] [--round id] [--spec x.questions.json]
 //   node decide.mjs --adr [<round>] [--consequences "…"] [--adr-dir docs/decisions]
 //   node decide.mjs --demo [--lang en|ru]             the feature tour
+//   node decide.mjs notice                            answers the user sent that no agent has collected
 //   node decide.mjs --lint <x.questions.json> | --stop
 //   node decide.mjs serve [--port n]                  run the home's server (started on demand)
 //   Every command takes --project <dir> (default: the current directory).
@@ -31,6 +32,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startServer } from "./lib/server.mjs";
 import { openProject } from "./lib/project.mjs";
+import { noticeFor } from "./lib/store/scan.mjs";
 import * as cmd from "./lib/commands.mjs";
 
 const ENGINE = fileURLToPath(import.meta.url);
@@ -72,6 +74,14 @@ async function main() {
     const [after, busy] = String(process.env.DECIDE_TEST_BUSY_MS || "").split(":").map(Number);
     if (busy > 0) setTimeout(() => block(busy), after || 0);
     return null;
+  }
+  if (positional[0] === "notice") {
+    // Reads the disk only: no server, nothing created, exit 0 whatever happens (a session-start hook runs it).
+    try {
+      const line = noticeFor(resolve(flag("--project") || process.cwd()));
+      if (line) console.log(line);
+    } catch {}
+    return 0;
   }
   const project = openProject(flag("--project") || process.cwd());
   const live = has("--live");

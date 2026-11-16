@@ -6,6 +6,7 @@
 import { createInterface } from "node:readline";
 import { VERSION } from "./lib/server.mjs";
 import { HANDLERS, UserError } from "./lib/tools.mjs";
+import { noticeFor } from "./lib/store/scan.mjs";
 
 const PROTOCOLS = ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"];
 const PROJECT = { type: "string", description: "Absolute path of the project you are working in. Always pass it (Codex needs it)." };
@@ -205,13 +206,23 @@ const running = new Map();
 // delivered item never gets that item again.
 const deliveries = new Set();
 
+// Answers nobody collected, as the first lines of a result for a call that names a project. The wait that
+// is handing out a round's answers (and the import that settled it) leaves that round out: this very result carries them.
+function withNotice(name, args, out) {
+  const line = noticeFor(args?.project, { skip: out?.delivered ? out.collects ?? (name === "wait" ? String(args.round) : undefined) : undefined });
+  if (!line) return out;
+  if (typeof out === "string") return `${line}\n\n${out}`;
+  if (Array.isArray(out)) return [{ type: "text", text: line }, ...out];
+  return { ...out, text: `${line}\n\n${out.text}` };
+}
+
 // A handler returns a string, a content array, or { text, delivered? }. delivered() tells the server the
 // agent has what the text carries: it runs after the answer is on stdout, and only for a call nobody cancelled.
 async function callTool(name, args, signal) {
   const handler = HANDLERS[name];
   if (!handler) return { result: { content: [{ type: "text", text: `Unknown tool ${name}` }], isError: true } };
   try {
-    const out = await handler(args || {}, { signal });
+    const out = withNotice(name, args, await handler(args || {}, { signal }));
     if (out && typeof out === "object" && !Array.isArray(out)) return { result: { content: [{ type: "text", text: out.text }] }, delivered: out.delivered };
     return { result: { content: typeof out === "string" ? [{ type: "text", text: out }] : out } };
   } catch (e) {
