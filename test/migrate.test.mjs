@@ -50,10 +50,10 @@ function snapshot(dir) {
   return out;
 }
 
-test("the format numbers are 3 and the plugin version is 2.2.0", async () => {
+test("the format numbers are 3 and the plugin version is 3.0.0", async () => {
   assert.deepEqual([SPEC_FORMAT, ANSWERS_FORMAT, JOURNAL_FORMAT], [3, 3, 3]);
   const { VERSION } = await import("../lib/server.mjs");
-  assert.equal(VERSION, "2.2.0");
+  assert.equal(VERSION, "3.0.0");
 });
 
 test("every 2.0 and 2.1 spec fixture opens with no error", () => {
