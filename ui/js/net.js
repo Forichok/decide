@@ -126,10 +126,11 @@ export const digDeeper = (id, note) =>
 export const askAgent = (id, question, text) =>
   fetch(`/api/rounds/${id}/ask`, { method: "POST", headers: WRITE, body: JSON.stringify({ question, text }) }).then(json);
 
-export const getMap = (round = "") => fetch(`/api/map?${new URLSearchParams(round ? { round } : {})}`, { cache: "no-store" }).then(json);
+export const getMap = (round = "", project = "") =>
+  fetch(`/api/map?${new URLSearchParams({ ...(round && { round }), ...(project && { project }) })}`, { cache: "no-store" }).then(json);
 
-export const getJournal = (q = "", limit = 30, { mode = "", status = "" } = {}) =>
-  fetch(`/api/journal?${new URLSearchParams({ limit: String(limit), q, ...(mode && { mode }), ...(status && { status }) })}`, { cache: "no-store" }).then(json);
+export const getJournal = (q = "", limit = 30, { mode = "", status = "", project = "" } = {}) =>
+  fetch(`/api/journal?${new URLSearchParams({ limit: String(limit), q, ...(mode && { mode }), ...(status && { status }), ...(project && { project }) })}`, { cache: "no-store" }).then(json);
 
 // Whether the user is looking at this page: the daemon sends a system notification only when no page is.
 const PAGE = Math.random().toString(36).slice(2, 10);

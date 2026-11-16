@@ -23,3 +23,18 @@
 .map-note { color: var(--tx-dim); font-size: var(--step--1, 13.5px); margin: 0 0 var(--space-3, 12px); }
 .jp-map .diagram { min-height: 120px; }
 .pc li .ev { align-self: flex-start; margin-left: 2px; margin-top: 2px; flex: none; height: fit-content; }
+
+/* the map: project switch, round picker */
+.jp-projects { margin: 0 0 var(--space-3, 12px); }
+.jp-filters[hidden], .jp-filter[hidden] { display: none; }
+.map-back { margin: 0 0 var(--space-3, 12px); }
+.map-picker { margin: 0 0 var(--space-3, 12px); }
+.map-find { width: 100%; }
+.map-rounds { list-style: none; margin: var(--space-2, 8px) 0 0; padding: 0; display: grid; gap: 2px; }
+.map-round { width: 100%; text-align: left; padding: 6px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--tx); font: inherit; font-size: var(--step--1, 13.5px); cursor: pointer; }
+.map-round:hover { background: var(--surface-2); }
+.map-round[aria-current="true"] { background: var(--accent-soft); color: var(--accent-tx); }
+.map-centres { margin-top: var(--space-3, 12px); color: var(--tx-mut); font-size: var(--step--1, 13.5px); }
+.map-centres summary { cursor: pointer; }
+.map-picker .map-rounds { max-height: 220px; overflow: auto; }
+.map-picker:not(:focus-within) .map-rounds { display: none; }
