@@ -84,10 +84,10 @@ const logOf = (home, dir, id) => {
 
 // ---- the table
 
-test("lib/tools.mjs and lib/commands.mjs are gone; the table has the fifteen commands", () => {
+test("lib/tools.mjs and lib/commands.mjs are gone; the table has the fifteen commands plus 3.0 patch", () => {
   assert.equal(existsSync(path.join(pluginDir, "lib/tools.mjs")), false);
   assert.equal(existsSync(path.join(pluginDir, "lib/commands.mjs")), false);
-  assert.deepEqual(names, ["ask", "swipe", "wait", "push", "explain", "screenshot", "history", "supersede", "adr", "export", "import", "lint", "stop", "open", "notice"]);
+  assert.deepEqual(names, ["ask", "swipe", "wait", "push", "explain", "screenshot", "history", "supersede", "adr", "export", "import", "lint", "stop", "open", "notice", "patch"]);
   for (const c of COMMANDS) {
     assert.equal(typeof c.summary, "string", c.name);
     assert.equal(typeof c.run, "function", c.name);
@@ -108,15 +108,15 @@ test("swipe, push, lint and stop exist as MCP tools and as CLI commands; open an
   }
 });
 
-test("tools/list has the eleven 2.1 tools plus lint and stop, as 2.1 spelled them", () => {
+test("tools/list has the eleven 2.1 tools plus lint, stop and patch, as 2.1 spelled them", () => {
   const tools = toolList();
-  assert.deepEqual(tools.map((t) => t.name), [...surface.tools.map((t) => t.name), "lint", "stop"]);
+  assert.deepEqual(tools.map((t) => t.name), [...surface.tools.map((t) => t.name), "lint", "stop", "patch"]);
   const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x));
   for (const old of surface.tools) {
     const now = tools.find((t) => t.name === old.name);
     assert.deepEqual(now.inputSchema.required ?? [], old.inputSchema.required ?? [], `${old.name}: required`);
     // 3.0 added one parameter to export, last: outside (a file outside the project).
-    const added = old.name === "export" ? ["outside"] : [];
+    const added = old.name === "export" ? ["outside"] : old.name === "explain" ? ["patch"] : [];
     assert.deepEqual(Object.keys(now.inputSchema.properties), [...Object.keys(old.inputSchema.properties), ...added], `${old.name}: parameter names, in order`);
     if (old.name === "ask" || old.name === "swipe") {
       assert.ok(now.description.startsWith(old.description), `${old.name}: description starts as before`);
@@ -130,7 +130,10 @@ test("tools/list has the eleven 2.1 tools plus lint and stop, as 2.1 spelled the
     } else {
       assert.equal(now.description, old.description, `${old.name}: description`);
       const { outside: _added, ...kept } = now.inputSchema.properties;
-      assert.equal(canon({ ...now.inputSchema, properties: old.name === "export" ? kept : now.inputSchema.properties }), canon(old.inputSchema), `${old.name}: schema`);
+      // 3.0 added explain's optional patch.
+      const { patch: _patch, ...keptExplain } = now.inputSchema.properties;
+      const props = old.name === "export" ? kept : old.name === "explain" ? keptExplain : now.inputSchema.properties;
+      assert.equal(canon({ ...now.inputSchema, properties: props }), canon(old.inputSchema), `${old.name}: schema`);
     }
   }
 });
