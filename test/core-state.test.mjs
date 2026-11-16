@@ -37,8 +37,8 @@ const result = (extra = {}) => ({ version: 2, round: "1-abc123", title: "Pick a 
 // Drops every `at`, for comparing with values recorded from 2.1.
 const strip = (o) => JSON.parse(JSON.stringify(o, (k, v) => (k === "at" ? undefined : v)));
 
-test("EVENTS lists the fourteen event types", () => {
-  assert.deepEqual(EVENTS, ["opened", "draft", "upload", "ask", "reply", "swipe", "push", "deeper", "batch", "acked", "sent", "cancelled", "dismissed", "imported"]);
+test("EVENTS lists the event types, with 3.0 patch, restore and keep", () => {
+  assert.deepEqual(EVENTS, ["opened", "draft", "upload", "ask", "reply", "swipe", "push", "deeper", "batch", "acked", "sent", "cancelled", "dismissed", "imported", "patch", "restore", "keep"]);
 });
 
 test("draft events: the last one is the draft", () => {

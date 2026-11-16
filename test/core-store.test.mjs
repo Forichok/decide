@@ -836,3 +836,56 @@ test("a brief that cannot be written next to the spec: delivery names the round'
   assert.equal(readJson(item.payload.file).round, r.id);
   assert.match(item.payload.warning, /brief/);
 });
+
+// ---- 3.0 rounds that react: patch, restore, keep, the finish guard, ghosts in the answers file
+
+test("a patch ghosts a question, restore brings it back, a stale answer blocks finish until kept, ghosts leave answers", async (t) => {
+  const { roundArgs, open } = await setup(t);
+  const views = [];
+  const s = open({ on: { view: (round, view, seq) => views.push({ id: round.id, view, seq }) } });
+  const r = s.create(roundArgs);
+  assert.deepEqual(s.roundView(r).ghosts, []);
+  s.saveDraft(r, { answers: { layout: { selected: ["today"] }, colour: { selected: ["red"] } } });
+
+  assert.throws(() => s.patch(r, { ops: [{ ghost: ["nope"] }], reason: "x" }), (e) => e.status === 400 && /no item "nope"/.test(e.message) && e.issues.length === 1);
+  const out = s.patch(r, { ops: [{ ghost: ["colour"], reason: "split has no colour" }] });
+  assert.ok(Number.isInteger(out.seq));
+  assert.deepEqual(out.view.ghosts, [{ id: "colour", reason: "split has no colour" }]);
+  assert.equal(views.length, 1);
+  assert.equal(views[0].seq, out.seq);
+
+  const back = s.restore(r, "colour");
+  assert.deepEqual(back.view.ghosts, []);
+  assert.throws(() => s.keep(r, "zzz"), (e) => e.status === 400);
+
+  s.patch(r, { ops: [{ stale: ["layout"], reason: "the options moved" }] });
+  assert.deepEqual(s.roundView(r).stale, ["layout"]);
+  assert.throws(() => s.finish(r, { answers: { layout: { selected: ["today"] } } }), (e) => e.status === 409 && e.stale[0].id === "layout");
+  s.keep(r, "layout");
+  assert.deepEqual(s.roundView(r).stale, []);
+
+  // The user's restore beats an agent's later ghost, even with override.
+  s.patch(r, { ops: [{ ghost: ["colour"], reason: "not needed" }], override: true });
+  assert.deepEqual(s.roundView(r).ghosts, []);
+  const result = s.finish(r, { answers: { layout: { selected: ["today"] }, colour: { selected: ["red"] } } });
+  assert.deepEqual(Object.keys(result.answers), ["layout", "colour"]);
+  assert.equal(result.ghosts, undefined);
+  assert.deepEqual(types(roundDir(roundArgs.project.dataDir, r.id)), ["opened", "draft", "patch", "restore", "patch", "keep", "patch", "sent"]);
+});
+
+test("rules from the spec ghost a question by the answers, and a swipe round has no view", async (t) => {
+  const { roundArgs, swipeArgs, open } = await setup(t);
+  const s = open();
+  const spec = { ...roundArgs.spec, rules: [{ when: { question: "layout", in: ["split"] }, do: [{ ghost: ["colour"] }], reason: "split has one colour" }] };
+  const r = s.create({ ...roundArgs, spec });
+  assert.deepEqual(s.roundView(r).ghosts, []);
+  s.saveDraft(r, { answers: { layout: { selected: ["split"] } } });
+  assert.deepEqual(s.roundView(r).ghosts.map((g) => g.id), ["colour"]);
+  // R9: the ghost's answer is left out of answers and the file names the ghost.
+  const result = s.finish(r, { answers: { layout: { selected: ["split"] }, colour: { selected: ["red"] } } });
+  assert.deepEqual(Object.keys(result.answers), ["layout"]);
+  assert.deepEqual(result.ghosts, [{ id: "colour", reason: "split has one colour" }]);
+  const w = s.create(swipeArgs);
+  assert.equal(s.roundView(w), null);
+  assert.throws(() => s.patch(w, { ops: [{ ghost: ["c1"] }] }), (e) => e.status === 409);
+});
