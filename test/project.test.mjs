@@ -12,12 +12,13 @@
  */
 
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { dataDirPath, fnv1a, gitCommonDir, openProject, projectRoot, worktreeTop } from "../lib/project.mjs";
 import { appendJournal, readJournal } from "../lib/journal.mjs";
-import { HANDLERS, hasGit, repoWithWorktree, scratchDir } from "./helpers.mjs";
+import { HANDLERS, enginePath, envOf, hasGit, homeOf, repoWithWorktree, scratchDir } from "./helpers.mjs";
 
 const skip = hasGit ? false : "git binary not found";
 
@@ -160,4 +161,20 @@ test("from a worktree, files the agent names resolve inside the worktree, not th
   assert.match(out, /Wrote /);
   assert.ok(existsSync(path.join(wt, "docs", "decisions")), "ADR dir is in the worktree");
   assert.equal(existsSync(path.join(main, "docs")), false, "main checkout is untouched");
+});
+
+test("a 2.x export recorded in a worktree's 2.1 data dir is imported from that worktree (skipped without git)", { skip }, async (t) => {
+  const { dir, wt } = await repoWithWorktree(t);
+  const specFile = path.join(wt, "colour.questions.json");
+  writeFileSync(specFile, JSON.stringify({ title: "Colour", questions: [{ id: "color", title: "Which colour?", options: [{ id: "pink", label: "Pink" }, { id: "blue", label: "Blue" }] }] }));
+  const outPath = path.join(wt, "colour.answers.json");
+  // What 2.1 wrote on export, in the worktree's own data dir: the round, its spec and where its answers go.
+  const legacy = dataDirPath(wt, homeOf(dir));
+  mkdirSync(path.join(legacy, "exports"), { recursive: true });
+  writeFileSync(path.join(legacy, "exports", "5-abcdef.json"), JSON.stringify({ round: "5-abcdef", specFile, outPath, source: "colour.questions.json", at: "2026-10-01T10:00:00.000Z" }));
+  const theirs = path.join(wt, "a.answers.json");
+  writeFileSync(theirs, JSON.stringify({ version: 2, round: "5-abcdef", name: "Ann", answers: { color: { selected: ["pink"] } } }));
+  const res = spawnSync(process.execPath, [enginePath, "--import", "a.answers.json"], { cwd: wt, env: envOf(dir, { DECIDE_NOTIFY: "0" }), encoding: "utf8" });
+  assert.equal(res.status, 0, res.stderr + res.stdout);
+  assert.equal(JSON.parse(readFileSync(outPath, "utf8")).answers.color.selected[0], "pink");
 });
