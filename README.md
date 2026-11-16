@@ -104,7 +104,7 @@ the result.
 
 ## How
 
-<img src="docs/demo.gif" alt="The agent asks six questions in the terminal, decide opens them as a page, the user picks options, asks the agent about one of them, presses Done, and the agent carries on with the exact answers" width="100%">
+<img src="docs/demo.gif" alt="A round opens as a page, the user picks options, asks the agent about one of them and gets a reply on the page, presses Done, and the agent gets the exact answers" width="100%">
 
 1. Type `/decide` in Claude Code or `$decide` in Codex. Most of the time you
    don't have to: the agent opens decide on its own when a task has open

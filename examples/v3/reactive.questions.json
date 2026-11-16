@@ -1,0 +1,53 @@
+{
+  "title": "Sign-in for the task app",
+  "intro": "Answer the first question and watch the others react. The agent can also change this round while you answer.",
+  "live": true,
+  "rules": [
+    {
+      "when": { "question": "login", "in": ["link"] },
+      "reason": "you chose sign-in by email link, so there is no password to recover",
+      "do": [{ "ghost": ["recover"] }, { "removeOptions": { "question": "store", "options": ["guest"] } }]
+    }
+  ],
+  "questions": [
+    {
+      "id": "login",
+      "type": "single",
+      "title": "How do people sign in?",
+      "why": "It decides which of the questions below are still needed.",
+      "options": [
+        { "id": "password", "label": "Email and password", "recommended": true, "then": "We build the password form and the recovery flow." },
+        { "id": "link", "label": "Email link, no password", "then": "No password screens at all." },
+        { "id": "sso", "label": "Single sign-on only", "then": "Works only for teams with an identity provider." }
+      ]
+    },
+    {
+      "id": "recover",
+      "type": "single",
+      "title": "How do people recover a forgotten password?",
+      "why": "Only matters when there is a password.",
+      "options": [
+        { "id": "mail", "label": "A reset link by email", "recommended": true, "then": "One email template." },
+        { "id": "support", "label": "Ask support", "then": "Support gets the load." }
+      ]
+    },
+    {
+      "id": "store",
+      "type": "single",
+      "title": "Where do sessions live?",
+      "why": "It sets how long a user stays signed in.",
+      "options": [
+        { "id": "cookie", "label": "A cookie on the device", "recommended": true, "then": "Simple, works offline." },
+        { "id": "server", "label": "On the server", "then": "Can be revoked at once." },
+        { "id": "guest", "label": "A guest account", "then": "Anyone can try the app without signing in." }
+      ]
+    },
+    {
+      "id": "name",
+      "type": "text",
+      "title": "What do we call the sign-in screen?",
+      "why": "It goes into the page title.",
+      "optional": true
+    }
+  ]
+}
