@@ -36,6 +36,7 @@ import { ack, api, findServer, waitNext } from "../lib/client.mjs";
 import { PROTOCOL } from "../lib/protocol.mjs";
 import { alive, asAgent, asPage, fakeServer, hasGit, homeOf, notePid, pluginDir, repoWithWorktree, scratchDir, spawnServer } from "./helpers.mjs";
 import { exportRound } from "../lib/transfer.mjs";
+import { exportSpec } from "../lib/export.mjs";
 
 delete process.env.DECIDE_PORT;
 process.env.DECIDE_NOTIFY = "0";
@@ -722,6 +723,35 @@ test("a finished round's view is read without publishing its files again", async
   for (const u of urls) assert.equal((await fetch(url(second.port, u))).status, 404, `not served after the read: ${u}`);
   assert.equal((await fetch(url(second.port, `/api/rounds/${id}`))).status, 200, "a second read finds it in memory");
   for (const u of urls) assert.equal((await fetch(url(second.port, u))).status, 404, `not served after a second read: ${u}`);
+});
+
+test("export inlines a mockup's own files only: no symlink out of its directory, no dotfile (skipped on win32: symlinks need privileges)", { skip: process.platform === "win32" }, async (t) => {
+  const dir = realpathSync.native(await scratchDir(t));
+  const mk = path.join(dir, "mk");
+  const away = path.join(dir, "away");
+  mkdirSync(path.join(mk, ".private"), { recursive: true });
+  mkdirSync(away);
+  writeFileSync(path.join(away, "id_rsa"), "SECRET-KEY-ONE");
+  writeFileSync(path.join(away, "bg.png"), "SECRET-KEY-TWO");
+  writeFileSync(path.join(mk, ".env.png"), "SECRET-KEY-THREE");
+  writeFileSync(path.join(mk, ".private", "x.css"), "p{color:SECRET-KEY-FOUR}");
+  symlinkSync(path.join(away, "id_rsa"), path.join(mk, "logo.png"));
+  symlinkSync(path.join(away, "bg.png"), path.join(mk, "bg.png"));
+  writeFileSync(path.join(mk, "ok.png"), PNG);
+  writeFileSync(path.join(mk, "style.css"), "body{background:url(bg.png)} i{background:url(ok.png)}");
+  writeFileSync(path.join(mk, "card.html"), '<link rel="stylesheet" href="style.css"><link rel="stylesheet" href=".private/x.css"><img src="logo.png"><img src=".env.png"><img src="ok.png"><style>b{background:url(bg.png)}</style>');
+  const { spec, errors } = await prepareSpec({ title: "T", questions: [{ id: "q", title: "Q", preview: "mk/card.html", options: two }] }, { specDir: dir, dataDir: dir, shots: false });
+  assert.deepEqual(errors, []);
+  const out = path.join(dir, "e.decide.html");
+  await exportSpec(spec, { id: "x1", out });
+  const html = readFileSync(out, "utf8");
+  // The mockup is inlined base64 inside a data: URI: decode every one and look inside.
+  const decoded = [...html.matchAll(/base64,([A-Za-z0-9+/=]+)/g)].map((m) => Buffer.from(m[1], "base64").toString("latin1")).join("\n");
+  assert.ok(decoded.includes(`data:image/png;base64,${PNG.toString("base64")}`), "the mockup's own picture is inlined");
+  for (const secret of ["SECRET-KEY-ONE", "SECRET-KEY-TWO", "SECRET-KEY-THREE", "SECRET-KEY-FOUR"]) {
+    assert.equal(html.includes(secret) || decoded.includes(secret), false, secret);
+    assert.equal(decoded.includes(Buffer.from(secret).toString("base64")), false, `${secret} in base64`);
+  }
 });
 
 // ---- the Mermaid frame
