@@ -6,7 +6,7 @@ import { $, $$, icon } from "./dom.js";
 import { lang, t } from "./i18n.js";
 import { answererName, cancelRound, download, getRound, getState, listen, offline, reopen, submitRound } from "./net.js";
 import { hideBar, mountRound } from "./round.js";
-import { mountSwipe } from "./swipe.js";
+import { mountSwipe } from "./swipe/index.js";
 import { renderDone, renderIdle, roundTabs, updatePresence } from "./header.js";
 import { renderJournal } from "./journal.js";
 import { bindKeys } from "./nav.js";
