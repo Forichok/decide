@@ -117,7 +117,7 @@ export async function startDecide({ name = "run" } = {}) {
     answer: (id, qid, answer) => must("POST", `/api/rounds/${id}/answer`, { qid, answer }),
     // Next outbox item for the agent, or null when none arrives within the timeout.
     async next(id, { timeout = 1500, waiter = "e2e" } = {}) {
-      const r = await fetch(`${origin}/api/rounds/${id}/next?waiter=${waiter}&timeout=${timeout}`, { headers });
+      const r = await fetch(`${origin}/api/rounds/${id}/next?waiter=${waiter}&events=1&timeout=${timeout}`, { headers });
       if (r.status === 204) return null;
       return r.json();
     },
