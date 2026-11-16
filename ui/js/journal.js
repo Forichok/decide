@@ -82,8 +82,15 @@ export function renderJournal(env) {
 
   // The project switch: the projects come from the map route (it lists the owners of every decision).
   const projectBox = h("div.jp-filter.jp-projects", { role: "group", "aria-label": t("journalPage.project"), hidden: true });
+  const heading = h("h1.title.jp-title-main", {}, t("journalPage.title"));
+  let names = new Map();
+  const retitle = () => {
+    if (names.size < 2) return;
+    heading.textContent = state.project ? t("journalPage.titleOne", names.get(state.project) || state.project) : t("journalPage.titleAll");
+  };
   const setProject = (value) => {
     state.project = value;
+    retitle();
     for (const b of projectBox.children) b.setAttribute("aria-pressed", String(b.dataset.project === value));
     load();
     if (state.view === "map") paintMap(mapBox, { project: value });
@@ -91,6 +98,8 @@ export function renderJournal(env) {
   getMap()
     .then(({ projects = [] }) => {
       if (projects.length < 2) return;
+      names = new Map(projects.map((p) => [p.project, p.name]));
+      retitle();
       projectBox.replaceChildren(
         ...[{ project: "", name: t("journalPage.project.all") }, ...projects].map((p) =>
           h("button.chip", { type: "button", "data-project": p.project, title: p.project, "aria-pressed": String(p.project === state.project), onclick: () => setProject(p.project) }, p.name),
@@ -106,7 +115,7 @@ export function renderJournal(env) {
     {},
     eyebrow(env),
     h("button.link-btn.jp-back", { type: "button", onclick: env.leaveJournal, html: `${icon("left")}${t(env.pending?.length ? "journalPage.back" : "journalPage.home")}` }),
-    h("h1.title", {}, t("journalPage.title")),
+    heading,
     h("p.jp-sub", {}, t("journalPage.sub"), " ", count),
     search,
     h("div.jp-filters", {}, views, projectBox),
