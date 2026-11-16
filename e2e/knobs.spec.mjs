@@ -87,11 +87,59 @@ test("derived values are computed from the knobs and shown in a table", async ({
   await expect(table).toContainText("1890");
 });
 
-test.fixme("the agent moves the controls with a knobs patch and the page saves the old state as a snapshot", async () => {
-  // FINAL WAVE: patch op {knobs: {question, values?, preview?}} -> view.knobs[qid] = {values?, preview?, seq, reason};
-  // the page moves the controls (or swaps the mockup src) and stores the state before as a snapshot named after the reason.
+test("the agent moves the controls with a knobs patch and the page saves the old state as a snapshot", async ({ page }) => {
+  const id = await openTune(page);
+  const dens = slider(page, "Density");
+  await expect(dens).toHaveAttribute("aria-valuenow", "4");
+  const src = await card(page, "card").locator("iframe").first().getAttribute("src");
+  writeFile(d.project, "tune.assets/card2.html", readFileSync(path.join(repo, "examples/v3/tune.assets/card.html"), "utf8").replace("<body", "<!-- second mockup --><body"));
+  await d.patch(id, { knobs: { question: "card", values: { density: 8 }, preview: path.join(d.project, "tune.assets/card2.html") } }, { reason: "calmer card" });
+  await expect(dens).toHaveAttribute("aria-valuenow", "8");
+  await expect(frameOf(page).locator("html")).toHaveCSS("--knob-density", /8/);
+  await expect(card(page, "card").locator("iframe").first()).not.toHaveAttribute("src", src);
+  const slot = card(page, "card").locator(".tn-slot");
+  await expect(slot).toHaveCount(1);
+  await expect(slot).toContainText("calmer card");
+  const view = (await d.round(id)).view;
+  expect(view.knobs.card).toMatchObject({ values: { density: 8 }, reason: "calmer card" });
 });
-test.fixme("'in words' sends what the user wants as a words request to the listening agent", async () => {
-  // FINAL WAVE: POST /api/rounds/:id/words {qid, text} -> outbox item kind "words" {qid, title, text, values};
-  // with no agent listening it is saved as the question's note.
+
+test("'in words' sends what the user wants as a words request to the listening agent", async ({ page }) => {
+  const id = await openTune(page);
+  await card(page, "card").locator("textarea.tn-words-in").fill("make it calmer");
+  // A held `next` is what makes the agent listen.
+  const heard = (async () => {
+    for (let i = 0; i < 8; i++) {
+      const item = await d.next(id, { timeout: 1000 });
+      if (!item) continue;
+      await d.ack(id, item.seq);
+      if (item.kind === "words") return item;
+    }
+    return null;
+  })();
+  await new Promise((r) => setTimeout(r, 400));
+  await card(page, "card").locator('[data-act="words"]').click();
+  const item = await heard;
+  expect(item, "the agent gets a words item").toBeTruthy();
+  expect(item.payload.words).toMatchObject({ qid: "card", text: "make it calmer" });
+  expect(item.payload.words.values.density).toBe(4);
+  await expect(card(page, "card").locator(".tn-said")).toContainText("Sent");
+});
+
+test("'in words' with no agent that takes events is saved as the note and shown", async ({ page }) => {
+  const id = await openTune(page);
+  // A new round counts as listened to for 90 s; a plain `ask` waiter (held, no events) is the other way to
+  // reach the same branch: the item would never be handed out, so the words become a note.
+  const hold = fetch(`${d.origin}/api/rounds/${id}/next?waiter=plain&timeout=6000`, { headers: { "x-decide-token": d.token, origin: d.origin } }).catch(() => null);
+  await new Promise((r) => setTimeout(r, 400));
+  await card(page, "card").locator("textarea.tn-words-in").fill("more airy");
+  await card(page, "card").locator('[data-act="words"]').click();
+  // The words come back as the question's note and the note box shows them.
+  await expect(card(page, "card").locator("textarea.note")).toHaveValue(/more airy/);
+  const a = await until(async () => {
+    const x = (await d.answers(id)).card;
+    return x?.note ? x : null;
+  });
+  expect(a.note).toContain("more airy");
+  await hold;
 });

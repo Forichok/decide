@@ -83,18 +83,79 @@ test("the brief is on the page and the end screen is reached after the last card
   await expect(page.locator(".sw-end")).toBeVisible();
 });
 
-test.fixme("cards the agent changed come back at the end with the old answer preselected", async () => {
-  // Waits for the swipe stale-cards chunk: a stale card is re-asked after the deck with its old answer marked.
+test("cards the agent changed come back at the end with the old answer preselected", async ({ page }) => {
+  const id = await open(page);
+  await page.keyboard.press("ArrowRight");
+  await expect(front(page)).toContainText("Weekly digest?");
+  await d.patch(id, { set: { id: "c1", title: "Dark mode first, really?" } }, { reason: "the plan moved" });
+  await page.keyboard.press("ArrowLeft");
+  await expect(front(page)).toContainText("Offline support?");
+  await page.keyboard.press("ArrowLeft");
+  await expect(front(page)).toContainText("Dark mode first, really?");
+  await expect(front(page)).toHaveClass(/recheck/);
+  await expect(front(page).locator(".sw-recheck")).toContainText("the plan moved");
+  await expect(front(page)).toHaveAttribute("data-pre", "right");
+  await front(page).locator("button[data-act=keep]").click();
+  await expect(page.locator(".sw-end")).toBeVisible();
+  const a = await until(async () => {
+    const r = await d.round(id);
+    return r.swipe?.answers?.c1 && !(r.view?.stale ?? []).includes("c1") ? r.swipe.answers : null;
+  });
+  expect(JSON.stringify(a.c1)).toContain("right");
 });
-test.fixme("a removed card the user already saw becomes a ghost that can be restored", async () => {
-  // Waits for `seen` + ghost restore on swipe: patch remove of a seen card -> ghost with a restore button.
+
+test("a removed card the user already saw becomes a ghost that can be restored", async ({ page }) => {
+  const id = await open(page);
+  await page.keyboard.press("ArrowRight");
+  await expect(front(page)).toContainText("Weekly digest?");
+  await d.patch(id, { remove: "c1" }, { reason: "no longer relevant" });
+  const ghosts = page.locator(".sw-ghosts");
+  await expect(ghosts).toContainText("Dark mode first?");
+  await ghosts.getByRole("button").click();
+  await expect(page.locator(".sw-ghosts")).toHaveCount(0);
+  const view = await until(async () => {
+    const r = await d.round(id);
+    return (r.view?.ghosts ?? []).length === 0 && r.swipe?.answers?.c1 ? r : null;
+  });
+  expect(view).toBeTruthy();
 });
-test.fixme("push goes through the patch engine on a swipe round", async () => {
-  // FINAL WAVE: swipe `push` is applied as a patch (items are cards).
+
+test("push goes through the patch engine on a swipe round", async ({ page }) => {
+  const id = await open(page);
+  const out = await d.push(id, { add: [{ id: "n1", title: "Pushed card?", left: { label: "No" }, right: { label: "Yes" } }], position: "next", reason: "pushed" });
+  expect(out.added).toBe(1);
+  await page.keyboard.press("ArrowRight");
+  await expect(front(page)).toContainText("Pushed card?");
+  // The patch engine marks the card new with the push's reason; the old push path had no such view.
+  const item = (await d.round(id)).swipe.view.items.find((e) => e.id === "n1");
+  expect(item).toMatchObject({ state: "new", reason: "pushed" });
 });
-test.fixme("a patch on a swipe round is accepted, not refused with 409", async () => {
-  // FINAL WAVE: POST /api/rounds/:id/patch on a swipe round works.
+
+test("a patch on a swipe round is accepted, not refused with 409", async ({ page }) => {
+  const id = await open(page);
+  const r = await d.call("POST", `/api/rounds/${id}/patch`, { ops: [{ add: { item: { id: "n2", title: "Patched in?", left: { label: "No" }, right: { label: "Yes" } } } }] });
+  expect(r.status).toBe(200);
+  for (const next of ["Weekly digest?", "Offline support?", "Patched in?"]) {
+    await page.keyboard.press("ArrowRight");
+    await expect(front(page)).toContainText(next);
+  }
 });
-test.fixme("cards shown on screen are reported as seen: POST /api/rounds/:id/seen {ids}", async () => {
-  // FINAL WAVE: the page posts seen ids; view.seen is their union.
+
+test("cards shown on screen are reported as seen: POST /api/rounds/:id/seen {ids}", async ({ page }) => {
+  const id = await d.open(deck(), { mode: "swipe" });
+  const reqs = [];
+  page.on("request", (r) => {
+    if (r.method() === "POST" && r.url().includes(`/api/rounds/${id}/seen`)) reqs.push(r.postDataJSON());
+  });
+  await page.goto(d.url(id));
+  await front(page).waitFor();
+  await expect.poll(() => reqs.flatMap((b) => b.ids)).toContain("c1");
+  await page.keyboard.press("ArrowRight");
+  await expect(front(page)).toContainText("Weekly digest?");
+  await expect.poll(() => reqs.flatMap((b) => b.ids)).toContain("c2");
+  const seen = await until(async () => {
+    const r = await d.round(id);
+    return r.view?.seen?.includes("c2") ? r.view.seen : null;
+  });
+  expect(seen).toEqual(expect.arrayContaining(["c1", "c2"]));
 });
