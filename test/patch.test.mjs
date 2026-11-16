@@ -4,7 +4,7 @@
  * Contract:   lib/store/patch.mjs — applyPatch, validatePatch; precedence through lib/store/view.mjs
  * Covers:
  *   - one test per operation: ghost, restore, set, addOptions, removeOptions, setOptions, add,
- *     remove (unseen goes, seen becomes a ghost), recommend, stale, brief
+ *     remove (unseen goes, seen becomes a ghost), recommend, stale, brief, knobs (K8: values fitted, preview, seq, reason)
  *   - keepAnswers marks nothing stale; an answer given after the patch outranks its stale mark
  *   - one test per row of the precedence order: user restore > override patch > rules > ordinary patch > spec
  *   - validatePatch names unknown items, options and operations
@@ -234,10 +234,79 @@ test("validatePatch names unknown items, options and operations", () => {
   has("error", "ops[9]", /no item "c"/);
   has("error", "ops[10]", /no option "zz"/);
   has("warn", "ops[10]", /without a reason/);
-  has("error", "ops[11]", /unknown operation "knobs"/);
+  has("error", "ops[11]", /knobs names no question/);
   has("error", "ops[12]", /exactly one/);
   assert.deepEqual(validatePatch(spec, { ops: [] }).map((i) => i.level), ["error"]);
   assert.deepEqual(validatePatch(spec, { ops: [{ ghost: "a" }], reason: "fine" }), []);
   // A view works as well as a spec.
   assert.deepEqual(validatePatch(base(), { ops: [{ ghost: "a" }], reason: "fine" }), []);
+});
+
+// ---- K8: the knobs op
+
+const tuneSpec = {
+  title: "Card",
+  questions: [
+    {
+      id: "card",
+      type: "tune",
+      title: "How dense?",
+      preview: { src: "/abs/card.html", local: true },
+      knobs: [
+        { id: "density", kind: "range", min: 0, max: 10, step: 1, default: 4 },
+        { id: "accent", kind: "color", default: "#3b6cff" },
+        { id: "calm", kind: "toggle", default: false },
+        { id: "mode", kind: "select", options: [{ id: "x", label: "X" }, { id: "y", label: "Y" }], default: "x" },
+      ],
+    },
+    q("other"),
+  ],
+};
+
+test("knobs: values are fitted to their knobs and land in view.knobs with the seq and reason", () => {
+  const v = viewOf(tuneSpec, [{ seq: 4, type: "patch", reason: "calmer", ops: [{ knobs: { question: "card", values: { density: 99, accent: "red", calm: true, mode: "y", ghost: 1 } } }] }]);
+  assert.deepEqual(v.knobs, { card: { seq: 4, reason: "calmer", values: { density: 10, accent: "#3b6cff", calm: true, mode: "y" } } });
+  assert.equal(item(v, "card").state, "normal", "moving knobs does not mark the question changed");
+  assert.deepEqual(v.answers, {}, "the answer is the page's to change");
+});
+
+test("knobs: a preview swaps the mockup; a later op merges into the earlier one; the op's own reason wins", () => {
+  const v = viewOf(tuneSpec, [
+    { seq: 2, type: "patch", reason: "calmer", ops: [{ knobs: { question: "card", values: { density: 2 } } }] },
+    { seq: 5, type: "patch", reason: "patch reason", ops: [{ knobs: { question: "card", values: { calm: true }, preview: "/abs/calm.html" }, reason: "a calmer layout" }] },
+  ]);
+  assert.deepEqual(v.knobs.card, { seq: 5, reason: "a calmer layout", values: { density: 2, calm: true }, preview: "/abs/calm.html" });
+  const only = viewOf(tuneSpec, [{ seq: 3, type: "patch", ops: [{ knobs: { question: "card", preview: "/abs/b.html" } }] }]);
+  assert.deepEqual(only.knobs.card, { seq: 3, reason: "", preview: "/abs/b.html" });
+});
+
+test("knobs: an op on another question type, or one that sets nothing, changes nothing", () => {
+  const v = applyPatch(viewOf(tuneSpec, []), patch([{ knobs: { question: "other", values: { density: 1 } } }, { knobs: { question: "card", values: { nope: 1 } } }]));
+  assert.deepEqual(v.knobs, {});
+  // With no seq (a dry run), each op counts on from the last.
+  const dry = applyPatch(applyPatch(viewOf(tuneSpec, []), { ops: [{ knobs: { question: "card", values: { density: 1 } } }] }), { ops: [{ knobs: { question: "card", values: { density: 3 } } }] });
+  assert.equal(dry.knobs.card.seq, 2);
+});
+
+test("knobs: validatePatch names a wrong question, a missing change and unknown knobs", () => {
+  const issues = validatePatch(tuneSpec, {
+    reason: "calmer",
+    ops: [
+      { knobs: { question: "nope", values: {} } },
+      { knobs: { question: "other", values: {} } },
+      { knobs: { question: "card" } },
+      { knobs: { question: "card", values: { density: 2, ghost: 1 } } },
+      { knobs: { question: "card", values: [1] } },
+      { knobs: { question: "card", preview: "" } },
+      { knobs: { question: "card", values: { density: 1 }, preview: "calm.html" } },
+    ],
+  });
+  const at = (i) => issues.filter((x) => x.path === `ops[${i}]`).map((x) => `${x.level}: ${x.message}`);
+  assert.match(at(0).join(), /error: knobs: no item "nope"/);
+  assert.match(at(1).join(), /error: knobs: "other" is a .* question, not tune/);
+  assert.match(at(2).join(), /error: knobs moves values or swaps the preview/);
+  assert.match(at(3).join(), /warn: knobs: "card" has no knob "ghost"/);
+  assert.match(at(4).join(), /error: knobs: values is/);
+  assert.match(at(5).join(), /error: knobs: preview is the path/);
+  assert.deepEqual(at(6), []);
 });

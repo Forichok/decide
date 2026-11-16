@@ -11,7 +11,7 @@ import test from "node:test";
 import { pluginDir } from "./helpers.mjs";
 import { normalizeSpec } from "../lib/spec.mjs";
 import { emptyAnswer as logicEmpty, finalizeAnswers } from "../ui/js/logic.js";
-import { cleanValues, derivedOf, nextName } from "../ui/js/tune-logic.js";
+import { agentKnobs, cleanValues, derivedOf, imageSrc, nextName, uniqueName } from "../ui/js/tune-logic.js";
 import * as tune from "../ui/js/types/tune.js";
 
 const examples = path.join(pluginDir, "examples/v3");
@@ -103,4 +103,45 @@ test("the digest line says what was set, in English", () => {
 test("the colour arrow keys move hue and lightness", () => {
   assert.notEqual(tune.nudgeColor("#3b6cff", "ArrowRight"), "#3b6cff");
   assert.notEqual(tune.nudgeColor("#3b6cff", "ArrowUp"), tune.nudgeColor("#3b6cff", "ArrowDown"));
+});
+
+// ---- K8: the agent's knobs patch on the page, image knobs kept as files
+
+test("an agent's knobs entry keeps what the user had as a snapshot named after the reason, once", () => {
+  const { spec } = normalizeSpec(mk());
+  const q = spec.questions[0];
+  const a = { ...logicEmpty(q), tuned: true, values: { a: 7, on: true, mode: "y" }, snapshots: [{ name: "Before: calmer", values: { a: 1, on: false, mode: "x" } }] };
+  const k = { seq: 12, reason: "calmer", values: { a: 2 }, preview: "/r/abcdef12/calm.html" };
+  const fields = agentKnobs(q, a, k, "Before: calmer");
+  assert.deepEqual(fields.values, { a: 2, on: true, mode: "y" }, "only the knobs the agent named move");
+  assert.deepEqual(fields.snapshots.at(-1), { name: "Before: calmer 2", values: { a: 7, on: true, mode: "y" } }, "a taken name gets a number");
+  assert.equal(fields.knobsSeq, 12);
+  assert.equal(fields.mockup, "/r/abcdef12/calm.html");
+  // Applied once: the same entry (a reload, a second view event) changes nothing.
+  assert.equal(agentKnobs(q, { ...a, ...fields }, k, "x"), null);
+  // The next swap keeps the swapped-in mockup with the snapshot, so loading it goes back to that mockup.
+  const next = agentKnobs(q, { ...a, ...fields }, { seq: 14, values: { a: 9 } }, "Before: louder");
+  assert.equal(next.snapshots.at(-1).mockup, "/r/abcdef12/calm.html");
+  assert.equal(next.mockup, undefined, "no preview in the entry: the mockup stays as it is");
+  // The agent sees snapshots as {name, values}: the page's own mockup URL stays out of the answer.
+  const out = tune.compact(q, { ...a, ...fields });
+  assert.deepEqual(out.snapshots.at(-1), { name: "Before: calmer 2", values: { a: 7, on: true, mode: "y" } });
+  assert.equal("mockup" in out || "knobsSeq" in out, false);
+  assert.equal(uniqueName("  ", []), "Before");
+  assert.equal(uniqueName("x".repeat(80), []).length, 60);
+});
+
+test("an image knob keeps the stored file's path; the mockup gets the URL the round serves; old data URLs still read", () => {
+  const { spec } = normalizeSpec({ questions: [{ id: "p", title: "t", type: "tune", knobs: [{ id: "photo", kind: "image" }] }] });
+  const q = spec.questions[0];
+  const file = "/home/u/.decide/projects/x/rounds/1-abcdef/files/lz3-photo.jpg";
+  const files = new Map([[file, { url: "/r/0011aabb/lz3-photo.jpg" }]]);
+  assert.equal(imageSrc(file, files), "/r/0011aabb/lz3-photo.jpg");
+  assert.equal(imageSrc(file, { [file]: { url: "/r/0011aabb/lz3-photo.jpg" } }), "/r/0011aabb/lz3-photo.jpg", "the round's files as an object");
+  assert.equal(imageSrc("/somewhere/else.jpg", files), "", "a path the round did not store shows nothing");
+  const old = "data:image/jpeg;base64,/9j/4AAQ";
+  assert.equal(imageSrc(old, files), old);
+  assert.equal(imageSrc("", files), "");
+  assert.deepEqual(tune.check(q, { values: { photo: file } }).values, { photo: file }, "the answer holds the path");
+  assert.deepEqual(tune.check(q, { values: { photo: old } }).values, { photo: old }, "an answer from before keeps its data URL");
 });

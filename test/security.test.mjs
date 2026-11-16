@@ -221,6 +221,11 @@ test("the agent's routes take the token only: the page's own Origin is not enoug
   assert.equal((await send(page, `/api/rounds/${id}/ask`, "POST", { question: "color", text: "why?" })).status, 200);
   assert.equal((await send(page, `/api/rounds/${id}/draft`, "PUT", { answers: {} })).status, 200);
   assert.equal((await send(page, "/api/watching", "POST", { page: "p", watching: true })).status, 200);
+  // K8 "in words" is the page's: its Origin passes the guard (the store refuses a choice question, 400, not 403);
+  // the knobs patch that answers it is the agent's.
+  assert.equal((await send(page, `/api/rounds/${id}/words`, "POST", { qid: "color", text: "calmer" })).status, 400, "words: the page's route");
+  assert.equal((await send({ ...page, origin: "http://evil.example" }, `/api/rounds/${id}/words`, "POST", { qid: "color", text: "calmer" })).status, 403, "words from another origin");
+  assert.equal((await send(page, `/api/rounds/${id}/patch`, "POST", { ops: [{ knobs: { question: "color", values: {} } }] })).status, 403, "a knobs patch from the page");
 });
 
 test("the 2.1 page saves a draft from its own origin, whichever loopback name it was opened by", async (t) => {

@@ -160,6 +160,8 @@ export function listen(onState, onStatus) {
 // Reactive rounds need a daemon: in an exported file the page keeps these to itself.
 export const restoreItem = async () => ({});
 export const keepAnswer = async () => ({});
+// K8 "in words": no agent behind an exported file, so the page keeps the words as the question's note.
+export const sendWords = async () => ({ sent: false });
 // The daemon's own buttons have no daemon here.
 const gone = () => fail("not available in an exported file");
 export const getSettings = gone;

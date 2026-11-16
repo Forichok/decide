@@ -5,7 +5,7 @@
 // Answer: { values, preset, snapshots: [{name, values}], picked, candidates, derived }.
 
 import { h } from "../dom.js";
-import { cleanValues, defaultValues, derivedOf, isTuned, nextName, tuneAnswer } from "../tune-logic.js";
+import { agentKnobs, cleanValues, defaultValues, derivedOf, imageSrc, isTuned, nextName, tuneAnswer } from "../tune-logic.js";
 import { joinParts } from "./shared.js";
 
 export const emptyAnswer = (q) => ({ values: defaultValues(q.knobs ?? []), preset: null, snapshots: [], picked: null, candidates: [], tuned: false });
@@ -56,10 +56,10 @@ function post(frame, q, values, theme) {
 }
 
 // One frame of the mockup at a width and theme, scaled down to fit its box.
-function mockFrame(q, ctx, { frame, theme, mini = false }) {
+function mockFrame(q, ctx, { frame, theme, mini = false, src = q.preview.src }) {
   const w = WIDTH[frame] ?? 390;
   const hh = HEIGHT[frame] ?? 600;
-  const el = h("iframe", { src: q.preview.src, sandbox: "allow-scripts", title: q.title, referrerpolicy: "no-referrer", loading: "lazy" });
+  const el = h("iframe", { src, sandbox: "allow-scripts", title: q.title, referrerpolicy: "no-referrer", loading: "lazy" });
   el.style.width = `${w}px`;
   el.style.height = `${hh}px`;
   const box = h("div.tn-shot", { dataset: { frame, theme } }, el);
@@ -90,7 +90,11 @@ function mockFrame(q, ctx, { frame, theme, mini = false }) {
     if (e.source === el.contentWindow && e.data?.type === "decide:knobs-ready" && last) post(el, q, last, theme);
   };
   window.addEventListener("message", onMessage);
-  return { box, push, label: `${ctx.t(`tune.${frame}`)} · ${ctx.t(`tune.${theme}`)}` };
+  // A knobs patch swaps the mockup: the frame loads the new one and gets the values again on load.
+  const setSrc = (next) => {
+    if (next && el.getAttribute("src") !== next) el.setAttribute("src", next);
+  };
+  return { box, push, setSrc, label: `${ctx.t(`tune.${frame}`)} · ${ctx.t(`tune.${theme}`)}` };
 }
 
 // ---- colour arithmetic for the arrow keys
@@ -291,17 +295,25 @@ function textControl(k, change) {
   return { el: [input], set: (v) => { if (input.value !== v) input.value = v; } };
 }
 
-function imageControl(k, change, t) {
+// The picture is uploaded with the round and the answer keeps its stored path; the page shows it by the URL
+// the round serves (files.srcOf). An exported file (no server), or an upload that fails, keeps a small data URL.
+function imageControl(k, change, t, files = {}) {
   const thumb = h("span.tn-pic");
   const file = h("input", { type: "file", accept: "image/*", hidden: true, onchange: (e) => {
     const f = e.target.files?.[0];
-    if (f) readImage(f, (url) => change(url));
     e.target.value = "";
+    if (!f) return;
+    if (!files.upload) return readImage(f, (url) => change(url));
+    files.upload(f).then(
+      (up) => change(up.path),
+      () => readImage(f, (url) => change(url)),
+    );
   } });
   const choose = h("button.tn-btn", { type: "button", onclick: () => file.click() }, t("tune.image"));
   const clear = h("button.tn-btn.ghost", { type: "button", onclick: () => change("") }, t("tune.clear"));
   const set = (v) => {
-    thumb.style.backgroundImage = v ? `url("${v}")` : "";
+    const src = files.srcOf ? files.srcOf(v) : v;
+    thumb.style.backgroundImage = src ? `url("${String(src).replace(/["\\\n]/g, "")}")` : "";
     thumb.classList.toggle("has", Boolean(v));
     clear.hidden = !v;
   };
@@ -323,6 +335,26 @@ export function render(q, ctx) {
   const rack = h("div.tn-rack");
   const slots = h("div.tn-slots");
   const presets = h("div.tn-presets");
+  // Image knobs: the answer keeps a stored file's path; the controls and the mockup get the URL the round serves.
+  const files = { srcOf: (v) => imageSrc(v, ctx.files), upload: !ctx.offline && ctx.uploadKnob ? (f) => ctx.uploadKnob(f) : null };
+  const frameValues = (values) => {
+    const out = { ...values };
+    for (const k of q.knobs) if (k.kind === "image") out[k.id] = files.srcOf(values[k.id]);
+    return out;
+  };
+  // What the user is doing right now: an agent's knobs patch waits until the hand is off the controls.
+  let movedAt = 0;
+  let holding = false;
+  rack.addEventListener("pointerdown", () => (holding = true));
+  let mounted = false;
+  const letGo = () => {
+    // Dropped once a re-render has taken the panel out of the page.
+    if (mounted && !rack.isConnected) return document.removeEventListener("pointerup", letGo, true);
+    mounted ||= rack.isConnected;
+    holding = false;
+  };
+  if (typeof document !== "undefined") document.addEventListener("pointerup", letGo, true);
+  const busy = () => holding || Date.now() - movedAt < 1200 || Boolean(rack.contains(document.activeElement) && document.activeElement?.matches?.("input.tn-text"));
 
   // The stage: one frame per width and theme, all driven by the same values.
   if (q.preview) {
@@ -342,11 +374,12 @@ export function render(q, ctx) {
   const controls = {};
   for (const k of q.knobs) {
     const change = (v) => {
+      movedAt = Date.now();
       const a = get();
       save({ values: { ...a.values, [k.id]: v }, preset: null, tuned: true }, { quiet: k.kind === "text" || k.kind === "range" });
       paint(get());
     };
-    const c = CONTROLS[k.kind](k, change, t);
+    const c = CONTROLS[k.kind](k, change, t, files);
     controls[k.id] = c;
     rack.append(h("div.tn-row", { dataset: { knob: k.id, kind: k.kind } }, h("span.tn-label", {}, k.label), h("div.tn-ctl", {}, c.el)));
   }
@@ -368,7 +401,7 @@ export function render(q, ctx) {
   } }, t("tune.reset"));
   const remember = h("button.tn-btn.primary", { type: "button", dataset: { act: "remember" }, onclick: () => {
     const a = get();
-    const snap = { name: nextName(a.snapshots), values: { ...a.values } };
+    const snap = { name: nextName(a.snapshots), values: { ...a.values }, ...(a.mockup ? { mockup: a.mockup } : {}) };
     save({ snapshots: [...a.snapshots, snap], tuned: true });
     paint(get());
   } }, t("tune.remember"));
@@ -389,8 +422,8 @@ export function render(q, ctx) {
     slots.append(h("div.tn-cap", {}, t("tune.saved")));
     const row = h("div.tn-slotrow");
     for (const s of a.snapshots) {
-      const shot = q.preview ? mockFrame(q, ctx, { frame: q.frames[0], theme: q.themes[0], mini: true }) : null;
-      shot?.push(s.values);
+      const shot = q.preview ? mockFrame(q, ctx, { frame: q.frames[0], theme: q.themes[0], mini: true, src: s.mockup || q.preview.src }) : null;
+      shot?.push(frameValues(s.values));
       const isPicked = a.picked === s.name;
       const isCand = a.candidates.includes(s.name);
       const body = shot
@@ -404,7 +437,7 @@ export function render(q, ctx) {
             paint(get());
           } }, "×")),
           h("button.tn-load", { type: "button", title: t("tune.load"), onclick: () => {
-            save({ values: { ...s.values }, preset: null, tuned: true });
+            save({ values: { ...s.values }, preset: null, tuned: true, mockup: s.mockup || null });
             paint(get());
           } }, body),
           h("div.tn-slot-act", {},
@@ -440,10 +473,65 @@ export function render(q, ctx) {
     derivedBox.replaceChildren(h("table.tn-table", {}, h("thead", {}, h("tr", {}, h("th", {}, t("tune.results")), h("th", {}, t("tune.now")), a.snapshots.map((s) => h("th", {}, s.name)))), h("tbody", {}, rows)));
   };
 
+  // "In words": "make it calmer" goes to the agent, who answers with a knobs patch; with no agent listening
+  // the words become the question's note.
+  const wordsIn = h("textarea.tn-words-in", { rows: 2, maxlength: 4000, placeholder: t("tune.wordsPlaceholder"), "aria-label": t("tune.words"), onkeydown: (e) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      sendWords();
+    }
+  } });
+  const wordsSaid = h("p.tn-said", { role: "status" });
+  const wordsBtn = h("button.tn-btn", { type: "button", dataset: { act: "words" }, onclick: () => sendWords() }, t("tune.wordsSend"));
+  const wordsBox = h("div.tn-words", {}, h("div.tn-cap", {}, t("tune.words")), h("div.tn-words-row", {}, wordsIn, wordsBtn), wordsSaid);
+  async function sendWords() {
+    const text = wordsIn.value.trim();
+    if (!text || wordsBtn.disabled || !ctx.words) return;
+    wordsBtn.disabled = true;
+    try {
+      const res = await ctx.words(q.id, text);
+      wordsIn.value = "";
+      if (res?.sent) wordsSaid.textContent = t("tune.wordsSent");
+      else {
+        const note = typeof res?.note === "string" ? res.note : [String(get().note ?? "").trim(), text].filter(Boolean).join("\n");
+        ctx.ui?.note?.add(q.id);
+        ctx.set(q.id, { note });
+        wordsSaid.textContent = t("tune.wordsNoted");
+      }
+    } catch {
+      wordsSaid.textContent = t("tune.wordsFailed");
+    } finally {
+      wordsBtn.disabled = false;
+    }
+  }
+
+  // The agent's knobs patch: applied once per patch, never under the user's hand.
+  let retry = null;
+  const agentStep = (a) => {
+    const k = ctx.knobsOf?.(q.id);
+    if (!k || !(k.seq > (Number(a.knobsSeq) || 0))) return false;
+    if (busy()) {
+      clearTimeout(retry);
+      retry = setTimeout(() => root.isConnected && paint(get()), 600);
+      return false;
+    }
+    const fields = agentKnobs(q, a, k, k.reason ? t("tune.before", k.reason) : t("tune.beforeAgent"));
+    if (!fields) return false;
+    wordsSaid.textContent = k.reason ? t("tune.moved", k.reason) : t("tune.movedPlain");
+    save(fields);
+    return true;
+  };
+
   let lastSnaps = "";
   function paint(a) {
+    // The card may not be on the page yet (first render), so paint goes on with the saved answer.
+    if (agentStep(a)) a = get();
     for (const k of q.knobs) controls[k.id].set(a.values[k.id]);
-    for (const s of shots) s.push(a.values);
+    const src = a.mockup || q.preview?.src;
+    for (const s of shots) {
+      s.setSrc(src);
+      s.push(frameValues(a.values));
+    }
     for (const b of presets.querySelectorAll(".tn-chip")) b.setAttribute("aria-pressed", String(b.dataset.preset === a.preset));
     pickNow.setAttribute("aria-pressed", String(a.picked === "now"));
     const key = JSON.stringify([a.snapshots, a.picked, a.candidates]);
@@ -454,7 +542,7 @@ export function render(q, ctx) {
     drawDerived(a);
   }
 
-  root.append(stage, h("div.tn-side", {}, rack, slots), derivedBox);
+  root.append(stage, h("div.tn-side", {}, rack, wordsBox, slots), derivedBox);
   root._tune = paint;
   const host = h("div.tune-host");
   host.append(root);
