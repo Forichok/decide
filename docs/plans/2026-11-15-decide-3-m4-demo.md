@@ -32,7 +32,7 @@ The sliders and the colour move to Density 2 and the new accent. The page says "
 
 ## 4. In words, with no agent listening
 
-Type "Make it calmer and more formal" in the "In words" box and press "Ask the agent" next to it. No agent is waiting, so the text is saved as the question's note. (Known: the line that says so under the box is empty after a moment; the note itself is saved.)
+Type "Make it calmer and more formal" in the "In words" box and press "Ask the agent" next to it. No agent is waiting, so the text is saved as the question's note. The line under the box says so.
 
 ## 5. In words, with an agent listening
 

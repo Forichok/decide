@@ -10,7 +10,7 @@ node $D ask reactive.questions.json
 
 Shell 1 prints `DECIDE ready: ...#r=<round>`. Keep the round id. The spec has one rule: if you pick "Email link, no password" in question 1, question 2 (password recovery) is not needed.
 
-Pick "Email link, no password". Question 2 greys out with the reason ("you chose sign-in by email link...") and a "Bring it back" button. Pick "Email and password" and it returns by itself: the rule works from the current answers, so changing your answer undoes it.
+Pick "Email link, no password". Question 2 greys out with the reason ("you chose sign-in by email link...") and a "Bring it back" button, and question 3 loses its "A guest account" option. Pick "Email and password" and both come back by themselves: the rule works from the current answers, so changing your answer undoes it.
 ## 2. The agent ghosts and restores a question
 
 In shell 2:
@@ -38,7 +38,7 @@ Question 1 gets a "Check" mark with the reason and two buttons, "Keep my answer"
 node $D patch <round> --ops '[{"set":{"id":"store","title":"Where do signed-in sessions live?"}},{"addOptions":{"question":"store","options":[{"id":"redis","label":"In Redis","then":"Fast, one more service to run."}]}}]' --reason "Sessions need a real home"
 ```
 
-The command succeeds. Known bug (B5): the page does not repaint the new title or the new option yet, so you will not see the change. The `removeOptions` part of the rule in step 1 has the same problem: the "guest account" option stays on the page.
+The question takes the new title and the "In Redis" option without a reload. It is marked "Changed" with the reason, and "What it was" shows the old title.
 
 ## 5. A swipe deck: removed and reworded cards
 

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 import { startDecide, spec } from "./helpers.mjs";
 import { card, openRound, opt } from "./ui.mjs";
@@ -118,4 +119,16 @@ test("a question removed before the user saw it leaves the page and the count", 
   await d.patch(id, { remove: ["f19"] }, { reason: "Not needed after all" });
   await expect(card(page, "f19")).toHaveCount(0);
   await expect(page.locator("#bar .bar-count")).toContainText("of 22");
+});
+
+test("a rule ghosts a question and removes an option, and changing the answer undoes both", async ({ page }) => {
+  const raw = JSON.parse(readFileSync(new URL("../examples/v3/reactive.questions.json", import.meta.url), "utf8"));
+  const id = await d.open(raw);
+  await openRound(page, d, id);
+  await opt(page, "login", "link").click();
+  await expect(card(page, "recover")).toHaveClass(/st-ghost/);
+  await expect(opt(page, "store", "guest")).toHaveCount(0);
+  await opt(page, "login", "password").click();
+  await expect(card(page, "recover")).not.toHaveClass(/st-ghost/);
+  await expect(opt(page, "store", "guest")).toHaveCount(1);
 });
