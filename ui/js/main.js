@@ -133,7 +133,9 @@ const ADVANCE_SEC = 6;
 
 function armAdvance() {
   const { id, result } = app.done;
-  if (offline || app.advanceFor === id || !nextRound(app.inbox, id)) return;
+  // Answers the agent has not collected stay on screen: the user may need the line to paste.
+  const held = !result?.cancelled && !result?.dismissed && !deliveryOf(id).delivered;
+  if (offline || held || app.advanceFor === id || !nextRound(app.inbox, id)) return;
   app.advanceFor = id;
   app.advance = ADVANCE_SEC;
   rerenderStatic();
@@ -148,7 +150,6 @@ function armAdvance() {
     disarmAdvance();
     if (next) openRound(next.id);
   }, 1000);
-  void result;
 }
 
 function disarmAdvance() {
@@ -265,8 +266,11 @@ function refreshInbox() {
     railTimer = setTimeout(async () => {
       const rows = await loadInbox(app.state);
       if (rows) {
+        const nextId = () => (app.view === "done" ? nextRound(app.inbox, app.done.id)?.id : null);
+        const before = nextId();
         app.inbox = rows;
         syncRail();
+        if (nextId() !== before) rerenderStatic();
         if (app.view === "done") armAdvance();
       }
       resolve();
