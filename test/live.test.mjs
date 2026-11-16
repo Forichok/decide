@@ -201,3 +201,69 @@ test("the page knows whether the agent is listening and whether the answers reac
   assert.equal((await state(url)).history[0].id, second);
   assert.equal(await delivered(url, second), true);
 });
+
+// ---- R7: live questions rounds hand the agent batches of answers
+
+import { mkdtempSync, rmSync, realpathSync } from "node:fs";
+import os from "node:os";
+const { createStore } = await import("../lib/store/rounds.mjs");
+const { createRoots } = await import("../lib/assets.mjs");
+const { openProject } = await import("../lib/project.mjs");
+const { prepareSpec, formatBatch } = await import("../lib/prepare.mjs");
+
+async function liveRound(t, live, env = {}) {
+  const dir = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), "decide-live-")));
+  const saved = { DECIDE_HOME: process.env.DECIDE_HOME, DECIDE_LIVE_COUNT: process.env.DECIDE_LIVE_COUNT, DECIDE_LIVE_PAUSE_MS: process.env.DECIDE_LIVE_PAUSE_MS };
+  process.env.DECIDE_HOME = path.join(dir, ".home");
+  delete process.env.DECIDE_LIVE_COUNT;
+  delete process.env.DECIDE_LIVE_PAUSE_MS;
+  Object.assign(process.env, env);
+  const project = openProject(dir);
+  const q = (id) => ({ id, title: `Q ${id}?`, options: [{ id: "a", label: "A" }, { id: "b", label: "B" }] });
+  const raw = { title: "Live", ...(live ? { live: true } : {}), questions: ["q1", "q2", "q3", "q4"].map(q) };
+  const { spec, errors } = await prepareSpec(raw, { specDir: dir, dataDir: project.dataDir, shots: false });
+  assert.deepEqual(errors, []);
+  const store = createStore({ home: process.env.DECIDE_HOME, roots: createRoots() });
+  t.after(() => {
+    store.close();
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    rmSync(dir, { recursive: true, force: true });
+  });
+  const round = store.create({ project, spec, raw, outPath: path.join(dir, "x.answers.json"), live: true, mode: "questions" });
+  return { store, round };
+}
+// A held waiter's timer is unref'd (it never keeps the process alive), so a wait that should stay empty is raced against a ref'd timer.
+const quiet = (p, ms = 1200) => Promise.race([p, new Promise((r) => setTimeout(() => r("quiet"), ms))]);
+const pick = (...ids) => ({ answers: Object.fromEntries(ids.map((id) => [id, { selected: ["a"] }])) });
+
+test("live questions round: a batch after 3 new answers", async (t) => {
+  const { store, round } = await liveRound(t, true, { DECIDE_LIVE_PAUSE_MS: "600000" });
+  assert.equal(round.spec.live, true, "the spec keeps live");
+  const held = store.next(round, { waiter: "w", events: true, timeoutMs: 5000 });
+  store.saveDraft(round, pick("q1", "q2"));
+  store.saveDraft(round, pick("q1", "q2", "q3"));
+  const item = await held;
+  assert.equal(item.kind, "batch");
+  assert.deepEqual(Object.keys(item.payload.answers).sort(), ["q1", "q2", "q3"]);
+  assert.match(formatBatch(item.payload), /3 new answers; 3 of 4/);
+  store.ack(round, item.seq, "w");
+  store.saveDraft(round, pick("q1", "q2", "q3", "q4"));
+  assert.equal(await quiet(store.next(round, { waiter: "w", events: true, timeoutMs: 5000 })), "quiet", "one new answer is below the count and the pause is long");
+});
+
+test("live questions round: a batch after the pause; a round without live sends none", async (t) => {
+  const { store, round } = await liveRound(t, true, { DECIDE_LIVE_PAUSE_MS: "150" });
+  const held = store.next(round, { waiter: "w", events: true, timeoutMs: 5000 });
+  store.saveDraft(round, pick("q2"));
+  const item = await quiet(held, 3000);
+  assert.deepEqual(Object.keys(item.payload.answers), ["q2"]);
+
+  const plain = await liveRound(t, false, { DECIDE_LIVE_PAUSE_MS: "10", DECIDE_LIVE_COUNT: "1" });
+  plain.store.saveDraft(plain.round, pick("q1", "q2", "q3"));
+  assert.equal(await quiet(plain.store.next(plain.round, { waiter: "w", events: true, timeoutMs: 5000 })), "quiet", "the agent hears only the final answers");
+  plain.store.finish(plain.round, { answers: { q1: { selected: ["a"] } } });
+  assert.equal((await plain.store.next(plain.round, { waiter: "w", events: true })).kind, "final");
+});
