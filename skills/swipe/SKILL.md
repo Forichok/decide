@@ -7,8 +7,8 @@ description: Run a thorough interview as a deck of two-sided cards the user answ
 
 You open a deck of cards on a local page. Each card is a simple question
 with exactly two answers. The user presses `←` or `→` to pick a side, `↑` to
-skip, `↓` to ask you to explain, `Space` to open the answers folded under the
-question (what, how, why, what for, what happens), `Enter` to type their own answer when
+skip, `↓` to ask you to explain, `Space` to open `more` under the
+question, `Enter` to type their own answer when
 neither side fits, `Backspace` to take the last answer back, and `Esc` or the
 "Enough, build the brief" button to stop. To the left of the deck you keep a
 brief: the goal, then short points grouped as decisions, risks, problems
@@ -86,10 +86,7 @@ done, and on that message call `wait {project, round, timeoutSec: 5}` first.
       "tldr": "The whole combat engine depends on this.",
       "left": { "label": "Turn by turn", "detail": "One shark moves at a time" },
       "right": { "label": "Real time", "detail": "Everyone fires at once" },
-      "what": "Who moves when: one shark per turn, or all sharks at once.",
-      "how": "Turn by turn: a 30 s timer per move. Real time: everyone aims and fires freely.",
       "why": "Netcode, AI and the whole combat engine are built around this.",
-      "goal": "Pick the game feel before any level or weapon is designed.",
       "then": "← one simple game loop, easy hot-seat play. → a sync server and lag handling first, ~2 extra weeks.",
       "recommended": "left",
       "reason": "it is how Worms works, and simpler to get right"
@@ -109,7 +106,7 @@ done, and on that message call `wait {project, round, timeoutSec: 5}` first.
 | `recommended`, `reason`       | The side you would pick and why. Shown as ★ and a faint highlight. Leave it out when you truly have no view.            |
 | `section`, `tldr`, `stakes`   | A small heading, one line on what depends on the answer, `"high"` for money, data and anything hard to undo.             |
 | `from`                        | On a follow-up: the id of the card whose answer brought it up. The card shows "Because you answered: …".                |
-| `what`, `how`, `why`, `goal`, `then` | The answers to the questions the user would otherwise stop and ask: what this is, how each side would work, why it matters, what it is for, what happens after each side. Markdown, a sentence or two each. They fold under the question; `Space` opens them, and the fold stays open on the next cards once opened. |
+| `why`, `then`, `more`         | `why`: one line on what depends on the answer. `then`: what happens after each side ("← one loop, easy hot-seat. → a sync server first"). `more`: the rest, in markdown. `Space` opens `more`, and it stays open on the next cards. The old `what`, `how` and `goal` are joined into `more` when a 2.x deck is read. |
 | `body`                        | Markdown under the title: a short table, a quote, a list, an `###` heading. For the facts the answer rests on, not for an essay; lint warns past 700 characters. |
 | media                         | `images`, `compare`, `video`, `preview`, `html`, `chart`, `table`, `diff`, `mermaid`, `code`, `links`. See [What a card can show](#what-a-card-can-show). |
 
@@ -169,11 +166,11 @@ preview and the card has one too, and when the limits above are crossed.
   want. If one side exists only to lose, cut the card and write the point into
   the brief as a decision.
 - **Answer the follow-up questions up front.** Every card gets the fold:
-  at least `why` and `then`, plus `what` and `how` whenever a term or a
+  at least `why` and `then`, plus `more` whenever a term or a
   side isn't obvious. Write what the user would ask with `↓` ("what is
   that?", "why does it matter?", "what happens if I pick this?"), so they
   open the fold instead of waiting for you. Lint warns about cards that have
-  none of the five.
+  no `why` or no `then`.
 - **Plain words.** The user reads a card in two seconds. Put jargon in
   `tldr` or `detail`, or leave it out.
 - **Yes/no is fine** when the question is really about a single thing: "Does
@@ -237,6 +234,24 @@ Reading answers:
   read, or answered it again after taking it back. Keep the answer, but treat
   it as weak: note it as `open` or `risk` when it carries weight, and ask it
   once more, differently, if the work depends on it.
+
+## Ghosts and stale cards
+
+A card can stop being relevant after an answer. A rule in the deck, or your
+`push`, marks it a ghost: the deck skips it and lists it with the reason, and
+the user can bring it back. A ghost's earlier answer stays on disk and is left
+out of what you act on.
+
+An answer can turn stale: its side was removed or rewritten, or you marked it.
+Stale answers come back as cards at the end of the deck with the old answer
+preselected, so the user keeps it or answers again. The deck cannot finish
+while one is unconfirmed.
+
+`push` is the swipe-shaped form of `patch`. `remove` on an answered card, which
+2.1 refused, now makes it a ghost. `replace` on a card with an answer marks the
+answer stale unless you pass `keepAnswers: true`. A reply to a card question can
+also carry a `patch`, so you can change the card on screen and the ones after it.
+<!-- check: push field names after the merge -->
 
 ## Dig deeper
 

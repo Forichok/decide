@@ -27,8 +27,8 @@
       "title": "Which home screen layout do we go with?",
       "tldr": "This decides what people see first.",
       "body": "| Screen | Visits a day |\n|---|--:|\n| Today | 4 100 |\n| Inbox | 900 |",
-      "why": "…",
-      "more": "…",
+      "why": "What depends on the answer, one line.",
+      "more": "Everything else, behind one button. Markdown.",
       "type": "single",
       "layout": "compare",
       "stakes": "high",
@@ -86,7 +86,9 @@
   and becomes its placeholder. Without it the note stays behind a button.
 - `allowOther: false` hides the "own option" field (single and multi only).
 - `showIf` entries take `question` plus `in` and/or `notIn`. Point them at
-  earlier questions; the linter warns otherwise.
+  earlier questions; the linter warns otherwise. In 3.0 a question whose
+  `showIf` fails is a ghost, not hidden. `showIf` is read as a rule; new specs
+  should use `rules` (below).
 - Markdown in text fields: `**bold**`, `_italic_`, `` `code` ``,
   `[link](https://…)`, lists, paragraphs. Terms from `glossary` get a tooltip.
 - `body` takes more markdown, and stays open: tables (`| a | b |` with a
@@ -115,6 +117,119 @@
 | `text` | A free-text answer; placeholder is the hint shown in the empty field. | `placeholder` |
 | `confirm` | A yes / no / yes-with-changes question; the engine writes the three options, "changes" opens the note. | `default` |
 <!-- /registry:types -->
+
+### New in 3.0
+
+These fields are optional. A 2.x spec uses none of them. The generated tables
+list every field of each type; this section says how the new ones behave.
+<!-- check: field names below come from the design; compare with the generated tables after the merge -->
+
+**Anatomy.** `why` (question): one line on what depends on the answer. `then`
+(option): what happens next if it is picked. `more` (question): the rest, behind
+one button. `what`, `how`, `goal` and a question-level `then` are gone; a 2.x
+spec's copies are joined into `more` on read. Lint warns on a choice question
+without `why` and on an option without `then`.
+
+**Evidence.** A pro, a con, a metric or a `recommended` reason is a string or
+`{text, evidence, source}`. `evidence` is `measured`, `estimate` or `guess`.
+Lint warns when `measured` has no `source` (a command, a file or a link).
+
+**`rules`.** A list on the round:
+
+```json
+"rules": [
+  { "when": { "question": "confirm", "in": ["link"] },
+    "reason": "you chose sign-in without an account",
+    "do": [
+      { "ghost": ["recover"] },
+      { "removeOptions": { "question": "store", "options": ["guest-account"] } }
+    ] }
+]
+```
+
+`when` takes `question` plus `in` and/or `notIn`. `do` is a list of operations
+(the same as `patch`, below). Effects are computed from the current answers, so
+changing an answer back undoes them. Evaluation runs to a fixed point with a cap
+of one pass more than there are questions. Rules that contradict or feed each
+other end and give the same result on a second run; lint names the loop.
+
+**`patch` operations** (tool `patch {round, ops, reason, keepAnswers?, override?}`, or the `patch` field of `explain`):
+
+| Operation | Takes | Effect |
+| --- | --- | --- |
+| `ghost` / `restore` | item ids | Grey an item with the reason, or bring it back |
+| `set` | `{question, fields}` | Change fields; marks the item changed |
+| `addOptions` / `removeOptions` / `setOptions` | `{question, options}` | Change options; a removed selected option makes the answer stale |
+| `add` | item, `before` or `after` | A new item |
+| `remove` | item id | Only for an item the user has not seen; otherwise it becomes a ghost |
+| `recommend` | `{question, option, reason}` | Move the recommendation |
+| `stale` | question ids | Mark an answer for checking |
+| `brief` | the new brief | Rewrite the task panel |
+| `knobs` | `{question, values?, preview?}` | Move controls or replace the mockup of a `tune` question |
+
+Order of strength, strongest first: the user (a ghost he restored stays
+restored), a patch with `override: true`, the rules, ordinary patches, the spec
+as opened. `keepAnswers: true` keeps a cosmetic edit from marking answers stale.
+In swipe, `push` is the swipe-shaped form of `patch`.
+
+**`live: true`** (round). `wait` returns batches: after 3 answers or about 20 s
+of pause. Without it the agent hears the answers at the end; rules still react.
+
+**`brief`** (round, both modes). The task panel: what the task is, what is
+decided, what the agent checked itself, what is open. A string or the same
+points as in swipe. Rewrite it with the `brief` operation.
+
+**`touches`** (question). A list of `money`, `data`, `security`, `public`. With
+`reversible: false`, `stakes: "high"` and `mine: true` it decides whether a
+question passes the project's ask level. At the middle level lint demands
+`reversible` on every question.
+
+**`dependsOn`** (question). Ids of earlier questions or rounds this one rests
+on. The journal map draws them as edges, with the edges from rules and `supersede`.
+
+**`tune`** (type). Fields: `preview` (the mockup), `knobs`, `presets`, `frames`
+(`mobile`, `desktop`), `themes` (`light`, `dark`), `derived`. A knob is
+`{id, type, label, value, ...}` with `type` one of `range` (`min`, `max`, `step`),
+`toggle`, `select` (`options`), `color`, `text`, `image`. The server adds a
+bridge to the served mockup: `--knob-<id>` on the root, text or an image into
+`[data-knob="<id>"]`, a `decide:knobs` event with `{values}`, and `data-theme`
+plus `color-scheme` on the root. A mockup needs no script of its own. `derived`
+is `{id: "formula"}` over knob ids: numbers, `+ - * / %`, parentheses, unary
+minus, `min`, `max`, `round`, `abs`. A bad formula is a lint error and shows no
+value.
+
+```json
+{ "id": "price", "type": "tune", "title": "What does the plan cost?",
+  "why": "This sets the revenue forecast.",
+  "preview": "price.assets/table.html",
+  "knobs": [
+    { "id": "price", "type": "range", "label": "Price", "min": 5, "max": 30, "value": 12 },
+    { "id": "clients", "type": "range", "label": "Clients", "min": 10, "max": 500, "value": 120 },
+    { "id": "churn", "type": "range", "label": "Churn", "min": 0, "max": 1, "step": 0.05, "value": 0.1 }
+  ],
+  "derived": { "revenue": "price * clients * (1 - churn)" } }
+```
+
+**Other new types.** Field names follow the design; check them against the generated table.
+
+| Type | Fields | Answer |
+| --- | --- | --- |
+| `buckets` | `buckets` (names), `options` (the items) | `{buckets: {now: [ids], later: [ids]}}` |
+| `tradeoff` | `poles` (two labels), `recommended` (0 to 100) | `{value: 0-100}` |
+| `spot` | `images` (the screenshot) | `{points: [{x, y, w, h, text}]}` in percent |
+| `versus` | `options` (4 to 8 variants) | `{winner, order, pairs}` |
+
+```json
+{ "id": "scope", "type": "buckets", "title": "Sort these by when we need them",
+  "why": "This decides what the first release holds.",
+  "buckets": ["now", "later", "no"],
+  "options": [{ "id": "sso", "label": "Single sign-on" }, { "id": "export", "label": "CSV export" }] }
+```
+
+**Answers of the ready buttons.** "Yes, but..." gives `selected` plus
+`condition`. "None, suggest others" gives `flag: "none"` and an optional `note`.
+"Later" gives `flag: "later"` and `revisit`, the condition to come back on.
+`history` and the result of `ask` list deferred decisions.
 
 ### Media
 
@@ -176,6 +291,12 @@ skipped. Viewports: desktop 1440×900, mobile 390×844 at 2×. Set
   "digest": "1. [layout] …"
 }
 ```
+
+3.0 adds to an answer: `condition`, `flag: "none"`, `flag: "later"` with
+`revisit`, and for `tune` `values`, `preset`, `snapshots`, `picked`,
+`candidates` and `derived`. The file lists `ghosts: [{id, reason}]`: questions
+that stopped being relevant. Their earlier answers stay on disk and are left
+out of `answers`. A round with an unconfirmed stale answer cannot be sent.
 
 `auto: true` marks a question the user left unanswered. Before sending they
 choose what happens to those: `flag: "delegate"` means the recommendation stands
@@ -262,9 +383,14 @@ id in the file lets a second call, and `supersede`, find and update it.
 
 ## Where things live
 
-Each project gets a data dir, `~/.decide/projects/<name>-<hash>/`
-(`DECIDE_HOME` moves the root). The project is the nearest directory with
-`.git` above the one you pass. The data dir holds the page server state, the
-decision journal (`journal.jsonl`), inline specs (`rounds/`), screenshots
-(`shots/`) and export records (`exports/`). One browser tab serves every round of a project; the server stops
-after 30 idle minutes.
+One server per machine serves every project, at `127.0.0.1:47474`
+(`DECIDE_PORT` moves it; another `DECIDE_HOME` gets a port of its own). Data
+lives under `~/.decide` (`DECIDE_HOME` moves it). Each project has
+`~/.decide/projects/<name>-<hash>/`. The project is the git common directory,
+so worktrees of one repository share it. It holds the decision journal
+(`journal.jsonl`), screenshots (`shots/`), export records (`exports/`) and
+`rounds/<id>/`: the spec as opened, an append-only event log, uploaded files and
+the answers. The log is the truth; the server is a replay of it and can be
+killed at any time. A round never expires. The server stops 30 minutes after the
+last waiting agent or open page. 2.1 servers on ports 43100 to 43899 are left
+alone.
