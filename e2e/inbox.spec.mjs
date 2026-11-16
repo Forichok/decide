@@ -49,9 +49,6 @@ test("high stakes come first in the order of the rail", async ({ page }) => {
 });
 
 test("dismiss takes a round out of the rail after one confirmation", async ({ page }) => {
-  // BUG (product): the page's POST /api/rounds/:id/dismiss is refused with 403, because lib/http.mjs lists
-  // dismiss among the agent-only routes, so the page (Origin, no token) can never dismiss. Expected to fail.
-  test.fail();
   const keep = await d.open(named("Dismiss keeper"));
   await d.open(named("Dismiss victim"));
   await openRound(page, d, keep);

@@ -151,6 +151,7 @@ export const digDeeper = noAgent;
 export const askAgent = noAgent;
 
 export const getJournal = async () => ({ entries: [] });
+export const getMap = async () => ({ nodes: [], edges: [], mermaid: "", projects: [], rounds: [] });
 
 export function listen(onState, onStatus) {
   queueMicrotask(() => onStatus(true));

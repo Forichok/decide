@@ -16,11 +16,7 @@ const many = () => {
   return s;
 };
 
-// BUG (product): the round's action buttons ("I have 5 minutes", "Export this round") never show. main.js
-// builds the round with env() before app.round is set, so env.currentId is empty (or the previous round's)
-// when header.js decides whether to draw roundActions. The server routes work; see the tests that call them.
 test("'I have 5 minutes' on the page keeps the questions that fit and lists the rest as left out", async ({ page }) => {
-  test.fail();
   const id = await d.open(many());
   await openRound(page, d, id);
   const before = await page.locator(".card").count();
@@ -39,10 +35,7 @@ test("the 5 minutes route keeps the questions that fit and says what was left ou
   expect(round.spec.questions.length).toBe(res.data.kept);
 });
 
-test("the page's Export button is refused by the server", async ({ page }) => {
-  // BUG (product): the page's own POST /api/rounds/:id/export gets a 403, because lib/http.mjs lists export
-  // among the agent-only routes (the same cause as the rail's dismiss). Expected to fail.
-  test.fail();
+test("the page's Export button writes the file beside the answers", async ({ page }) => {
   const id = await d.open(spec());
   await openRound(page, d, id);
   const status = await page.evaluate(async (rid) => (await fetch(`/api/rounds/${rid}/export`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status, id);
@@ -50,9 +43,6 @@ test("the page's Export button is refused by the server", async ({ page }) => {
 });
 
 test("an exported file, answered offline, imports back into the round", async ({ page }) => {
-  // BUG (product): the exported page does not start: ui/js/offline.js has no `getMap` export, which
-  // ui/js/map.js imports from net.js, so the module graph fails ("does not provide an export named getMap").
-  test.fail();
   const id = await d.open(spec());
   const out = path.join(d.project, "exported.decide.html");
   const exported = await d.must("POST", `/api/rounds/${id}/export`, { out });

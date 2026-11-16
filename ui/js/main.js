@@ -121,7 +121,9 @@ function showRound(data) {
   app.round?.stop();
   app.view = "round";
   app.done = null;
-  app.round = data.mode === "swipe" ? mountSwipe(data, env()) : mountRound(data, env());
+  // The header draws the round's own buttons for the round being shown, before app.round names it.
+  const e = { ...env(), currentId: data.id };
+  app.round = data.mode === "swipe" ? mountSwipe(data, e) : mountRound(data, e);
   syncRail();
 }
 

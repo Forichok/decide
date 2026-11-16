@@ -126,9 +126,8 @@ test("guard: the routes only an agent calls take the token and nothing else, and
     ["POST", "/api/rounds/1-abcdef/ack"],
     ["POST", "/api/rounds/1-abcdef/explain"],
     ["POST", "/api/rounds/1-abcdef/push"],
-    ["POST", "/api/rounds/1-abcdef/export"],
     ["POST", "/api/rounds/1-abcdef/import"],
-    ["POST", "/api/rounds/1-abcdef/dismiss"],
+    ["POST", "/api/rounds/1-abcdef/patch"],
   ];
   for (const [method, route] of agent) {
     assert.equal(verdict(guardOf(req(method, route, { origin: own }))), 403, `${method} ${route} with only the page's Origin`);
@@ -136,6 +135,7 @@ test("guard: the routes only an agent calls take the token and nothing else, and
     assert.equal(verdict(guardOf(req(method, route, { "x-decide-token": opts.token }))), "ok", `${method} ${route} with the token`);
   }
   // Reads and the page's own writes take either proof.
+  for (const route of ["/api/rounds/1-abcdef/export", "/api/rounds/1-abcdef/dismiss"]) assert.equal(verdict(guardOf(req("POST", route, { origin: own }))), "ok", `${route}: the page's own button`);
   assert.equal(verdict(guardOf(req("GET", "/api/rounds/1-abcdef"))), "ok");
   assert.equal(verdict(guardOf(req("GET", "/api/events"))), "ok");
   assert.equal(verdict(guardOf(req("PUT", "/api/rounds/1-abcdef/draft", { origin: own }))), "ok");
@@ -214,7 +214,6 @@ test("the agent's routes take the token only: the page's own Origin is not enoug
   assert.equal((await send(agent, `/api/rounds/${id}/explain`, "POST", { question: "color", text: "x" })).status, 200);
   assert.equal((await send(page, `/api/rounds/${id}/next?waiter=a&timeout=1000`, "GET")).status, 403, "a wait takes the round over");
   assert.equal((await send(agent, `/api/rounds/${id}/next?waiter=a&timeout=1000`, "GET")).status, 204, "nothing came, and the token was enough");
-  assert.equal((await send(page, `/api/rounds/${id}/dismiss`, "POST")).status, 403, "dismiss");
   assert.equal((await send(page, "/api/stop", "POST")).status, 403, "stop");
   assert.equal((await send(page, "/api/handover", "POST")).status, 403, "handover");
   // What the page does keeps working with the Origin alone, and with the token alone.
@@ -894,6 +893,18 @@ test("export through the server is held to the project and the data dir unless o
   const allowed = await fetch(url(port, `/api/rounds/${id}/export`), { method: "POST", headers: asAgent(port), body: body({ out: target, outside: true }) });
   assert.equal(allowed.status, 200);
   assert.equal(existsSync(target), true);
+});
+
+test("the page dismisses a round and exports it beside its answers; only the token picks another place", async (t) => {
+  const { dir, port, id } = await served(t);
+  const elsewhere = await scratchDir(t);
+  const target = path.join(elsewhere, "page.decide.html");
+  const res = await fetch(url(port, `/api/rounds/${id}/export`), { method: "POST", headers: asPage(port), body: body({ out: target, outside: true }) });
+  assert.equal(res.status, 200);
+  assert.equal(existsSync(target), false, "the page's out and outside are ignored");
+  assert.equal((await res.json()).file, path.join(dir, "c.decide.html"));
+  assert.equal(existsSync(path.join(dir, "c.decide.html")), true);
+  assert.equal((await fetch(url(port, `/api/rounds/${id}/dismiss`), { method: "POST", headers: asPage(port), body: body({}) })).status, 200, "dismiss from the inbox");
 });
 
 test("export from a linked worktree outside the main checkout: the route, the CLI and MCP judge against the worktree (skipped without git)", { skip: !hasGit && "git is not installed" }, async (t) => {
