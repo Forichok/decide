@@ -873,7 +873,7 @@ test("a patch ghosts a question, restore brings it back, a stale answer blocks f
   assert.deepEqual(types(roundDir(roundArgs.project.dataDir, r.id)), ["opened", "draft", "patch", "restore", "patch", "keep", "patch", "sent"]);
 });
 
-test("rules from the spec ghost a question by the answers, and a swipe round has no view", async (t) => {
+test("rules from the spec ghost a question by the answers, and a swipe round has a view of its cards", async (t) => {
   const { roundArgs, swipeArgs, open } = await setup(t);
   const views = [];
   const s = open({ on: { view: (round, view) => views.push(view.ghosts.map((g) => g.id)) } });
@@ -889,7 +889,10 @@ test("rules from the spec ghost a question by the answers, and a swipe round has
   const result = s.finish(r, { answers: { layout: { selected: ["split"] }, colour: { selected: ["red"] } } });
   assert.deepEqual(Object.keys(result.answers), ["layout"]);
   assert.deepEqual(result.ghosts, [{ id: "colour", reason: "split has one colour" }]);
+  // 3.0 (R6): a swipe deck is a view of cards, and patch works on it.
   const w = s.create(swipeArgs);
-  assert.equal(s.roundView(w), null);
-  assert.throws(() => s.patch(w, { ops: [{ ghost: ["c1"] }] }), (e) => e.status === 409);
+  const first = s.roundView(w).items[0].id;
+  assert.deepEqual(s.roundView(w).ghosts, []);
+  s.patch(w, { ops: [{ ghost: [first] }], reason: "moot" });
+  assert.deepEqual(s.roundView(w).ghosts, [{ id: first, reason: "moot" }]);
 });

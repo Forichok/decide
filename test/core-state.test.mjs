@@ -38,7 +38,7 @@ const result = (extra = {}) => ({ version: 2, round: "1-abc123", title: "Pick a 
 const strip = (o) => JSON.parse(JSON.stringify(o, (k, v) => (k === "at" ? undefined : v)));
 
 test("EVENTS lists the twenty-two event types", () => {
-  assert.deepEqual(EVENTS, ["opened", "draft", "answer", "note", "flag", "upload", "ask", "reply", "swipe", "push", "deeper", "batch", "request", "acked", "sent", "cancelled", "dismissed", "imported", "patch", "restore", "keep", "words"]);
+  assert.deepEqual(EVENTS, ["opened", "draft", "answer", "note", "flag", "upload", "ask", "reply", "swipe", "push", "deeper", "batch", "request", "acked", "sent", "cancelled", "dismissed", "imported", "patch", "restore", "keep", "words", "seen"]);
 });
 
 test("draft events: the last one is the draft", () => {

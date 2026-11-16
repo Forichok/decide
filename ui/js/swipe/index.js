@@ -12,7 +12,8 @@ import { t } from "../i18n.js";
 import { eyebrow } from "../header.js";
 import { hideBar } from "../round.js";
 import { modalOpen, openLightbox, openModal, openZoom, toast } from "../overlays.js";
-import { askAgent, digDeeper, holdReload, keepAnswer, restoreItem, submitRound, swipeCard } from "../net.js";
+import { askAgent, digDeeper, holdReload, keepAnswer, markSeen, restoreItem, submitRound, swipeCard } from "../net.js";
+import { seenReporter } from "../seen.js";
 import { resolve, sigOf, swipeQueues } from "../states.js";
 import { createBrief } from "./brief.js";
 import { createDeck } from "./deck.js";
@@ -93,7 +94,10 @@ export function mountSwipe(round, env) {
     if (reading.since !== null) reading.ms += now - reading.since;
     reading.since = !document.hidden && !s.asking && !s.writing ? now : null;
   };
+  // A card counts as seen once it is shown: an agent's push that drops it then leaves a ghost.
+  const seen = seenReporter((ids) => markSeen(round.id, ids), { known: s.server.view?.seen || [] });
   s.readFor = (id) => {
+    seen.add(id);
     if (reading.card === id) return readTick();
     Object.assign(reading, { card: id, ms: 0, since: null });
     readTick();
@@ -347,7 +351,11 @@ export function mountSwipe(round, env) {
       env.finished(round.id, res.result);
     } catch (e) {
       s.finishing = false;
-      if (e.status === 409) env.switchTo(round.id);
+      // Answers still to check: they wait at the end of the deck; the round is not sent before them.
+      if (e.status === 409 && Array.isArray(e.data?.stale)) {
+        toast(t("sw.checkFirst", e.data.stale.length));
+        s.paint();
+      } else if (e.status === 409) env.switchTo(round.id);
       else toast(t("toast.sendFailed"));
     }
   };
@@ -415,6 +423,7 @@ export function mountSwipe(round, env) {
     stop() {
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("visibilitychange", readTick);
+      seen.stop();
       document.body.classList.remove("swipe-mode");
       deckView.stop();
     },

@@ -177,3 +177,18 @@ test("a swipe deck's cards are items too", () => {
   assert.deepEqual(v.items.map((e) => [e.id, e.state]), [["c1", "normal"], ["c2", "ghost"]]);
   assert.deepEqual(v.brief, []);
 });
+
+test("seen events: a patch drops only what was unseen when it came; swipe events are a deck's answers", () => {
+  const removeAll = (seq) => ({ seq, type: "patch", ops: [{ remove: ["confirm", "recover", "store"] }], reason: "moot" });
+  const v = viewOf(spec, [{ seq: 1, type: "seen", ids: ["confirm"] }, removeAll(2), { seq: 3, type: "seen", ids: ["recover"] }]);
+  assert.deepEqual(v.items.map((e) => [e.id, e.state]), [["confirm", "ghost"]], "seen before the patch: a ghost; seen after: already gone");
+  assert.deepEqual(v.seen, ["confirm", "recover"]);
+
+  const deck = { cards: [{ id: "c1", title: "?", left: { label: "L" }, right: { label: "R" } }, { id: "c2", title: "?", left: { label: "L" }, right: { label: "R" } }] };
+  const w = viewOf(deck, [{ seq: 1, type: "swipe", card: "c1", side: "left" }, { seq: 2, type: "swipe", card: "c2", side: "skip" }, { seq: 3, type: "patch", ops: [{ set: { id: "c1", left: { label: "Other" } } }, { remove: ["c2"] }], reason: "r" }]);
+  assert.deepEqual(w.answers.c1, { side: "left" });
+  assert.deepEqual(w.stale, ["c1"], "a changed side makes the answer doubtful");
+  assert.deepEqual(w.ghosts, [{ id: "c2", reason: "r" }], "a skipped card was on screen: it greys out");
+  const undone = viewOf(deck, [{ seq: 1, type: "swipe", card: "c1", side: "left" }, { seq: 2, type: "swipe", card: "c1", undo: true }]);
+  assert.deepEqual(undone.answers, {});
+});

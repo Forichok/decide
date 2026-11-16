@@ -116,7 +116,8 @@ test("tools/list has the eleven 2.1 tools plus lint, stop, rules and patch, as 2
     const now = tools.find((t) => t.name === old.name);
     assert.deepEqual(now.inputSchema.required ?? [], old.inputSchema.required ?? [], `${old.name}: required`);
     // 3.0 added one parameter to export, last: outside (a file outside the project).
-    const added = old.name === "export" ? ["outside"] : old.name === "explain" ? ["patch"] : [];
+    // 3.0 also added push's reason and keepAnswers (push runs through the patch engine).
+    const added = old.name === "export" ? ["outside"] : old.name === "explain" ? ["patch"] : old.name === "push" ? ["reason", "keepAnswers"] : [];
     assert.deepEqual(Object.keys(now.inputSchema.properties), [...Object.keys(old.inputSchema.properties), ...added], `${old.name}: parameter names, in order`);
     if (old.name === "ask" || old.name === "swipe") {
       assert.ok(now.description.startsWith(old.description), `${old.name}: description starts as before`);
@@ -132,7 +133,8 @@ test("tools/list has the eleven 2.1 tools plus lint, stop, rules and patch, as 2
       const { outside: _added, ...kept } = now.inputSchema.properties;
       // 3.0 added explain's optional patch.
       const { patch: _patch, ...keptExplain } = now.inputSchema.properties;
-      const props = old.name === "export" ? kept : old.name === "explain" ? keptExplain : now.inputSchema.properties;
+      const { reason: _reason, keepAnswers: _keep, ...keptPush } = now.inputSchema.properties;
+      const props = old.name === "export" ? kept : old.name === "explain" ? keptExplain : old.name === "push" ? keptPush : now.inputSchema.properties;
       assert.equal(canon({ ...now.inputSchema, properties: props }), canon(old.inputSchema), `${old.name}: schema`);
     }
   }
