@@ -10,7 +10,7 @@ import { credit, renderHeader } from "./header.js";
 import { renderToc, syncToc, trackCurrent } from "./nav.js";
 import { openLightbox, openZoom, toast } from "./overlays.js";
 import { emptyAnswer, isResolved, isVisible, progress, withRecommendation } from "./logic.js";
-import { askAgent, saveDraft, uploadFile } from "./net.js";
+import { askAgent, holdReload, saveDraft, uploadFile } from "./net.js";
 
 const MAX_UPLOAD = 24 * 1024 * 1024;
 
@@ -27,6 +27,7 @@ export function mountRound(round, env) {
     ui: { note: new Set(), other: new Set(), ask: new Set(), askDraft: new Map() },
   };
   const live = Boolean(round.live);
+  holdReload("view", () => [...s.ui.askDraft.values()].some((text) => text.trim()));
   // Live "explain" means "waiting for the agent": drop it once every ask on the question has a reply.
   const settleExplain = (dialog) => {
     for (const [qid, a] of Object.entries(answers)) {

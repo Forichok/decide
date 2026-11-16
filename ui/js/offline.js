@@ -82,6 +82,7 @@ export function download() {
 }
 
 export const answererName = () => load()?.name || "";
+export const holdReload = () => {}; // an exported file has no server to restart
 
 // "Change answers" on the done screen: the round opens again with the draft.
 export const reopen = () => {

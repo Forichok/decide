@@ -41,6 +41,8 @@ export async function stopServer(home) {
   } catch {
     return; // no server
   }
+  // An in-process server names this very process: never signal or wait on yourself (its test stops it).
+  if (info.pid === process.pid) return;
   // Only a decide server of this home with that pid is asked and waited for: daemon.json may name anything.
   const pong = alive(info.pid) ? await ping(info.port) : null;
   if (pong?.app !== "decide" || pong.home !== path.resolve(home) || pong.pid !== info.pid) return;

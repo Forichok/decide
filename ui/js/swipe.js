@@ -12,7 +12,7 @@ import { eyebrow } from "./header.js";
 import { hideBar } from "./round.js";
 import { modalOpen, openLightbox, openModal, openZoom, toast } from "./overlays.js";
 import { FACETS } from "./question.js";
-import { askAgent, digDeeper, submitRound, swipeCard } from "./net.js";
+import { askAgent, digDeeper, holdReload, submitRound, swipeCard } from "./net.js";
 
 const KINDS = ["decision", "risk", "problem", "open", "note"];
 const KIND_ICON = { decision: "check", risk: "alert", problem: "x", open: "help", note: "note" };
@@ -46,6 +46,7 @@ export function mountSwipe(round, env) {
   let arrived = new Set(); // cards the agent just added: they slide into the stack
   let deltaTimer = null;
   let note = ""; // the closing note, shared by the done screen and the "Enough" dialog
+  holdReload("view", () => [note, ownDraft, askDraft].some((text) => text.trim()));
   let digging = false; // a "Dig deeper" request is on its way
   const media = { toast, lightbox: (images, i) => openLightbox(images, i), zoom: openZoom };
   // How long the front card has been read: only while the tab is visible and no ask or own-answer box is open.
