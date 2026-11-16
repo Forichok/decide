@@ -1,7 +1,8 @@
-// net.js — API calls to the session daemon. Every write carries x-decide,
-// which the daemon requires (cross-site pages cannot send it without CORS).
+// net.js — API calls to the session daemon. The page proves itself by its Origin: the browser puts it on
+// every fetch that is not a GET (POST and PUT here), and the daemon only takes a write whose Origin is its
+// own. The page holds no token and makes no other kind of write.
 
-const WRITE = { "content-type": "application/json", "x-decide": "1" };
+const WRITE = { "content-type": "application/json" };
 
 // An exported file swaps this module for offline.js, which has the same exports.
 export const offline = false;
@@ -38,7 +39,6 @@ export function uploadFile(id, file) {
   return fetch(`/api/rounds/${id}/upload`, {
     method: "POST",
     headers: {
-      "x-decide": "1",
       "content-type": file.type || "application/octet-stream",
       "x-file-name": encodeURIComponent(file.name || "screenshot.png"),
     },

@@ -86,7 +86,7 @@ function blocks(s) {
       const rows = [];
       for (i += 2; i < lines.length && lines[i].includes("|") && lines[i].trim(); i++) rows.push(cells(lines[i]));
       i -= 1;
-      const td = (tagName, c, j) => `<${tagName}${align[j] ? ` style="text-align:${align[j]}"` : ""}>${c}</${tagName}>`;
+      const td = (tagName, c, j) => `<${tagName}${align[j] ? ` class="al-${align[j]}"` : ""}>${c}</${tagName}>`;
       out.push(
         `<div class="md-table"><table><thead><tr>${head.map((c, j) => td("th", c, j)).join("")}</tr></thead><tbody>${rows
           .map((r) => `<tr>${head.map((_, j) => td("td", r[j] ?? "", j)).join("")}</tr>`)

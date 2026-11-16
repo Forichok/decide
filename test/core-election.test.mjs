@@ -21,7 +21,7 @@ import test from "node:test";
 import { DEFAULT_PORT, lockPath, portForHome, readInfo } from "../lib/home.mjs";
 import { PROTOCOL, speaks } from "../lib/protocol.mjs";
 import { formatResult } from "../lib/prepare.mjs";
-import { alive, enginePath, exitOf, homeOf, notePid, ping, runEngine, scratchDir, spawnServer, WRITE } from "./helpers.mjs";
+import { alive, enginePath, exitOf, homeOf, notePid, ping, runEngine, scratchDir, spawnServer, asAgent, asPage } from "./helpers.mjs";
 
 // A scratch home maps to 44000 + fnv1a(home) % 2000; DECIDE_PORT from the shell must not move it.
 delete process.env.DECIDE_PORT;
@@ -32,8 +32,12 @@ const spec = {
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const get = async (port, route) => (await fetch(`http://127.0.0.1:${port}${route}`)).json();
+// The page's side (its Origin) and the agent's (the token of the home's daemon.json).
+const agentGet = async (port, route) => (await fetch(`http://127.0.0.1:${port}${route}`, { headers: asAgent(port) })).json();
 const post = (port, route, body, headers = {}) =>
-  fetch(`http://127.0.0.1:${port}${route}`, { method: "POST", headers: { ...WRITE, ...headers }, body: body === undefined ? undefined : JSON.stringify(body) });
+  fetch(`http://127.0.0.1:${port}${route}`, { method: "POST", headers: asPage(port, headers), body: body === undefined ? undefined : JSON.stringify(body) });
+const agentPost = (port, route, body, headers = {}) =>
+  fetch(`http://127.0.0.1:${port}${route}`, { method: "POST", headers: asAgent(port, headers), body: body === undefined ? undefined : JSON.stringify(body) });
 
 async function until(check, what, ms = 5_000) {
   const end = Date.now() + ms;
@@ -187,7 +191,7 @@ async function serving(t) {
 }
 
 async function openRound(port, dir, extra = {}) {
-  const res = await post(port, "/api/rounds", { project: dir, spec, outPath: path.join(dir, "colour.answers.json"), specFile: path.join(dir, "colour.questions.json"), source: "colour.questions.json", open: false, live: true, ...extra });
+  const res = await agentPost(port, "/api/rounds", { project: dir, spec, outPath: path.join(dir, "colour.answers.json"), specFile: path.join(dir, "colour.questions.json"), source: "colour.questions.json", open: false, live: true, ...extra });
   const body = await res.json();
   assert.equal(res.status, 200, body.error);
   return body.id;
@@ -296,14 +300,14 @@ test("POST /api/stop needs the token; /api/shutdown is gone", async (t) => {
   assert.equal((await post(port, "/api/stop")).status, 403);
   assert.equal((await post(port, "/api/stop", undefined, { "x-decide-token": "wrong" })).status, 403);
   assert.equal(alive(server.pid), true);
-  assert.equal((await post(port, "/api/stop", undefined, { "x-decide-token": readInfo(h).token })).status, 200);
+  assert.equal((await agentPost(port, "/api/stop")).status, 200);
   assert.equal(await exitOf(server.child), 0);
   assert.equal(readInfo(h), null, "a server that stops removes its daemon.json");
 });
 
 test("a round lives in its own project; the journal line goes there; a round needs a project", async (t) => {
   const { dir, port } = await serving(t);
-  assert.equal((await post(port, "/api/rounds", { spec, outPath: path.join(dir, "a.json") })).status, 400);
+  assert.equal((await agentPost(port, "/api/rounds", { spec, outPath: path.join(dir, "a.json") })).status, 400);
   const id = await openRound(port, dir);
   const state = await get(port, "/api/state");
   assert.equal(state.rounds[0].id, id);
@@ -320,18 +324,18 @@ test("next: an item is acknowledged only by ack, and not handed out after it", a
   const id = await openRound(port, dir);
   assert.equal((await post(port, `/api/rounds/${id}/ask`, { question: "color", text: "Why pink?" })).status, 200);
   assert.equal((await get(port, `/api/rounds/${id}`)).dialog[0].seen, false);
-  const asked = await get(port, `/api/rounds/${id}/next?waiter=a&events=1&timeout=5000`);
+  const asked = await agentGet(port, `/api/rounds/${id}/next?waiter=a&events=1&timeout=5000`);
   assert.equal(asked.kind, "ask");
   assert.deepEqual([asked.payload.event, asked.payload.round, asked.payload.ask.question, asked.payload.ask.text], ["ask", id, "color", "Why pink?"]);
   assert.equal((await get(port, `/api/rounds/${id}`)).dialog[0].seen, false, "a response written is not an acknowledgement");
-  assert.equal((await post(port, `/api/rounds/${id}/ack`, { seq: asked.seq, waiter: "a" })).status, 200);
+  assert.equal((await agentPost(port, `/api/rounds/${id}/ack`, { seq: asked.seq, waiter: "a" })).status, 200);
   assert.equal((await get(port, `/api/rounds/${id}`)).dialog[0].seen, true);
-  const again = await fetch(`http://127.0.0.1:${port}/api/rounds/${id}/next?waiter=a&events=1&timeout=1000`);
+  const again = await fetch(`http://127.0.0.1:${port}/api/rounds/${id}/next?waiter=a&events=1&timeout=1000`, { headers: asAgent(port) });
   assert.equal(again.status, 204, "an acknowledged ask is not handed out twice");
 
   // An agent that gave up before the answers came: nothing was handed to it, nothing is acknowledged.
   const gone = new AbortController();
-  const held = fetch(`http://127.0.0.1:${port}/api/rounds/${id}/next?waiter=a&timeout=20000`, { signal: gone.signal }).catch(() => null);
+  const held = fetch(`http://127.0.0.1:${port}/api/rounds/${id}/next?waiter=a&timeout=20000`, { headers: asAgent(port), signal: gone.signal }).catch(() => null);
   await until(async () => (await get(port, "/api/state")).rounds[0]?.waiting, "the waiter to be held");
   gone.abort();
   await held;
@@ -340,11 +344,11 @@ test("next: an item is acknowledged only by ack, and not handed out after it", a
   assert.equal((await get(port, `/api/rounds/${id}`)).delivered, false);
   assert.equal((await get(port, "/api/state")).history[0].delivered, false);
 
-  const final = await get(port, `/api/rounds/${id}/next?waiter=a&timeout=5000`);
+  const final = await agentGet(port, `/api/rounds/${id}/next?waiter=a&timeout=5000`);
   const result = final.payload;
   assert.deepEqual([final.kind, result.round, result.answers.color.selected, result.file], ["final", id, ["blue"], path.join(dir, "colour.answers.json")]);
   assert.equal((await get(port, `/api/rounds/${id}`)).delivered, false);
-  assert.equal((await post(port, `/api/rounds/${id}/ack`, { seq: final.seq, waiter: "a" })).status, 200);
+  assert.equal((await agentPost(port, `/api/rounds/${id}/ack`, { seq: final.seq, waiter: "a" })).status, 200);
   assert.equal((await get(port, `/api/rounds/${id}`)).delivered, true);
   assert.equal((await get(port, "/api/state")).history[0].delivered, true);
 });
@@ -352,18 +356,18 @@ test("next: an item is acknowledged only by ack, and not handed out after it", a
 test("a dismissed round answers a wait at once, held or new", async (t) => {
   const { dir, port } = await serving(t);
   const id = await openRound(port, dir);
-  await fetch(`http://127.0.0.1:${port}/api/rounds/${id}/draft`, { method: "PUT", headers: WRITE, body: JSON.stringify({ answers: { color: { selected: ["pink"] } } }) });
-  const held = get(port, `/api/rounds/${id}/next?waiter=a&timeout=20000`);
+  await fetch(`http://127.0.0.1:${port}/api/rounds/${id}/draft`, { method: "PUT", headers: asPage(port), body: JSON.stringify({ answers: { color: { selected: ["pink"] } } }) });
+  const held = agentGet(port, `/api/rounds/${id}/next?waiter=a&timeout=20000`);
   await until(async () => (await get(port, "/api/state")).rounds[0]?.waiting, "the waiter to be held");
-  const res = await post(port, `/api/rounds/${id}/dismiss`);
+  const res = await agentPost(port, `/api/rounds/${id}/dismiss`);
   assert.equal(res.status, 200);
   const first = await held;
   assert.deepEqual([first.kind, first.payload.dismissed, first.payload.round, first.payload.answers.color.selected], ["dismissed", true, id, ["pink"]]);
   const started = Date.now();
-  const second = await get(port, `/api/rounds/${id}/next?waiter=a&timeout=20000`);
+  const second = await agentGet(port, `/api/rounds/${id}/next?waiter=a&timeout=20000`);
   assert.ok(Date.now() - started < 5_000);
   assert.equal(second.kind, "dismissed");
-  assert.equal((await post(port, `/api/rounds/${id}/dismiss`)).status, 409);
+  assert.equal((await agentPost(port, `/api/rounds/${id}/dismiss`)).status, 409);
   const text = formatResult({ ...second.payload, status: "dismissed" }, second.payload.file);
   assert.match(text.split("\n")[0], /^The user dismissed round «Colour»/);
   assert.match(text, /Pink/);
@@ -374,7 +378,7 @@ test("an explanation's media are published once: the page can load them", async 
   const id = await openRound(port, dir);
   const png = path.join(dir, "logo.png");
   writeFileSync(png, "not-really-a-png");
-  const res = await post(port, `/api/rounds/${id}/explain`, { question: "color", text: "Like the logo.", images: [png] });
+  const res = await agentPost(port, `/api/rounds/${id}/explain`, { question: "color", text: "Like the logo.", images: [png] });
   assert.equal(res.status, 200);
   const view = await get(port, `/api/rounds/${id}`);
   const src = view.dialog[0].reply.images[0].src;
@@ -535,7 +539,7 @@ test("a server that has begun to stop answers 503 to a request in flight and wri
   const id = await openRound(port, dir);
   const body = JSON.stringify({ answers: { color: { selected: ["pink"] } } });
   const status = await new Promise((resolve) => {
-    const req = request({ host: "127.0.0.1", port, method: "PUT", path: `/api/rounds/${id}/draft`, headers: { "x-decide": "1", "content-type": "application/json", "content-length": Buffer.byteLength(body) } }, (res) => {
+    const req = request({ host: "127.0.0.1", port, method: "PUT", path: `/api/rounds/${id}/draft`, headers: { ...asPage(port), "content-length": Buffer.byteLength(body) } }, (res) => {
       res.resume();
       resolve(res.statusCode);
     });

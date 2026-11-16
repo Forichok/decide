@@ -144,8 +144,8 @@ test("lint warns on misuse", async (context) => {
 test("md: tables, quotes and headings stay escape-first", () => {
   const html = md("### Plan <b>\n| Tier | Price |\n|:--|--:|\n| **Pro** <img src=x onerror=alert(1)> | `a|b` |\n\n> quoted _text_\n> - item");
   assert.match(html, /^<h3>Plan &lt;b&gt;<\/h3>/);
-  assert.match(html, /<th>Tier<\/th><th style="text-align:right">Price<\/th>/);
-  assert.match(html, /<td><strong>Pro<\/strong> &lt;img src=x onerror=alert\(1\)&gt;<\/td><td style="text-align:right"><code>a\|b<\/code><\/td>/);
+  assert.match(html, /<th>Tier<\/th><th class="al-right">Price<\/th>/);
+  assert.match(html, /<td><strong>Pro<\/strong> &lt;img src=x onerror=alert\(1\)&gt;<\/td><td class="al-right"><code>a\|b<\/code><\/td>/);
   assert.match(html, /<blockquote><p>quoted <em>text<\/em><\/p><ul><li>item<\/li><\/ul><\/blockquote>/);
   assert.doesNotMatch(html, /<img|<b>/);
   assert.equal(md("a | b\nno separator"), "<p>a | b<br>no separator</p>", "a pipe alone is not a table");

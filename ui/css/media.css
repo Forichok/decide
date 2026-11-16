@@ -139,6 +139,8 @@ table.data th, .md-table th { position: sticky; top: 0; background: var(--surfac
 table.data tr:last-child td, .md-table tr:last-child td { border-bottom: 0; }
 table.data .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 table.data tbody tr:hover td { background: var(--surface-2); }
+.md-table .al-center { text-align: center; }
+.md-table .al-right { text-align: right; }
 .md-table { overflow-x: auto; margin: 4px 0 10px; border: 1px solid var(--line); border-radius: 10px; }
 .rich blockquote { margin: 4px 0 10px; padding: 2px 0 2px 12px; border-left: 3px solid var(--line-strong); color: var(--tx-mut); }
 .rich h3, .rich h4 { margin: 12px 0 6px; font-size: 14px; font-weight: 700; letter-spacing: -0.005em; }

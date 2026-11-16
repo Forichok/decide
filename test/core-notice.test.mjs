@@ -23,7 +23,7 @@ import { roundDir } from "../lib/store/rounds.mjs";
 import { noticeLine, uncollected } from "../lib/store/scan.mjs";
 import { startServer } from "../lib/server.mjs";
 import { ack, api, findServer, waitNext } from "../lib/client.mjs";
-import { enginePath, envOf, exitOf, homeOf, notePid, pluginDir, scratchDir, WRITE } from "./helpers.mjs";
+import { enginePath, envOf, exitOf, homeOf, notePid, pluginDir, scratchDir, asAgent, asPage } from "./helpers.mjs";
 
 delete process.env.DECIDE_PORT;
 process.env.DECIDE_NOTIFY = "0";
@@ -32,7 +32,9 @@ const spec = {
   title: "Colour",
   questions: [{ id: "color", title: "Which colour?", options: [{ id: "pink", label: "Pink" }, { id: "blue", label: "Blue" }] }],
 };
-const post = (port, route, body) => fetch(`http://127.0.0.1:${port}${route}`, { method: "POST", headers: WRITE, body: body === undefined ? undefined : JSON.stringify(body) });
+// The page's side (its Origin) and the agent's (the token of the home's daemon.json).
+const post = (port, route, body) => fetch(`http://127.0.0.1:${port}${route}`, { method: "POST", headers: asPage(port), body: body === undefined ? undefined : JSON.stringify(body) });
+const agentPost = (port, route, body) => fetch(`http://127.0.0.1:${port}${route}`, { method: "POST", headers: asAgent(port), body: body === undefined ? undefined : JSON.stringify(body) });
 
 async function served(t, title = "Colour") {
   const dir = await scratchDir(t);
@@ -104,7 +106,7 @@ test("cancelled and dismissed rounds say nothing; answered ones come oldest firs
   const { dir, port, open, dataDir } = await served(t);
   const [a, b, c, d] = [await open(dir, "First"), await open(dir, "Second"), await open(dir, "Third"), await open(dir, "Fourth")];
   await post(port, `/api/rounds/${b}/cancel`);
-  await post(port, `/api/rounds/${c}/dismiss`);
+  await agentPost(port, `/api/rounds/${c}/dismiss`);
   await answer(port, d);
   await new Promise((r) => setTimeout(r, 20));
   await answer(port, a);

@@ -33,7 +33,7 @@ const { PROTOCOL } = await import("../lib/protocol.mjs");
 const { startServer } = await import("../lib/server.mjs");
 const { api, ensureServer } = await import("../lib/client.mjs");
 const { BODY_MAX, PING_BODY_MAX, request: ask } = await import("../lib/request.mjs");
-const { alive, enginePath, exitOf, fakeServer, homeOf, notePid, ping, scratchDir, spawnServer, WRITE } = await import("./helpers.mjs");
+const { alive, enginePath, exitOf, fakeServer, homeOf, notePid, ping, scratchDir, spawnServer, asAgent, asPage } = await import("./helpers.mjs");
 
 const nextEngine = fileURLToPath(new URL("./fixtures/server-next.mjs", import.meta.url));
 const spec = {
@@ -41,8 +41,11 @@ const spec = {
   questions: [{ id: "color", title: "Which colour?", options: [{ id: "pink", label: "Pink" }, { id: "blue", label: "Blue" }] }],
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// The page's side (its Origin) and the agent's (the token of the home's daemon.json).
 const post = (port, route, body, headers = {}) =>
-  fetch(`http://127.0.0.1:${port}${route}`, { method: "POST", headers: { ...WRITE, ...headers }, body: body === undefined ? undefined : JSON.stringify(body) });
+  fetch(`http://127.0.0.1:${port}${route}`, { method: "POST", headers: asPage(port, headers), body: body === undefined ? undefined : JSON.stringify(body) });
+const agentPost = (port, route, body, headers = {}) =>
+  fetch(`http://127.0.0.1:${port}${route}`, { method: "POST", headers: asAgent(port, headers), body: body === undefined ? undefined : JSON.stringify(body) });
 
 async function until(check, what, ms = 5_000) {
   const end = Date.now() + ms;
@@ -105,7 +108,7 @@ test("a newer client asks an older server to hand over; the round survives", asy
   const { dir, home } = await scratch(t);
   const old = await spawnServer(t, home);
   assert.equal(old.exited, null, old.output.stderr);
-  const res = await post(old.port, "/api/rounds", roundOf(dir));
+  const res = await agentPost(old.port, "/api/rounds", roundOf(dir));
   const { id } = await res.json();
   assert.equal(res.status, 200);
   const page = events(t, old.port);
@@ -167,7 +170,7 @@ test("every /api route but ping answers 426 to a protocol the server does not sp
   const { dir, home } = await scratch(t);
   const s = await inProcess(t, home);
   const foreign = { "x-decide-protocol": String(PROTOCOL + 5) };
-  const at = (route, init = {}) => fetch(`http://127.0.0.1:${s.port}${route}`, { ...init, headers: { ...WRITE, ...foreign, ...init.headers } });
+  const at = (route, init = {}) => fetch(`http://127.0.0.1:${s.port}${route}`, { ...init, headers: { ...asAgent(s.port), ...foreign, ...init.headers } });
   assert.equal((await at("/api/ping")).status, 200);
   assert.equal((await at("/api/state")).status, 426);
   assert.equal((await at("/api/journal")).status, 426);
@@ -179,7 +182,7 @@ test("every /api route but ping answers 426 to a protocol the server does not sp
   for (const headers of [{ "x-decide-protocol": String(PROTOCOL - 1) }, { "x-decide-protocol": String(PROTOCOL) }, {}]) {
     assert.equal((await fetch(`http://127.0.0.1:${s.port}/api/state`, { headers })).status, 200);
   }
-  assert.equal((await post(s.port, "/api/rounds", roundOf(dir), { "x-decide-protocol": String(PROTOCOL) })).status, 200);
+  assert.equal((await agentPost(s.port, "/api/rounds", roundOf(dir), { "x-decide-protocol": String(PROTOCOL) })).status, 200);
 });
 
 test("POST /api/handover needs the token and a newer client; it tells pages and stops the server", async (t) => {

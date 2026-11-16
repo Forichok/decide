@@ -4,8 +4,8 @@
  * Contract:   the plugin manifests, .mcp.json, skills/decide/SKILL.md and the README install commands
  * Covers:
  *   - The repo is a valid plugin and marketplace for both agents, and the README installs it
- *   - Engine accepts a decision spec and persists submitted answers (legacy /submit too)
- *   - Browser-originated writes need the x-decide header and a loopback Host (CSRF / DNS rebinding)
+ *   - Engine accepts a decision spec and persists submitted answers 
+ *   - Browser-originated writes need the page's own Origin and a loopback Host (CSRF / DNS rebinding)
  *   - A second round reuses the running session daemon, so one browser tab serves every round
  *   - Pasted attachments land next to the answers file; drafts survive a reload
  *   - --lint rejects a broken spec before anything opens; cancel writes cancelled: true
@@ -19,7 +19,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { request } from "node:http";
 import path from "node:path";
 import test from "node:test";
-import { enginePath, exitOf, pluginDir, readJson, runEngine, scratchDir, waitForReadyUrl, WRITE } from "./helpers.mjs";
+import { enginePath, exitOf, pluginDir, readJson, runEngine, asPage, scratchDir, waitForReadyUrl } from "./helpers.mjs";
 
 const pagePath = path.join(pluginDir, "ui/index.html");
 const showcasePath = path.join(pluginDir, "examples/showcase.questions.json");
@@ -78,10 +78,10 @@ test("ships the decide plugin for Claude and Codex", async (context) => {
   await writeFile(questionsPath, JSON.stringify(spec()));
 
   const { child, output, ready } = startRound(context, questionsPath, answersPath);
-  const { url } = await ready;
-  const response = await fetch(`${url}submit`, {
+  const { url, round } = await ready;
+  const response = await fetch(`${url}api/rounds/${round}/submit`, {
     method: "POST",
-    headers: WRITE,
+    headers: asPage(Number(new URL(url).port)),
     body: JSON.stringify({ answers: { delivery: { selected: ["shared"], note: "" } } }),
   });
   assert.equal(response.status, 200);
@@ -92,19 +92,25 @@ test("ships the decide plugin for Claude and Codex", async (context) => {
   assert.match(output.stdout, /\[delivery\] How should this ship\? → Shared/);
 });
 
-test("rejects browser writes without the x-decide header or from a foreign Host", async (context) => {
+test("rejects browser writes without the page's Origin or from a foreign Host", async (context) => {
   const scratch = await scratchDir(context);
   const questionsPath = path.join(scratch, "q.json");
   await writeFile(questionsPath, JSON.stringify(spec()));
   const { ready } = startRound(context, questionsPath, path.join(scratch, "a.json"));
   const { url, round } = await ready;
 
-  const noHeader = await fetch(`${url}api/rounds/${round}/submit`, {
+  const noOrigin = await fetch(`${url}api/rounds/${round}/submit`, {
     method: "POST",
     headers: { "content-type": "text/plain" },
     body: JSON.stringify({ answers: {} }),
   });
-  assert.equal(noHeader.status, 403);
+  assert.equal(noOrigin.status, 403);
+  const foreign = await fetch(`${url}api/rounds/${round}/submit`, {
+    method: "POST",
+    headers: { "content-type": "text/plain", origin: "https://evil.example" },
+    body: JSON.stringify({ answers: {} }),
+  });
+  assert.equal(foreign.status, 403);
 
   const port = new URL(url).port;
   assert.equal(await rawGet(port, "/api/state", `evil.example:${port}`), 403);
@@ -123,7 +129,7 @@ test("second round reuses the session daemon and keeps drafts and attachments", 
   const r1 = await first.ready;
   await fetch(`${r1.url}api/rounds/${r1.round}/submit`, {
     method: "POST",
-    headers: WRITE,
+    headers: asPage(Number(new URL(r1.url).port)),
     body: JSON.stringify({ answers: { first: { selected: ["shared"] } } }),
   });
   assert.equal(await exitOf(first.child), 0);
@@ -135,7 +141,7 @@ test("second round reuses the session daemon and keeps drafts and attachments", 
   const draft = { answers: { second: { selected: ["shared"], note: "half-way" } } };
   const put = await fetch(`${r2.url}api/rounds/${r2.round}/draft`, {
     method: "PUT",
-    headers: WRITE,
+    headers: asPage(Number(new URL(r2.url).port)),
     body: JSON.stringify(draft),
   });
   assert.equal(put.status, 200);
@@ -148,7 +154,7 @@ test("second round reuses the session daemon and keeps drafts and attachments", 
   const upload = await fetch(`${r2.url}api/rounds/${r2.round}/upload`, {
     method: "POST",
     headers: {
-      "x-decide": "1",
+      ...asPage(Number(new URL(r2.url).port)),
       "content-type": "image/png",
       "x-file-name": encodeURIComponent("экран 1.png"),
     },
@@ -163,7 +169,7 @@ test("second round reuses the session daemon and keeps drafts and attachments", 
 
   await fetch(`${r2.url}api/rounds/${r2.round}/submit`, {
     method: "POST",
-    headers: WRITE,
+    headers: asPage(Number(new URL(r2.url).port)),
     body: JSON.stringify({ answers: { second: { selected: ["shared"], attachments: [file.path] } } }),
   });
   assert.equal(await exitOf(second.child), 0);
@@ -199,7 +205,7 @@ test("cancel writes cancelled: true and lets the agent resume", async (context) 
   await writeFile(questionsPath, JSON.stringify(spec()));
   const { child, ready } = startRound(context, questionsPath, answersPath);
   const { url, round } = await ready;
-  const res = await fetch(`${url}api/rounds/${round}/cancel`, { method: "POST", headers: WRITE });
+  const res = await fetch(`${url}api/rounds/${round}/cancel`, { method: "POST", headers: asPage(Number(new URL(url).port)) });
   assert.equal(res.status, 200);
   assert.equal(await exitOf(child), 0);
   const saved = JSON.parse(await readFile(answersPath, "utf8"));

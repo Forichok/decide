@@ -18,7 +18,7 @@ import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
-import { envOf, exitOf, pluginDir, readJson, runEngine, scratchDir, waitForReadyUrl, WRITE } from "./helpers.mjs";
+import { envOf, exitOf, pluginDir, readJson, runEngine, scratchDir, waitForReadyUrl, asPage } from "./helpers.mjs";
 
 const spec = {
   title: "Цвет кнопки",
@@ -26,7 +26,8 @@ const spec = {
     { id: "color", title: "Какой цвет кнопки?", options: [{ id: "pink", label: "Розовый", recommended: "бренд" }, { id: "blue", label: "Синий" }] },
   ],
 };
-const post = (url, route, body) => fetch(`${url}${route}`, { method: "POST", headers: WRITE, body: JSON.stringify(body) });
+// The page's side: its own Origin.
+const post = (url, route, body) => fetch(`${url}${route}`, { method: "POST", headers: asPage(Number(new URL(url).port)), body: JSON.stringify(body) });
 
 test("live round: the user's question reaches the agent and the reply lands on the page", async (context) => {
   const dir = await scratchDir(context);

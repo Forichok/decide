@@ -35,7 +35,7 @@ const { DEFAULT_PORT, lockPath, portForHome, readInfo } = await import("../lib/h
 const { PROTOCOL } = await import("../lib/protocol.mjs");
 const { startServer } = await import("../lib/server.mjs");
 const { api, ensureServer, findServer, postRound } = await import("../lib/client.mjs");
-const { alive, collect, enginePath, exitOf, fakeServer, homeOf, notePid, ping, scratchDir, silentServer, WRITE } = await import("./helpers.mjs");
+const { alive, collect, enginePath, exitOf, fakeServer, homeOf, notePid, ping, scratchDir, silentServer } = await import("./helpers.mjs");
 const { HANDLERS } = await import("../lib/tools.mjs");
 const { importAnswers } = await import("../lib/transfer.mjs");
 const { openProject } = await import("../lib/project.mjs");
@@ -143,7 +143,7 @@ test("three clients on a cold home: one server, three rounds, none gets 404 on i
     `import { ensureServer, postRound } from ${JSON.stringify(clientUrl)};`,
     `const s = await ensureServer({ home: process.env.DECIDE_HOME, engine: process.env.TEST_ENGINE });`,
     `const posted = await postRound(s, JSON.parse(process.env.TEST_ROUND));`,
-    "const res = await fetch(`http://127.0.0.1:${s.port}/api/rounds/${posted.id}/next?timeout=300`);",
+    "const res = await fetch(`http://127.0.0.1:${s.port}/api/rounds/${posted.id}/next?timeout=300`, { headers: { \"x-decide-token\": s.token } });",
     `console.log(JSON.stringify({ id: posted.id, port: s.port, embedded: Boolean(s.embedded), wait: res.status }));`,
     `process.exit(0);`,
   ].join("\n");
@@ -174,7 +174,7 @@ test("three clients on a cold home: one server, three rounds, none gets 404 on i
 test("the engine cannot be spawned: the client serves in-process", async (t) => {
   const { dir, home } = await scratch(t);
   const s = await ensureServer({ home, engine: path.join(dir, "no-such-engine.mjs") });
-  t.after(() => fetch(`http://127.0.0.1:${s.port}/api/stop`, { method: "POST", headers: { ...WRITE, "x-decide-token": s.token } }).catch(() => {}));
+  t.after(() => fetch(`http://127.0.0.1:${s.port}/api/stop`, { method: "POST", headers: { "x-decide-token": s.token } }).catch(() => {}));
   assert.equal(s.embedded, true);
   assert.equal(readInfo(home).pid, process.pid);
   assert.equal((await ping(s.port)).home, home);
@@ -191,7 +191,7 @@ test("a server given a home never resolves one from the environment: its rounds 
   const s = await startServer({ home, embedded: true });
   assert.ok(s);
   t.after(() => s.stop());
-  const res = await fetch(`http://127.0.0.1:${s.port}/api/rounds`, { method: "POST", headers: WRITE, body: JSON.stringify(roundOf(dir)) });
+  const res = await fetch(`http://127.0.0.1:${s.port}/api/rounds`, { method: "POST", headers: { "content-type": "application/json", "x-decide-token": s.token }, body: JSON.stringify(roundOf(dir)) });
   const body = await res.json();
   assert.equal(res.status, 200, body.error);
   assert.deepEqual(roundsUnder(home), [body.id]);

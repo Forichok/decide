@@ -27,7 +27,7 @@ import { roundDir } from "../lib/store/rounds.mjs";
 import { startServer } from "../lib/server.mjs";
 import { ack, api, ensureServer, findServer, waitNext } from "../lib/client.mjs";
 import { HANDLERS } from "../lib/tools.mjs";
-import { alive, collect, enginePath, envOf, exitOf, fakeServer, homeOf, notePid, ping, pluginDir, scratchDir, silentServer, spawnServer, stopServer, WRITE } from "./helpers.mjs";
+import { alive, collect, enginePath, envOf, exitOf, fakeServer, homeOf, notePid, ping, pluginDir, scratchDir, silentServer, spawnServer, stopServer, asAgent, asPage } from "./helpers.mjs";
 
 delete process.env.DECIDE_PORT;
 process.env.DECIDE_NOTIFY = "0";
@@ -39,7 +39,9 @@ const spec = {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const url = (port, route) => `http://127.0.0.1:${port}${route}`;
 const get = async (port, route) => (await fetch(url(port, route))).json();
-const post = (port, route, body) => fetch(url(port, route), { method: "POST", headers: WRITE, body: body === undefined ? undefined : JSON.stringify(body) });
+// The page's side (its Origin) and the agent's (the token of the home's daemon.json).
+const post = (port, route, body) => fetch(url(port, route), { method: "POST", headers: asPage(port), body: body === undefined ? undefined : JSON.stringify(body) });
+const agentPost = (port, route, body) => fetch(url(port, route), { method: "POST", headers: asAgent(port), body: body === undefined ? undefined : JSON.stringify(body) });
 
 async function until(check, what, ms = 5_000) {
   const end = Date.now() + ms;
@@ -221,8 +223,8 @@ test("a newer wait supersedes the older one", async (t) => {
 test("the interim wait route is gone; an ack is answered on a finished round", async (t) => {
   const { id, port } = await served(t);
   assert.equal((await fetch(url(port, `/api/rounds/${id}/wait?timeout=1000`))).status, 404);
-  await post(port, `/api/rounds/${id}/dismiss`);
-  const res = await post(port, `/api/rounds/${id}/ack`, { seq: 1, waiter: "a" });
+  await agentPost(port, `/api/rounds/${id}/dismiss`);
+  const res = await agentPost(port, `/api/rounds/${id}/ack`, { seq: 1, waiter: "a" });
   assert.equal(res.status, 200, "an ack on a dismissed round does nothing and says ok");
 });
 

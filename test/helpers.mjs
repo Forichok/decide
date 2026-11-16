@@ -3,7 +3,7 @@
 // no daemon, journal or screenshot leaks into the real ~/.decide.
 
 import { spawn, spawnSync } from "node:child_process";
-import { appendFileSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { createServer as createTcpServer } from "node:net";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -14,9 +14,27 @@ import { PING_BODY_MAX, request } from "../lib/request.mjs";
 
 export const pluginDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const enginePath = path.join(pluginDir, "decide.mjs");
-export const WRITE = { "content-type": "application/json", "x-decide": "1" };
+const JSON_TYPE = { "content-type": "application/json" };
 
 export const homeOf = (dir) => path.join(dir, ".home");
+// Every scratch home of this process: the agent side finds a server's token by its port.
+const homes = new Set();
+
+// The token of the server on a port, as an agent reads it from that home's daemon.json.
+export function tokenAt(port) {
+  for (const home of homes) {
+    try {
+      const info = JSON.parse(readFileSync(path.join(home, "daemon.json"), "utf8"));
+      if (info.port === port && info.token) return info.token;
+    } catch {}
+  }
+  throw new Error(`no scratch home names a server on port ${port}`);
+}
+
+// What the page sends: its own Origin, no token (a browser page never holds one).
+export const asPage = (port, extra = {}) => ({ ...JSON_TYPE, origin: `http://127.0.0.1:${port}`, ...extra });
+// What an agent sends: the token from daemon.json, no Origin (a CLI or MCP process sends none).
+export const asAgent = (port, extra = {}) => ({ ...JSON_TYPE, "x-decide-token": tokenAt(port), ...extra });
 // DECIDE_PORT is dropped: a scratch home gets its own port, never the real home's.
 export function envOf(dir, extra = {}) {
   const env = { ...process.env, DECIDE_HOME: homeOf(dir), ...extra };
@@ -27,6 +45,7 @@ export const readJson = async (p) => JSON.parse(await readFile(p, "utf8"));
 
 export async function scratchDir(context) {
   const dir = await mkdtemp(path.join(tmpdir(), "decide-test-"));
+  homes.add(homeOf(dir));
   context.after(async () => {
     await shutdownDaemon(dir);
     await rm(dir, { force: true, recursive: true });
@@ -51,7 +70,7 @@ export async function stopServer(home) {
   if (pong?.app !== "decide" || pong.home !== path.resolve(home) || pong.pid !== info.pid) return;
   notePid(info.pid);
   try {
-    await request(info.port, "/api/stop", { method: "POST", headers: { ...WRITE, "x-decide-token": String(info.token) }, timeoutMs: 2_000 });
+    await request(info.port, "/api/stop", { method: "POST", headers: { ...JSON_TYPE, "x-decide-token": String(info.token) }, timeoutMs: 2_000 });
   } catch {
     // server already gone
   }

@@ -19,7 +19,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { applyPatch, batchDigest, briefMarkdown, normalizeDeck, normalizePatch } from "../lib/swipe.mjs";
-import { envOf, pluginDir, scratchDir, WRITE } from "./helpers.mjs";
+import { asPage, envOf, pluginDir, scratchDir } from "./helpers.mjs";
 
 const card = (id, title, rec = "left") => ({ id, title, left: { label: `${id}-L` }, right: { label: `${id}-R` }, recommended: rec });
 const deckRaw = {
@@ -142,7 +142,7 @@ test("MCP: swipe → batches → push → finish", async (context) => {
   const rpc = rpcClient(child);
   const call = async (name, args) => (await rpc("tools/call", { name, arguments: args })).result;
   const text = (result) => result.content.map((c) => c.text).join("\n");
-  const post = (url, route, body) => fetch(`${url}${route}`, { method: "POST", headers: WRITE, body: JSON.stringify(body) });
+  const post = (url, route, body) => fetch(`${url}${route}`, { method: "POST", headers: asPage(Number(new URL(url).port)), body: JSON.stringify(body) });
 
   const bad = await call("swipe", { project: dir, spec: { title: "t", cards: [{ id: "a", title: "?", left: "x" }] }, open: false });
   assert.equal(bad.isError, true);
@@ -252,7 +252,7 @@ test("MCP: dig deeper reopens the deck; the closing note reaches the result and 
   const rpc = rpcClient(child);
   const call = async (name, args) => (await rpc("tools/call", { name, arguments: args })).result;
   const text = (result) => result.content.map((c) => c.text).join("\n");
-  const post = (url, route, body) => fetch(`${url}${route}`, { method: "POST", headers: WRITE, body: JSON.stringify(body) });
+  const post = (url, route, body) => fetch(`${url}${route}`, { method: "POST", headers: asPage(Number(new URL(url).port)), body: JSON.stringify(body) });
 
   const opened = text(await call("swipe", { project: dir, spec: { ...deckRaw, batch: 5 }, open: false }));
   const [, round, url] = opened.match(/Swipe round (\S+) .+: (http:\/\/127\.0\.0\.1:\d+\/)/);

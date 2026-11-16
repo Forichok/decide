@@ -5,6 +5,7 @@
 // on click.
 
 import { h, icon } from "./dom.js";
+import { offline } from "./net.js";
 import { t } from "./i18n.js";
 import { mdInline } from "./md.js";
 import { inlineSpan, diffStats, lineDiff } from "./diff.js";
@@ -445,7 +446,14 @@ const retheme = () => {
 
 function htmlBlock(x, cap) {
   const frame = h("iframe.html-frame", { sandbox: "allow-scripts allow-popups", title: t("html.title"), referrerpolicy: "no-referrer" });
-  frame.srcdoc = htmlDoc(x.source);
+  // The block is a document of its own at x.src (served under the sandbox policy: the page's CSP would block a
+  // srcdoc's inline script, and a same-origin frame would be the page). An exported file has no server: it keeps
+  // srcdoc, and there is no CSP to meet.
+  if (offline || !x.src) frame.srcdoc = htmlDoc(x.source);
+  else {
+    frame.src = x.src;
+    frame.addEventListener("load", () => frame.contentWindow?.postMessage({ decideScheme: dark() ? "dark" : "light" }, "*"));
+  }
   frame.style.height = "60px";
   frame.dataset.max = String(cap || x.maxHeight);
   sizedFrames.add(frame);

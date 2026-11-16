@@ -18,15 +18,17 @@ import { readInfo } from "../lib/home.mjs";
 import { PROTOCOL } from "../lib/protocol.mjs";
 import { openProject } from "../lib/project.mjs";
 import { roundDir } from "../lib/store/rounds.mjs";
-import { alive, exitOf, homeOf, ping, scratchDir, spawnServer, WRITE } from "./helpers.mjs";
+import { alive, exitOf, homeOf, ping, scratchDir, spawnServer, asAgent, asPage } from "./helpers.mjs";
 
 delete process.env.DECIDE_PORT;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const url = (port, route) => `http://127.0.0.1:${port}${route}`;
 const get = async (port, route) => (await fetch(url(port, route))).json();
-const post = (port, route, body) => fetch(url(port, route), { method: "POST", headers: WRITE, body: body === undefined ? undefined : JSON.stringify(body) });
-const put = (port, route, body) => fetch(url(port, route), { method: "PUT", headers: WRITE, body: JSON.stringify(body) });
+// The page's side (its Origin) and the agent's (the token of the home's daemon.json).
+const post = (port, route, body) => fetch(url(port, route), { method: "POST", headers: asPage(port), body: body === undefined ? undefined : JSON.stringify(body) });
+const agentPost = (port, route, body) => fetch(url(port, route), { method: "POST", headers: asAgent(port), body: body === undefined ? undefined : JSON.stringify(body) });
+const put = (port, route, body) => fetch(url(port, route), { method: "PUT", headers: asPage(port), body: JSON.stringify(body) });
 
 async function until(check, what, ms = 5_000) {
   const end = Date.now() + ms;
@@ -55,7 +57,7 @@ async function scratch(t) {
 }
 
 async function openRound(port, dir, extra = {}) {
-  const res = await post(port, "/api/rounds", { project: dir, spec: questions, outPath: path.join(dir, "layout.answers.json"), source: "layout.questions.json", open: false, live: true, ...extra });
+  const res = await agentPost(port, "/api/rounds", { project: dir, spec: questions, outPath: path.join(dir, "layout.answers.json"), source: "layout.questions.json", open: false, live: true, ...extra });
   const body = await res.json();
   assert.equal(res.status, 200, body.error);
   return body.id;
@@ -132,7 +134,7 @@ test("kill -9 mid-deck: the swipe round resumes on the same card (skipped on win
   const swipe = (body) => post(s1.port, `/api/rounds/${id}/swipe`, body);
   assert.equal((await swipe({ card: "c1", side: "left" })).status, 200);
   assert.equal((await swipe({ card: "c2", side: "right" })).status, 200);
-  assert.equal((await post(s1.port, `/api/rounds/${id}/push`, { add: [card("c7")] })).status, 200);
+  assert.equal((await agentPost(s1.port, `/api/rounds/${id}/push`, { add: [card("c7")] })).status, 200);
   const before = await get(s1.port, `/api/rounds/${id}`);
   assert.equal(before.mode, "swipe");
   assert.ok(before.spec.cards.some((c) => c.id === "c7"), "the pushed card is in the deck");
@@ -183,7 +185,7 @@ test("the server stops idleMs after the last waiter and page left, with a round 
   const page = stream(t, port);
   await until(() => page.seen.length, "the stream to open");
   const waiting = new AbortController();
-  const held = fetch(url(port, `/api/rounds/${id}/next?timeout=10000`), { signal: waiting.signal }).catch(() => {});
+  const held = fetch(url(port, `/api/rounds/${id}/next?timeout=10000`), { headers: asAgent(port), signal: waiting.signal }).catch(() => {});
   await until(async () => (await get(port, "/api/state")).rounds[0].waiting, "the waiter to be held");
   await sleep(500);
   assert.ok(await ping(port), "held waiter and page: still serving");
@@ -204,7 +206,7 @@ test("the server does not stop while a waiter is connected", async (t) => {
   const id = await openRound(port, dir);
   const waiting = new AbortController();
   t.after(() => waiting.abort());
-  fetch(url(port, `/api/rounds/${id}/next?timeout=10000`), { signal: waiting.signal }).catch(() => {});
+  fetch(url(port, `/api/rounds/${id}/next?timeout=10000`), { headers: asAgent(port), signal: waiting.signal }).catch(() => {});
   await until(async () => (await get(port, "/api/state")).rounds[0].waiting, "the waiter to be held");
   await sleep(1_000);
   assert.ok(await ping(port), "three idle periods with a waiter held");
@@ -226,7 +228,7 @@ test("the server does not stop while a page holds /api/events", async (t) => {
 function slowPost(port, route, halves, gapMs) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(halves);
-    const req = request({ host: "127.0.0.1", port, path: route, method: "POST", headers: { ...WRITE, "content-length": Buffer.byteLength(body) } }, (res) => {
+    const req = request({ host: "127.0.0.1", port, path: route, method: "POST", headers: { ...asPage(port), "content-length": Buffer.byteLength(body) } }, (res) => {
       res.resume();
       res.on("end", () => resolve(res.statusCode));
     });

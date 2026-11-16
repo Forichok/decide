@@ -9,6 +9,8 @@ export function h(tag, attrs = {}, ...children) {
     if (k === "html") el.innerHTML = v;
     else if (k === "class") el.className = [el.className, v].filter(Boolean).join(" ");
     else if (k.startsWith("on")) el.addEventListener(k.slice(2).toLowerCase(), v);
+    // cssText is the CSSOM, which style-src lets through; a style attribute set by markup or setAttribute it blocks.
+    else if (k === "style" && typeof v === "string") el.style.cssText = v;
     else if (k === "dataset") Object.assign(el.dataset, v);
     else el.setAttribute(k, v === true ? "" : v);
   }

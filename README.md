@@ -420,8 +420,10 @@ this:
 ## Security
 
 The server listens on 127.0.0.1 only, rejects requests with a foreign `Host`
-header and requires an `x-decide` header on every write. Mockups run in a
-sandboxed frame with no network access. Screenshots take http(s) URLs only.
+header and any `Origin` that is not its own, and takes a change only from the
+page (its own `Origin`) or from a holder of the token in `daemon.json`. The page
+runs under a Content-Security-Policy with no inline code and no CDN. Mockups and
+HTML blocks run in a sandboxed frame of their own, with no access to the page. Screenshots take http(s) URLs only.
 
 ## FAQ
 
