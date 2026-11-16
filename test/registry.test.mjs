@@ -999,19 +999,19 @@ test("the schema takes every shape the strict engine takes without an error", as
   assert.match(validate(specSchema(), q({ titel: "x" }), specSchema()).join("\n"), /unknown field "titel"/);
 });
 
-test("the schema is small: ask's whole input schema 11,000 bytes, swipe's 7,000, tools/list pinned near its size", async () => {
+test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tune, rules, evidence), swipe's 7,000, tools/list pinned near its size", async () => {
   const { specSchema, deckSchema } = await docs();
   const size = (v) => JSON.stringify(v).length;
-  assert.ok(size(specSchema()) <= 11000, `specSchema ${size(specSchema())} bytes`);
+  assert.ok(size(specSchema()) <= 12000, `specSchema ${size(specSchema())} bytes`);
   assert.ok(size(deckSchema()) <= 7000, `deckSchema ${size(deckSchema())} bytes`);
   const { toolList } = await load("lib/commands/index.mjs");
   const tools = toolList();
   const input = (name) => tools.find((t) => t.name === name).inputSchema;
-  assert.ok(size(input("ask")) <= 11000 + 1000, `ask inputSchema ${size(input("ask"))} bytes`);
+  assert.ok(size(input("ask")) <= 12000 + 1000, `ask inputSchema ${size(input("ask"))} bytes`);
   assert.ok(size(input("swipe")) <= 7000 + 1000, `swipe inputSchema ${size(input("swipe"))} bytes`);
   assert.ok(size(input("ask")) >= size(specSchema()), "the whole input schema holds the spec schema, $defs and all");
   const whole = size({ result: { tools } });
-  assert.ok(whole <= 33_000, `tools/list ${whole} bytes: pinned near the size after Task 13's deck lines, far under 2.1.1's 11,281 plus the 2.1 ask schema growth`);
+  assert.ok(whole <= 37_000, `tools/list ${whole} bytes: pinned near the size after Task 13's deck lines, far under 2.1.1's 11,281 plus the 2.1 ask schema growth`);
 });
 
 test("a description sits only where the name does not say it, never on a spelling or a union arm", async () => {
@@ -1224,9 +1224,9 @@ test("lint: a single or multi question with no why, or options with no then, is 
   for (const type of ["confirm", "rank", "scale", "text"]) assert.deepEqual(lint({ type, options: type === "rank" ? options({}) : undefined, ...(type === "scale" ? { scale: { min: 1, max: 5 } } : {}) }).warns, [], `${type} is not asked for them`);
 });
 
-test("pinned sizes after 3.0 milestone 2: the spec schema is 9501 bytes, the deck schema 6,928", async () => {
+test("pinned sizes after 3.0: the spec schema is 11,102 bytes, the deck schema 6,928", async () => {
   const { specSchema, deckSchema } = await docs();
-  assert.equal(JSON.stringify(specSchema()).length, 9501);
+  assert.equal(JSON.stringify(specSchema()).length, 11102);
   assert.equal(JSON.stringify(deckSchema()).length, 6928);
 });
 
