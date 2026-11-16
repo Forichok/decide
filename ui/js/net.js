@@ -126,6 +126,8 @@ export const digDeeper = (id, note) =>
 export const askAgent = (id, question, text) =>
   fetch(`/api/rounds/${id}/ask`, { method: "POST", headers: WRITE, body: JSON.stringify({ question, text }) }).then(json);
 
+export const getMap = (round = "") => fetch(`/api/map?${new URLSearchParams(round ? { round } : {})}`, { cache: "no-store" }).then(json);
+
 export const getJournal = (q = "", limit = 30, { mode = "", status = "" } = {}) =>
   fetch(`/api/journal?${new URLSearchParams({ limit: String(limit), q, ...(mode && { mode }), ...(status && { status }) })}`, { cache: "no-store" }).then(json);
 

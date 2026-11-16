@@ -1,0 +1,25 @@
+/* evidence labels */
+.ev { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: var(--step--2, 11.5px); font-weight: 600; line-height: 1.6; vertical-align: 1px; white-space: nowrap; background: var(--surface-3); color: var(--tx-mut); }
+.ev-measured { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.ev-guess { background: color-mix(in srgb, var(--warn, #b7791f) 16%, transparent); color: var(--warn, #b7791f); }
+
+/* the task panel of a questions round */
+.q-brief { margin: 0 0 var(--space-5, 20px); background: var(--card-bg); -webkit-backdrop-filter: var(--card-blur); backdrop-filter: var(--card-blur); border: 1px solid var(--card-edge); border-radius: var(--r-lg); box-shadow: var(--glass-shadow, var(--shadow-2)); }
+.q-brief-toggle { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 var(--space-4, 16px); border: 0; background: none; font: inherit; font-weight: 650; color: inherit; cursor: pointer; text-align: left; }
+.q-brief-toggle .i { width: 16px; height: 16px; }
+.q-brief-toggle .n { color: var(--tx-dim); font-weight: 500; }
+.q-brief-toggle .chev { margin-left: auto; transition: transform 0.2s; }
+.q-brief.folded .q-brief-toggle .chev { transform: rotate(-90deg); }
+.q-brief-body { padding: 0 var(--space-4, 16px) var(--space-4, 16px); }
+.q-brief.folded .q-brief-body { display: none; }
+.q-brief .sw-group { margin-top: var(--space-3, 12px); }
+.q-brief .sw-group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2, 8px); }
+@media (min-width: 1360px) {
+  .q-brief { position: fixed; top: 96px; right: 24px; width: 280px; max-height: calc(100vh - 140px); overflow: auto; margin: 0; z-index: 4; }
+}
+
+/* the journal: day headings and the decision map */
+.jp-day { margin: var(--space-6, 28px) 0 var(--space-2, 8px); font-size: var(--step-0, 15px); font-weight: 650; color: var(--tx-mut); }
+.map-note { color: var(--tx-dim); font-size: var(--step--1, 13.5px); margin: 0 0 var(--space-3, 12px); }
+.jp-map .diagram { min-height: 120px; }
+.pc li .ev { align-self: flex-start; margin-left: 2px; margin-top: 2px; flex: none; height: fit-content; }

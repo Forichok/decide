@@ -530,4 +530,23 @@ export default {
   "actions.adrWrote": (file) => `Wrote ${file}`,
   "actions.adrUpdated": (file) => `Updated ${file}`,
   "actions.failed": "That did not work",
+
+  // evidence labels, task panel, decision map
+  "ev.measured": "measured",
+  "ev.estimate": "estimate",
+  "ev.guess": "guess",
+  "ev.measured.hint": "Measured: the agent ran it",
+  "ev.estimate.hint": "Estimate: worked out, not measured",
+  "ev.guess.hint": "Guess: no evidence behind it",
+  "ev.source": (src) => `Source: ${src}`,
+  "brief.task": "The task",
+  "journalPage.view": "View",
+  "journalPage.view.list": "List",
+  "journalPage.view.map": "Map",
+  "map.loading": "Drawing the map…",
+  "map.none": "No decisions to draw yet.",
+  "map.noEdges": "No links between decisions yet: a question links to what it builds on with dependsOn.",
+  "map.count": (n, e) => `${n} decisions, ${e} links.`,
+  "map.near": (round, n, total) => `Too many to draw: ${n} of ${total} decisions around round ${round}.`,
+  "map.newest": (n, total) => `Too many to draw: the newest ${n} of ${total} decisions.`,
 };

@@ -5,6 +5,7 @@ import { h, icon } from "./dom.js";
 import { t } from "./i18n.js";
 import { getJournal } from "./net.js";
 import { credit, eyebrow, when } from "./header.js";
+import { paintMap } from "./map.js";
 
 const FILTERS = {
   mode: ["", "questions", "swipe"],
@@ -12,7 +13,25 @@ const FILTERS = {
 };
 
 export function renderJournal(env) {
-  const state = { q: "", mode: "", status: "all" };
+  const state = { q: "", mode: "", status: "all", view: "list" };
+  const mapBox = h("div.jp-map", { hidden: true });
+  const views = h(
+    "div.jp-filter",
+    { role: "group", "aria-label": t("journalPage.view") },
+    ["list", "map"].map((v) =>
+      h("button.chip", {
+        type: "button",
+        "aria-pressed": String(state.view === v),
+        onclick: (e) => {
+          state.view = v;
+          for (const b of e.currentTarget.parentNode.children) b.setAttribute("aria-pressed", String(b === e.currentTarget));
+          list.hidden = v === "map";
+          mapBox.hidden = v === "list";
+          if (v === "map") paintMap(mapBox);
+        },
+      }, t(`journalPage.view.${v}`)),
+    ),
+  );
   const list = h("div.jp-list", { "aria-live": "polite" });
   const count = h("span.jp-count");
   const search = h("input.jr-search.jp-search", { type: "search", placeholder: t("journal.search"), "aria-label": t("journal.searchLabel") });
@@ -53,7 +72,7 @@ export function renderJournal(env) {
       const { entries } = await getJournal(state.q, 200, { mode: state.mode, status: state.status });
       if (mine !== seq) return;
       count.textContent = t("journalPage.count", entries.length);
-      list.replaceChildren(...(entries.length ? entries.map(item) : [h("p.jr-empty", {}, t(state.q || state.mode || state.status !== "all" ? "journal.empty" : "journalPage.none"))]));
+      list.replaceChildren(...(entries.length ? byDay(entries) : [h("p.jr-empty", {}, t(state.q || state.mode || state.status !== "all" ? "journal.empty" : "journalPage.none"))]));
     } catch {
       if (mine === seq) list.replaceChildren(h("p.jr-empty", {}, t("journalPage.failed")));
     }
@@ -68,8 +87,9 @@ export function renderJournal(env) {
     h("h1.title", {}, t("journalPage.title")),
     h("p.jp-sub", {}, t("journalPage.sub"), " ", count),
     search,
-    h("div.jp-filters", {}, group("mode"), group("status")),
+    h("div.jp-filters", {}, views, group("mode"), group("status")),
     list,
+    mapBox,
     credit(),
   );
 }
@@ -90,4 +110,20 @@ function item(e) {
     s && h("p.jp-why", {}, s.by ? t("journalPage.by", s.by) : t("journalPage.noLonger"), s.reason ? ` ${s.reason}` : ""),
     e.digest && h("details.jp-digest", {}, h("summary", { html: `${icon("chevron", "chev")}${t("journalPage.answers", (e.questions || []).length)}` }), h("pre.hist-digest", {}, e.digest)),
   );
+}
+
+// The entries under a heading per day, newest first (the server sends them in that order).
+function byDay(entries) {
+  const out = [];
+  let day = null;
+  for (const e of entries) {
+    const d = String(e.at || "").slice(0, 10);
+    if (d !== day) {
+      day = d;
+      const date = new Date(e.at);
+      out.push(h("h2.jp-day", {}, Number.isNaN(date.getTime()) ? d : date.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })));
+    }
+    out.push(item(e));
+  }
+  return out;
 }

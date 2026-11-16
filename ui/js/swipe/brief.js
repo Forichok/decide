@@ -3,11 +3,8 @@
 
 import { h, icon } from "../dom.js";
 import { t } from "../i18n.js";
-import { md } from "../md.js";
+import { briefGroups } from "../brief.js";
 import { answerText } from "./card.js";
-
-const KINDS = ["decision", "risk", "problem", "open", "note"];
-const KIND_ICON = { decision: "check", risk: "alert", problem: "x", open: "help", note: "note" };
 
 export function createBrief(s) {
   const body = h("div.sw-brief-body");
@@ -16,26 +13,10 @@ export function createBrief(s) {
   const shown = new Set();
   let first = true;
 
-  function item(b, kind) {
-    const key = `${kind}:${b.text}`;
-    const isNew = !first && !shown.has(key);
-    shown.add(key);
-    return h(`li.sw-item${isNew ? ".new" : ""}`, { html: md(b.text, s.deck.glossary) });
-  }
-
   function paint(a) {
     const deck = s.deck;
     const cards = s.byId();
-    const groups = KINDS.map((kind) => {
-      const items = deck.brief.filter((b) => b.kind === kind);
-      if (!items.length) return null;
-      return h(
-        `section.sw-group.k-${kind}`,
-        {},
-        h("h3.sw-group-h", { html: `${icon(KIND_ICON[kind])}${t(`sw.kind.${kind}`)}<span class="n">${items.length}</span>` }),
-        h("ul", {}, items.map((b) => item(b, kind))),
-      );
-    });
+    const groups = briefGroups(deck.brief, deck.glossary, { seen: shown, markNew: !first });
     const freshIds = [...new Set([...s.server.fresh, ...[...s.inflight.keys()].filter((id) => !s.inflight.get(id).undo)])].filter((id) => a[id]);
     const fresh = freshIds.length
       ? h(

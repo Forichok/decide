@@ -537,4 +537,23 @@ export default {
   "actions.adrWrote": (file) => `Записано: ${file}`,
   "actions.adrUpdated": (file) => `Обновлено: ${file}`,
   "actions.failed": "Не получилось",
+
+  // метки доказательности, панель задачи, карта решений
+  "ev.measured": "измерено",
+  "ev.estimate": "оценка",
+  "ev.guess": "догадка",
+  "ev.measured.hint": "Измерено: агент это запустил",
+  "ev.estimate.hint": "Оценка: прикинуто, не измерено",
+  "ev.guess.hint": "Догадка: за ней нет данных",
+  "ev.source": (src) => `Источник: ${src}`,
+  "brief.task": "Задача",
+  "journalPage.view": "Вид",
+  "journalPage.view.list": "Список",
+  "journalPage.view.map": "Карта",
+  "map.loading": "Рисую карту…",
+  "map.none": "Решений для карты пока нет.",
+  "map.noEdges": "Связей между решениями пока нет: вопрос связывают с тем, на чём он стоит, через dependsOn.",
+  "map.count": (n, e) => `${n} ${plural(n, "решение", "решения", "решений")}, связей: ${e}.`,
+  "map.near": (round, n, total) => `Слишком много для рисунка: ${n} из ${total} решений вокруг раунда ${round}.`,
+  "map.newest": (n, total) => `Слишком много для рисунка: ${n} новейших из ${total} решений.`,
 };

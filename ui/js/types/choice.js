@@ -58,10 +58,10 @@ export function renderChoice(q, ctx) {
           o.danger && h("span.badge.danger", { html: `${icon("alert")}${t("opt.danger")}` }),
           o.tags.map((tag) => h("span.badge.tag", {}, tag)),
         ),
-        o.recommended && o.reason && h("div.opt-reason.rich", { html: mdInline(o.reason, g) }),
+        o.recommended && o.reason && h("div.opt-reason.rich", { html: mdInline(o.reason, g) }, evLabel(o.evidence?.reason, t)),
         o.detail && h("div.opt-detail.rich", { html: md(o.detail, g) }),
         o.then && h("div.opt-then.rich", { html: mdInline(o.then, g) }),
-        prosCons(o, g),
+        prosCons(o, g, t),
         metrics(o, t),
         ctx.renderMedia(o, optCtx(q, o, ctx), q.id),
       ),
@@ -107,11 +107,17 @@ export function sync(card, q, a) {
   }
 }
 
-function prosCons(o, g) {
+// A small label on a point that says how well it is known: measured, estimate or guess; the source is its tooltip.
+export function evLabel(ev, t) {
+  if (!ev?.kind) return null;
+  return h(`span.ev.ev-${ev.kind}`, { title: ev.source ? t("ev.source", ev.source) : t(`ev.${ev.kind}.hint`) }, t(`ev.${ev.kind}`));
+}
+
+function prosCons(o, g, t) {
   if (!o.pros.length && !o.cons.length) return null;
-  const col = (items, cls, sign) =>
-    items.length ? h(`ul.pc.${cls}`, {}, items.map((item) => h("li", {}, h("span.sign", {}, sign), h("span", { html: mdInline(item, g) })))) : null;
-  return h("div.proscons", {}, col(o.pros, "pro", "+"), col(o.cons, "con", "−"));
+  const col = (items, evs, cls, sign) =>
+    items.length ? h(`ul.pc.${cls}`, {}, items.map((item, i) => h("li", {}, h("span.sign", {}, sign), h("span", { html: mdInline(item, g) }), evLabel(evs?.[i], t)))) : null;
+  return h("div.proscons", {}, col(o.pros, o.evidence?.pros, "pro", "+"), col(o.cons, o.evidence?.cons, "con", "−"));
 }
 
 function metrics(o, t) {
@@ -127,6 +133,7 @@ function metrics(o, t) {
         typeof value === "number"
           ? h("span.dots", {}, [1, 2, 3, 4, 5].map((n) => h(`i${n <= value ? ".on" : ""}`)))
           : h("span.m-val", {}, String(value)),
+        evLabel(o.evidence?.metrics?.[label], t),
       ),
     ),
   );
