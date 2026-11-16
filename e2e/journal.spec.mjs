@@ -104,6 +104,7 @@ test("the journal switches between projects and the map offers a neighbourhood p
     await box.locator(".map-find").fill("Big 7");
     const hit = box.locator("button.map-round", { hasText: /Big 7$/ });
     await expect(hit).toHaveCount(1);
+    await expect(box.locator(".map-picker button.map-round")).toHaveCount(1);
     await hit.click();
     await expect(box.locator(".map-back")).toBeVisible();
     await expect(box.locator("details.map-centres")).toBeVisible();

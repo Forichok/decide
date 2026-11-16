@@ -108,3 +108,14 @@ test("a rule in the spec ghosts a question the moment an answer changes, and und
   await opt(page, "db", "pg").click();
   await expect(card(page, "tabs")).not.toHaveClass(/st-ghost/);
 });
+
+test("a question removed before the user saw it leaves the page and the count", async ({ page }) => {
+  const s = spec();
+  s.questions.push(...filler(20));
+  const id = await d.open(s);
+  await openRound(page, d, id);
+  await expect(page.locator("#bar .bar-count")).toContainText("of 23");
+  await d.patch(id, { remove: ["f19"] }, { reason: "Not needed after all" });
+  await expect(card(page, "f19")).toHaveCount(0);
+  await expect(page.locator("#bar .bar-count")).toContainText("of 22");
+});

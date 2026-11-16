@@ -309,7 +309,12 @@ export function mountRound(data, env) {
   // with the caret in it waits for the next view; answers stay as they are (the server marks the stale ones).
   function paintItems() {
     const before = spec.questions.map((q) => q.id);
-    const { added } = mergeItems(spec, react.view);
+    const { added, removed } = mergeItems(spec, react.view);
+    for (const qid of removed) {
+      card(qid)?.remove();
+      qById.delete(qid);
+      itemSig.delete(qid);
+    }
     for (const q of spec.questions) {
       qById.set(q.id, q);
       if (!answers[q.id]) answers[q.id] = { ...emptyAnswer(q), ...(store.state(round.id).answers?.[q.id] || {}) };
@@ -533,7 +538,16 @@ function mergeItems(spec, view) {
       at += 1;
     }
   }
-  return { changed, added };
+  // An item the view no longer lists was removed before the user saw it: it leaves the page (a seen one
+  // stays as a ghost, so it is still listed).
+  const removed = [];
+  if (items.length) {
+    const listed = new Set(items.map((e) => String(e?.item?.id ?? e?.id)));
+    for (let i = spec.questions.length - 1; i >= 0; i--) {
+      if (!listed.has(spec.questions[i].id)) removed.push(spec.questions.splice(i, 1)[0].id);
+    }
+  }
+  return { changed, added, removed };
 }
 
 // The unsent question to the agent, per question: a Map whose set and delete also save the text as the
