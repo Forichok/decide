@@ -23,8 +23,9 @@ import * as rank from "./rank.js";
 import * as scale from "./scale.js";
 import * as single from "./single.js";
 import * as text from "./text.js";
+import * as tune from "./tune.js";
 
-export const TYPES = new Map(Object.entries({ single, multi, rank, scale, text, confirm, buckets, tradeoff, spot, versus }));
+export const TYPES = new Map(Object.entries({ single, multi, rank, scale, text, confirm, buckets, tradeoff, spot, versus, tune }));
 
 // A question of a type the page does not know behaves like single, as it always did.
 export const typeOf = (q) => TYPES.get(q.type) ?? single;

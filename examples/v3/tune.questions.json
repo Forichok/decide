@@ -1,0 +1,40 @@
+{
+  "title": "Invitation card",
+  "intro": "Turn the knobs; the card follows. Remember what you like and pick one.",
+  "questions": [
+    {
+      "id": "card",
+      "type": "tune",
+      "title": "How dense should the invitation card be?",
+      "why": "The print layout and the web version both follow from the density.",
+      "preview": "tune.assets/card.html",
+      "knobs": [
+        { "id": "density", "label": "Density", "kind": "range", "min": 0, "max": 10, "step": 1, "default": 4 },
+        { "id": "accent", "label": "Accent", "kind": "color", "default": "#3b6cff" },
+        { "id": "names", "label": "Names", "kind": "text", "default": "Anna and Misha" },
+        { "id": "photo", "label": "Photo", "kind": "image" }
+      ],
+      "presets": [
+        { "name": "Airy", "values": { "density": 2 } },
+        { "name": "Balanced", "values": { "density": 5 } },
+        { "name": "Packed", "values": { "density": 9, "accent": "#d6245f" } }
+      ],
+      "frames": ["phone", "desktop"],
+      "themes": ["light", "dark"]
+    },
+    {
+      "id": "price",
+      "type": "tune",
+      "title": "Where should the price sit?",
+      "knobs": [
+        { "id": "price", "label": "Price per month", "kind": "range", "min": 5, "max": 50, "step": 1, "unit": " EUR", "default": 20 },
+        { "id": "clients", "label": "Clients", "kind": "range", "min": 10, "max": 500, "step": 10, "default": 100 },
+        { "id": "churn", "label": "Churn", "kind": "range", "min": 0, "max": 0.5, "step": 0.01, "default": 0.1 }
+      ],
+      "derived": [
+        { "id": "kept", "label": "Clients kept", "formula": "clients * (1 - churn)" },
+        { "id": "revenue", "label": "Monthly revenue", "formula": "price * kept" }
+      ]
+    }
+  ]
+}

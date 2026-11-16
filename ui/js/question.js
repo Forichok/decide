@@ -51,8 +51,8 @@ export function renderQuestion(q, index, ctx) {
     q.why && h("p.q-why.rich", { html: mdInline(q.why, g) }),
     q.more && renderMore(q, g),
     q.body && h("div.q-text.rich", { html: md(q.body, g) }),
-    // A spot question draws its first picture itself, to mark it.
-    renderMedia(q.type === "spot" ? { ...q, images: q.images.slice(1) } : q, ctx, q.id),
+    // A spot question draws its first picture itself, to mark it; a tune question frames its own mockup.
+    renderMedia(q.type === "spot" ? { ...q, images: q.images.slice(1) } : q.type === "tune" ? { ...q, preview: null } : q, ctx, q.id),
     renderInput(q, ctx),
     quick?.state,
     quick?.panel,

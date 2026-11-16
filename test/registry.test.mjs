@@ -208,8 +208,8 @@ function checkFieldDef(def, where) {
   for (const [k, f] of Object.entries(def.fields || {})) checkFieldDef(f, `${where}.${k}`);
 }
 
-test("the registry lists the six 2.1 types in the 2.1 order, then the four 3.0 forms, and spec.mjs takes TYPES from it", () => {
-  assert.deepEqual([...REGISTRY.keys()], ["single", "multi", "rank", "scale", "text", "confirm", "buckets", "tradeoff", "spot", "versus"]);
+test("the registry lists the six 2.1 types in the 2.1 order, then the four 3.0 forms and tune, and spec.mjs takes TYPES from it", () => {
+  assert.deepEqual([...REGISTRY.keys()], ["single", "multi", "rank", "scale", "text", "confirm", "buckets", "tradeoff", "spot", "versus", "tune"]);
   assert.deepEqual(TYPES, [...REGISTRY.keys()]);
   for (const [name, def] of REGISTRY) assert.equal(def.name, name);
 });
@@ -997,15 +997,15 @@ test("the schema takes every shape the strict engine takes without an error", as
   assert.match(validate(specSchema(), q({ titel: "x" }), specSchema()).join("\n"), /unknown field "titel"/);
 });
 
-test("the schema is small: ask's whole input schema 10,000 bytes, swipe's 7,000, tools/list pinned near its size", async () => {
+test("the schema is small: ask's whole input schema 11,000 bytes, swipe's 7,000, tools/list pinned near its size", async () => {
   const { specSchema, deckSchema } = await docs();
   const size = (v) => JSON.stringify(v).length;
-  assert.ok(size(specSchema()) <= 10000, `specSchema ${size(specSchema())} bytes`);
+  assert.ok(size(specSchema()) <= 11000, `specSchema ${size(specSchema())} bytes`);
   assert.ok(size(deckSchema()) <= 7000, `deckSchema ${size(deckSchema())} bytes`);
   const { toolList } = await load("lib/commands/index.mjs");
   const tools = toolList();
   const input = (name) => tools.find((t) => t.name === name).inputSchema;
-  assert.ok(size(input("ask")) <= 10000 + 1000, `ask inputSchema ${size(input("ask"))} bytes`);
+  assert.ok(size(input("ask")) <= 11000 + 1000, `ask inputSchema ${size(input("ask"))} bytes`);
   assert.ok(size(input("swipe")) <= 7000 + 1000, `swipe inputSchema ${size(input("swipe"))} bytes`);
   assert.ok(size(input("ask")) >= size(specSchema()), "the whole input schema holds the spec schema, $defs and all");
   const whole = size({ result: { tools } });

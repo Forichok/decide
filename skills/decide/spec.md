@@ -118,6 +118,7 @@
 | `tradeoff` | A slider from 0 to 100 between two poles (poles: ["faster", "more careful"]); recommendedAt marks the agent's pick. | `poles`, `recommendedAt` |
 | `spot` | Mark points or areas on the question's first picture (images), each with an optional note; answers are in percent. | `maxSpots` |
 | `versus` | Four to eight options compared in pairs (arrow keys) until one wins: a knockout, at most 7 pairs. Answer: winner, order, pairs. | none |
+| `tune` | A panel of knobs (range, toggle, select, color, text, image) that drives a live mockup in `preview` or a table of derived numbers; the answer is the values. | `knobs`, `presets`, `frames`, `themes`, `derived` |
 <!-- /registry:types -->
 
 ### Media
