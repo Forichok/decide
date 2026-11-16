@@ -246,7 +246,7 @@ test("a 2.1 journal reads; a 3.0 line is readable by the 2.1 reader", (t) => {
   const line = JSON.parse(readFileSync(path.join(dir, "journal.jsonl"), "utf8").trim());
   assert.equal(line.format, JOURNAL_FORMAT);
   // The 2.x fields are what they were.
-  assert.deepEqual(Object.keys(line).filter((k) => !["format", "records"].includes(k)), ["at", "round", "title", "mode", "source", "spec", "answers", "questions", "digest"]);
+  assert.deepEqual(Object.keys(line).filter((k) => !["format", "records", "edges"].includes(k)), ["at", "round", "title", "mode", "source", "spec", "answers", "questions", "digest"]);
   const old = readJournal21(dir);
   assert.equal(old.length, 1);
   assert.equal(old[0].round, "9-abcdef");
