@@ -5,16 +5,17 @@ import { h, icon } from "./dom.js";
 import { lang, t } from "./i18n.js";
 import { md, mdInline } from "./md.js";
 import { getJournal } from "./net.js";
+import { progressOf } from "./logic.js";
 
 const REPO = "https://github.com/Forichok/decide";
 const out = { target: "_blank", rel: "noopener" };
 
 export function renderHeader(spec, env) {
   const g = spec.glossary;
-  const n = spec.questions.length;
   const high = spec.questions.filter((q) => q.stakes === "high").length;
+  const count = progressOf(spec, env.answers || {});
   const meta = [
-    [t("meta.questions", n)],
+    [t("progress.count", count.answered, count.total), ".count"],
     [spec.budget ? t("meta.budget", spec.estimateMin, spec.budget) : t("meta.minutes", spec.estimateMin)],
     spec.sections.length && [t("meta.sections", spec.sections.length)],
     high && [t("meta.high", high), ".warn"],

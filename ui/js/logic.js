@@ -47,6 +47,32 @@ export function progress(spec, answers) {
   return { resolved: visible.filter((q) => isResolved(q, answers[q.id])).length, total: visible.length };
 }
 
+// The one count the page shows (header, cards, footer): visible questions that have an answer.
+// A rank counts once touched or when it starts with a default order, a scale once a value is
+// set or when it starts with a default; handing a question to the agent counts too, skipping does not.
+export function isCounted(q, a) {
+  if (!a) return false;
+  if (a.flag === "delegate") return true;
+  if (isAnswered(q, a)) return true;
+  if (q.type === "rank") return Boolean(a.touched) || Boolean(q.default?.length);
+  if (q.type === "scale") return Number.isFinite(a.value) || Boolean(a.selected?.length);
+  return false;
+}
+
+export function progressOf(spec, answers) {
+  const visible = visibleQuestions(spec, answers);
+  return { answered: visible.filter((q) => isCounted(q, answers[q.id])).length, total: visible.length };
+}
+
+// One segment per visible question for the progress bar: answered / current / skipped / stale / open.
+export function segmentsOf(spec, answers, current) {
+  return visibleQuestions(spec, answers).map((q) => {
+    const a = answers[q.id];
+    const state = q.id === current ? "current" : a?.stale ? "stale" : a?.flag === "skip" ? "skipped" : isCounted(q, a) ? "answered" : "open";
+    return { id: q.id, state };
+  });
+}
+
 export function withRecommendation(q, a) {
   return typeOf(q).recommend?.(q, a, recommendedIds(q)) ?? a;
 }

@@ -344,6 +344,8 @@ function pick(n) {
   if (swiping()) return;
   const q = currentQuestion();
   if (!q) return;
+  // With nothing current yet, the first card is the one being answered; remember it so J moves on from it.
+  if (!app.round.current()) app.round.setCurrent(q.id);
   typeOf(q).keys?.pick(q, n, app.round.ctx);
 }
 
