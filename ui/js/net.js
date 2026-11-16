@@ -174,3 +174,12 @@ export function listen(onState, onStatus, onDialog, onDeck) {
 // Reactive rounds: bring a ghost back, keep a stale answer.
 export const restoreItem = (id, item) => fetch(`/api/rounds/${id}/restore`, { method: "POST", headers: WRITE, body: JSON.stringify({ id: item }) }).then(json);
 export const keepAnswer = (id, qid) => fetch(`/api/rounds/${id}/keep`, { method: "POST", headers: WRITE, body: JSON.stringify({ qid }) }).then(json);
+// How much to ask, and the page's own buttons (settings.js, actions.js).
+const post = (path, body) => fetch(path, { method: "POST", headers: WRITE, body: JSON.stringify(body) }).then(json);
+export const getSettings = (project) => fetch(`/api/settings?${new URLSearchParams({ project })}`, { cache: "no-store" }).then(json);
+export const setLevel = (project, level) => post("/api/settings", { project, level });
+export const addRuleTo = (project, text, mode, question = "") => post("/api/rules", { project, text, mode, question });
+export const removeRuleFrom = (project, id) => post("/api/rules", { project, remove: id });
+export const exportRoundFile = (id) => post(`/api/rounds/${id}/export`, {});
+export const saveRoundAdr = (id) => post(`/api/rounds/${id}/adr`, {});
+export const fitRound = (id, minutes) => post(`/api/rounds/${id}/fit`, { minutes });

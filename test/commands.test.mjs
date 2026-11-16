@@ -84,10 +84,10 @@ const logOf = (home, dir, id) => {
 
 // ---- the table
 
-test("lib/tools.mjs and lib/commands.mjs are gone; the table has the fifteen commands", () => {
+test("lib/tools.mjs and lib/commands.mjs are gone; the table has the sixteen commands", () => {
   assert.equal(existsSync(path.join(pluginDir, "lib/tools.mjs")), false);
   assert.equal(existsSync(path.join(pluginDir, "lib/commands.mjs")), false);
-  assert.deepEqual(names, ["ask", "swipe", "wait", "push", "explain", "screenshot", "history", "supersede", "adr", "export", "import", "lint", "stop", "open", "notice"]);
+  assert.deepEqual(names, ["ask", "swipe", "wait", "push", "explain", "screenshot", "history", "supersede", "adr", "export", "import", "lint", "stop", "open", "notice", "rules"]);
   for (const c of COMMANDS) {
     assert.equal(typeof c.summary, "string", c.name);
     assert.equal(typeof c.run, "function", c.name);
@@ -108,9 +108,9 @@ test("swipe, push, lint and stop exist as MCP tools and as CLI commands; open an
   }
 });
 
-test("tools/list has the eleven 2.1 tools plus lint and stop, as 2.1 spelled them", () => {
+test("tools/list has the eleven 2.1 tools plus lint, stop and rules, as 2.1 spelled them", () => {
   const tools = toolList();
-  assert.deepEqual(tools.map((t) => t.name), [...surface.tools.map((t) => t.name), "lint", "stop"]);
+  assert.deepEqual(tools.map((t) => t.name), [...surface.tools.map((t) => t.name), "lint", "stop", "rules"]);
   const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x));
   for (const old of surface.tools) {
     const now = tools.find((t) => t.name === old.name);

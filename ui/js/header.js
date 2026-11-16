@@ -1,6 +1,7 @@
 // header.js — round header (title, meta, intro, recap, context), tabs for
 // parallel rounds, the project's decision journal, and the done / idle screens.
 
+import { roundActions } from "./actions.js";
 import { h, icon } from "./dom.js";
 import { lang, t } from "./i18n.js";
 import { md, mdInline } from "./md.js";
@@ -40,6 +41,7 @@ export function renderHeader(spec, env) {
         h("ul.left-out-list", {}, spec.leftOut.map((q) => h("li", { html: mdInline(q.title, g) }))),
       ),
     spec.context && h("details.panel.context", {}, h("summary", {}, h("div.panel-h", { html: `${icon("chevron", "chev")}${t("context")}` })), h("div.rich", { html: md(spec.context, g) })),
+    env.pending && !env.offline && env.currentId && !spec.swipe && roundActions(env.currentId),
     journalPanel(),
   );
 }

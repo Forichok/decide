@@ -15,6 +15,7 @@ import { createInbox, dismissRound, loadInbox, notifyNew } from "./inbox.js";
 import { baseName, nextRound } from "./inbox-logic.js";
 import { showStopped } from "./stopped.js";
 import { renderJournal } from "./journal.js";
+import { renderSettings } from "./settings.js";
 import { bindKeys } from "./nav.js";
 import { confirmCancel, openHelp, openReview, toast } from "./overlays.js";
 import { finalizeAnswers, isResolved, recommendedIds } from "./logic.js";
@@ -67,6 +68,7 @@ function env() {
   return {
     pending: app.state.rounds,
     currentId: app.round?.id ?? app.done?.id,
+    project: app.projectDir,
     history: app.state.history,
     connected: app.connected,
     delivery: app.done && deliveryOf(app.done.id),
@@ -108,6 +110,7 @@ async function openRound(id, fallback = false) {
     return showIdle(t("idle.badRound", id));
   }
   history.replaceState(null, "", `#r=${data.id}`);
+  app.projectDir = data.project || app.projectDir;
   app.seen.add(data.id);
   if (data.status === "pending") showRound(data);
   else showDone(data.id, data.result || { cancelled: true }, data.spec);
@@ -211,6 +214,19 @@ function showJournal() {
   hideBar();
   $("#main").replaceChildren(renderJournal(env()));
   document.title = `${t("journalPage.title")} — decide`;
+  window.scrollTo({ top: 0 });
+  syncRail();
+}
+
+function showSettings() {
+  disarmAdvance();
+  app.round?.stop();
+  app.round = null;
+  app.view = "settings";
+  app.done = null;
+  hideBar();
+  $("#main").replaceChildren(renderSettings(env()));
+  document.title = `${t("settings.title")} — decide`;
   window.scrollTo({ top: 0 });
   syncRail();
 }
@@ -537,11 +553,13 @@ async function boot() {
   if (app.connected && !offline) app.inbox = (await loadInbox(app.state)) || [];
   window.addEventListener("hashchange", () => {
     if (location.hash === "#journal") return app.view !== "journal" && showJournal();
+    if (location.hash === "#settings") return app.view !== "settings" && showSettings();
     const id = new URLSearchParams(location.hash.slice(1)).get("r");
     if (id && id !== app.round?.id && id !== app.done?.id) openRound(id);
   });
   const id = new URLSearchParams(location.hash.slice(1)).get("r");
   if (location.hash === "#journal") showJournal();
+  else if (location.hash === "#settings") showSettings();
   else if (id) await openRound(id);
   else if (app.state.rounds.length) await openRound(app.state.rounds.at(-1).id);
   else if (app.view === "boot") showIdle();

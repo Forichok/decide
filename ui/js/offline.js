@@ -160,3 +160,12 @@ export function listen(onState, onStatus) {
 // Reactive rounds need a daemon: in an exported file the page keeps these to itself.
 export const restoreItem = async () => ({});
 export const keepAnswer = async () => ({});
+// The daemon's own buttons have no daemon here.
+const gone = () => fail("not available in an exported file");
+export const getSettings = gone;
+export const setLevel = gone;
+export const addRuleTo = gone;
+export const removeRuleFrom = gone;
+export const exportRoundFile = gone;
+export const saveRoundAdr = gone;
+export const fitRound = gone;
