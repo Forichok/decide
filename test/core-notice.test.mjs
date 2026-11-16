@@ -266,7 +266,7 @@ test("notice prints the line for an uncollected round, nothing after ack, and ex
   await answer(port, id);
   const first = notice(dir);
   assert.equal(first.status, 0);
-  assert.match(first.stdout, new RegExp(`^decide: round ${id} "Colour" was answered at \\d\\d:\\d\\d and not collected; call wait \\{round: "${id}"\\}\\.\\n$`));
+  assert.match(first.stdout, new RegExp(`^decide: round ${id} "Colour" was answered at (?:\\d{4}-\\d\\d-\\d\\d )?\\d\\d:\\d\\d and not collected; call wait \\{round: "${id}"\\}\\.\\n$`));
   const final = await waitNext(s, id, { waiter: "a", timeoutMs: 2_000 });
   await ack(s, id, final.seq, "a");
   const second = notice(dir);

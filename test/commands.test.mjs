@@ -414,7 +414,7 @@ test("the CLI gets the notice prefix; `notice` itself prints the line once", asy
   const history = spawnSync(process.execPath, [enginePath, "--journal", "--project", dir], { env, encoding: "utf8" });
   assert.equal(history.status, 0, history.stderr);
   assert.ok(history.stderr.startsWith(`decide: round ${id} "Colour" was answered at`), history.stderr);
-  assert.match(history.stderr, new RegExp(`not collected; run decide wait ${id}\\.`), "the CLI's wording, not the tool's");
+  assert.match(history.stderr, new RegExp(`not collected; run node \\S*decide\\.mjs wait ${id}\\.`), "the CLI's wording, not the tool's");
   assert.doesNotMatch(history.stderr, /call wait \{/);
   assert.doesNotMatch(history.stdout, /decide: round/, "stdout is the command's own output");
   const notice = spawnSync(process.execPath, [enginePath, "notice", "--project", dir], { env, encoding: "utf8" });
@@ -546,7 +546,7 @@ test("CLI: a swipe batch is printed as a batch, exits with the ask code, and is 
   assert.match(waiting.output.stdout, /Batch 1 from swipe round \S+: 2 new answers; 2 answered, 3 left in the deck of 5\./);
   assert.match(waiting.output.stdout, /\[a\] a\? → a-L \(left\)/);
   assert.doesNotMatch(waiting.output.stdout, /undefined|=== DECIDE ===/);
-  assert.match(waiting.output.stdout, new RegExp(`decide push ${id}`), "it says how to go on from the CLI");
+  assert.match(waiting.output.stdout, new RegExp(`node \\S*decide\\.mjs push ${id}`), "it says how to go on from the CLI");
   const types = logOf(home, dir, id).map((e) => e.type);
   assert.equal(types.filter((x) => x === "acked").length, 1, types.join());
   assert.ok(types.lastIndexOf("acked") > types.indexOf("batch"), "acked after the batch");
@@ -597,7 +597,7 @@ test("the CLI's notice goes to stderr in the CLI's words and never into the outp
   for (const argv of [["--journal"], ["--lint", path.join(dir, "colour.questions.json")]]) {
     writeFileSync(path.join(dir, "colour.questions.json"), JSON.stringify(spec));
     const run = spawnSync(process.execPath, [enginePath, ...argv, "--project", dir], { env, encoding: "utf8" });
-    assert.match(run.stderr, new RegExp(`^decide: round ${id} "Colour" was answered at .*run decide wait ${id}\\.`), argv.join(" "));
+    assert.match(run.stderr, new RegExp(`^decide: round ${id} "Colour" was answered at .*run node \\S*decide\\.mjs wait ${id}\\.`), argv.join(" "));
     assert.doesNotMatch(run.stdout, /decide: round/, argv.join(" "));
   }
   process.env.DECIDE_TEST_NOTICE_GRACE_MS = "0";
@@ -661,5 +661,6 @@ test("swipe's description ends with what a deck carries (card fields, media kind
   for (const field of ["left", "right", "recommended", "tldr", "from"]) assert.match(lines, new RegExp(`^${field}: `, "m"), `card field ${field}`);
   for (const kind of MEDIA.keys()) assert.match(lines, new RegExp(`^${kind}: `, "m"), `media kind ${kind}`);
   assert.doesNotMatch(lines, /^(question|options|type): /m, "nothing only a question has");
+  assert.doesNotMatch(lines, /^(images|preview|chart): .*(can be marked up|notes pinned|share a scale)/m, "a card has no mark-up, pinned notes or sibling options");
   assert.ok(toolList().find((x) => x.name === "ask").description.endsWith(typeLines()), "ask keeps the question types");
 });
