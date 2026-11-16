@@ -11,13 +11,15 @@
  *   - every page module imports under Node and answers like logic.js says it does
  *   - the six 2.1 types normalise exactly as 2.1.1 did (a snapshot taken on f62a924)
  *   - every JSON spec in examples/ and in the docs passes the strict check
+ *   - media kinds: one module per kind on each side, strict insides, generated schema and reference tables
  * Why exists: the owner's real 2.x specs must keep opening; a new type must be one module per side.
  * Isolation:  pure, except the --lint test, which has its own scratch DECIDE_HOME.
  */
 
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
@@ -194,13 +196,15 @@ test("unknownFields adds one error per unknown name and skips what is not an obj
   ]);
 });
 
-const FIELD_TYPES = new Set(["string", "number", "boolean", "enum", "array", "object", "any"]);
+const FIELD_TYPES = new Set(["string", "number", "boolean", "enum", "array", "object", "any", "union"]);
 function checkFieldDef(def, where) {
   assert.ok(FIELD_TYPES.has(def.type), `${where}: type ${def.type}`);
   assert.equal(typeof def.doc, "string", where);
   assert.ok(def.doc.length > 3, `${where}: doc`);
   if (def.type === "enum") assert.ok(Array.isArray(def.values) && def.values.length, `${where}: enum needs values`);
   if (def.items) checkFieldDef(def.items, `${where}[]`);
+  if (def.type === "union") assert.ok(def.of.length > 1, `${where}: a union lists its shapes`);
+  def.of?.forEach((alt, i) => checkFieldDef(alt, `${where}|${i}`));
   for (const [k, f] of Object.entries(def.fields || {})) checkFieldDef(f, `${where}.${k}`);
 }
 
@@ -451,10 +455,10 @@ test("a field another type reads is one warning, naming the types, however many 
   assert.ok(!/ignored/.test(warns[0]), "it does not say what is not true");
 });
 
-test("a card may carry question, the older spelling of title", () => {
-  assert.ok(CARD_FIELDS.question, "CARD_FIELDS lists question");
+test("a card has no question field: nothing reads it, so it is an unknown name that points at title", () => {
+  assert.equal(CARD_FIELDS.question, undefined);
   const { issues } = normalizeDeck({ goal: "g", cards: [{ id: "c", question: "Ship it?", why: "w", left: "yes", right: "no" }] });
-  assert.deepEqual(errorsOf(issues).filter((e) => /unknown/.test(e)), []);
+  assert.match(errorsOf(issues).join("\n"), /unknown field "question"/);
 });
 
 // ---- fix round 1: a new type is one module per side
@@ -544,4 +548,605 @@ test("the round's ctx is not written to by the page", () => {
   assert.ok(!/ctx\.\w+\s*(\?\?|\|\||&&)?=[^=]/.test(source), "inputs.js assigns nothing on ctx");
   const round = readFileSync(path.join(pluginDir, "ui/js/round.js"), "utf8");
   assert.match(round, /\n\s+t,\n\s+renderMedia,\n/, "round.js puts the page's t and renderMedia on ctx");
+});
+
+// ---- Task 12: media kinds, the generated schema and the reference tables
+
+const KINDS = ["images", "preview", "html", "mermaid", "code", "compare", "video", "diff", "table", "chart", "links"];
+const registry = () => load("lib/registry/index.mjs");
+const docs = () => load("lib/registry/docs.mjs");
+
+// A directory with the files the media examples point at.
+async function mediaDir(context) {
+  const dir = await mkdtemp(path.join(tmpdir(), "decide-media-reg-"));
+  context.after(() => rm(dir, { recursive: true, force: true }));
+  for (const f of ["card.html", "after.html", "before.png", "after.png", "clip.mp4"]) await writeFile(path.join(dir, f), "x");
+  return dir;
+}
+const mediaQuestion = (extra = {}, option = {}) => ({ questions: [{ id: "q", title: "t", options: [{ id: "a", label: "A", recommended: true, ...option }, { id: "b", label: "B" }], ...extra }] });
+const unknownOf = (issues) => issues.filter((i) => /unknown field/.test(i.message)).map((i) => `${i.level} ${i.where}: ${i.message}`);
+
+test("every media kind has a page module, a doc row and a valid example", async (context) => {
+  const { MEDIA, MEDIA_FIELDS } = await registry();
+  const { docTables } = await docs();
+  const dir = await mediaDir(context);
+  assert.deepEqual([...MEDIA.keys()], KINDS);
+  const page = await load("ui/js/media/index.js");
+  assert.deepEqual([...page.MEDIA.keys()].sort(), [...KINDS].sort(), "the page lists the same kinds as the engine");
+  const rows = docTables().media;
+  for (const [name, def] of MEDIA) {
+    assert.equal(def.name, name);
+    assert.ok(typeof def.summary === "string" && def.summary.length > 10 && !/\n/.test(def.summary), `${name}: a one-line summary`);
+    checkFieldDef(def.field, `${name}.field`);
+    for (const [k, f] of Object.entries(def.extra || {})) checkFieldDef(f, `${name}.extra.${k}`);
+    assert.equal(typeof def.normalize, "function", name);
+    assert.equal(typeof def.lint, "function", name);
+    assert.ok(rows.includes(`\`${name}\``), `${name}: a row in the table`);
+    const mod = await load("ui/js/media", `${name}.js`);
+    assert.equal(typeof mod.render, "function", `${name}: page render`);
+    assert.ok(MEDIA_FIELDS[name] === def.field, `${name}: its field is in MEDIA_FIELDS`);
+    for (const k of Object.keys(def.extra || {})) assert.ok(MEDIA_FIELDS[k], `${name}: ${k} is in MEDIA_FIELDS`);
+    const { spec, issues } = normalizeSpec(mediaQuestion(def.example), { specDir: dir });
+    assert.deepEqual(issues, [], `${name}: ${JSON.stringify(issues)}`);
+    assert.ok(spec.questions[0][name] && (!Array.isArray(spec.questions[0][name]) || spec.questions[0][name].length), `${name}: the example makes a node`);
+  }
+  assert.equal(typeof document, "undefined", "nothing in the page modules created a DOM at import");
+});
+
+test("every media field name belongs to exactly one kind, and an alias names a field that exists", async () => {
+  const { MEDIA, MEDIA_FIELDS } = await registry();
+  const owners = new Map();
+  for (const def of MEDIA.values()) for (const k of [def.name, ...Object.keys(def.extra || {})]) owners.set(k, [...(owners.get(k) || []), def.name]);
+  for (const [k, who] of owners) assert.equal(who.length, 1, `${k}: ${who}`);
+  assert.deepEqual([...owners.keys()].sort(), Object.keys(MEDIA_FIELDS).sort());
+  for (const [k, f] of Object.entries(MEDIA_FIELDS)) if (f.alias) assert.ok(MEDIA_FIELDS[f.alias], `${k} stands for ${f.alias}`);
+  assert.deepEqual(
+    Object.entries(MEDIA_FIELDS).filter(([, f]) => f.alias).map(([k, f]) => `${k}->${f.alias}:${owners.get(k)}`).sort(),
+    ["image->images:images", "link->links:links", "videos->video:video"],
+  );
+});
+
+test("the aliases of 2.1 and the shapes it let through are still known inside a media node", async (context) => {
+  const dir = await mediaDir(context);
+  const spec = mediaQuestion({
+    image: "before.png",
+    videos: ["clip.mp4"],
+    link: "https://e.com",
+    images: [{ src: "before.png", caption: "c" }, { path: "after.png", alt: "a" }, { shot: "http://localhost:1/", viewport: "mobile", caption: "c", name: "n", waitMs: 5 }, { sim: "ios", device: "d", caption: "c", name: "n" }],
+    html: { html: "<b>x</b>", maxHeight: 200 },
+    code: { source: "x", lang: "js", diff: false },
+    compare: { before: { path: "before.png", label: "a" }, after: "after.png", labels: ["a", "b"] },
+    video: { path: "clip.mp4", caption: "c", loop: true },
+    diff: { before: "a", after: "b", lang: "js", labels: ["a", "b"] },
+    table: { columns: ["a", { id: "b", label: "B" }], rows: [["1", "2"]], caption: "c" },
+    chart: { type: "line", labels: ["a", "b"], series: [{ label: "x", data: [1, 2] }, { name: "y", values: [3, 4] }], unit: "u", title: "t" },
+    links: ["https://e.com", { label: "l", url: "https://e.com" }],
+  });
+  const { issues } = normalizeSpec(spec, { specDir: dir, fields: "strict" });
+  assert.deepEqual(unknownOf(issues), []);
+  const bare = normalizeSpec(mediaQuestion({ chart: { series: [1, 2] }, table: { rows: [{ a: 1 }] }, video: "clip.mp4", images: "before.png", links: { url: "https://e.com" } }), { specDir: dir });
+  assert.deepEqual(unknownOf(bare.issues), []);
+});
+
+test("an unknown field inside a media node is an error with its place and the nearest name", async (context) => {
+  const dir = await mediaDir(context);
+  const run = (extra, option) => unknownOf(normalizeSpec(mediaQuestion(extra, option), { specDir: dir }).issues);
+  assert.deepEqual(run({ chart: { type: "bar", lables: ["a"], series: [1] } }), ['error questions[0].chart: unknown field "lables"; did you mean "labels"?']);
+  assert.deepEqual(run({ images: [{ src: "before.png" }, { src: "after.png", captoin: "x" }] }), ['error questions[0].images[1]: unknown field "captoin"; did you mean "caption"?']);
+  assert.deepEqual(run({}, { table: { columns: ["a"], rows: [["1"]], captoin: "x" } }), ['error questions[0].options[0].table: unknown field "captoin"; did you mean "caption"?']);
+  assert.deepEqual(run({ chart: { series: [{ name: "a", valeus: [1] }] } }), ['error questions[0].chart.series[0]: unknown field "valeus"; did you mean "values"?']);
+  assert.deepEqual(run({ table: { columns: [{ id: "a", lable: "A" }], rows: [["1"]] } }), ['error questions[0].table.columns[0]: unknown field "lable"; did you mean "label"?']);
+  assert.deepEqual(run({ compare: { before: { src: "before.png", lable: "x" }, after: "after.png" } }), ['error questions[0].compare.before: unknown field "lable"; did you mean "label"?']);
+  assert.deepEqual(run({ code: { text: "x", langauge: "js" } }), ['error questions[0].code: unknown field "langauge"; did you mean "lang"?']);
+  assert.deepEqual(run({ links: [{ url: "https://e.com", titel: "x" }] }), ['error questions[0].links[0]: unknown field "titel"']);
+  assert.deepEqual(run({ video: { src: "clip.mp4", captoin: "c" } }), ['error questions[0].video: unknown field "captoin"; did you mean "caption"?']);
+  assert.deepEqual(run({ html: { source: "<b>x</b>", maxHeigth: 100 } }), ['error questions[0].html: unknown field "maxHeigth"; did you mean "maxHeight"?']);
+  assert.deepEqual(run({ diff: { before: "a", after: "b", lables: [] } }), ['error questions[0].diff: unknown field "lables"; did you mean "labels"?']);
+});
+
+test("a name that belongs to another kind, to a common slip or to the option says so instead of guessing", async (context) => {
+  const dir = await mediaDir(context);
+  const run = (extra) => unknownOf(normalizeSpec(mediaQuestion(extra), { specDir: dir }).issues).map((m) => m.replace(/^error [^:]*: /, ""));
+  assert.deepEqual(run({ chart: { series: [1], rows: [] } }), ['unknown field "rows"; "rows" belongs to table, not to chart']);
+  assert.deepEqual(run({ images: [{ url: "https://e.com/a.png" }] }), ['unknown field "url"; did you mean "src"?']);
+  assert.deepEqual(run({ links: [{ href: "https://e.com" }] }), ['unknown field "href"; did you mean "url"?']);
+  assert.deepEqual(run({ table: { headers: ["a"], rows: [["1"]] } }), ['unknown field "headers"; did you mean "columns"?']);
+  assert.deepEqual(run({ diff: { old: "a", new: "b" } }), ['unknown field "old"; did you mean "before"?', 'unknown field "new"; did you mean "after"?']);
+  assert.deepEqual(run({ images: [{ src: "a.png", detail: "x" }] }), ['unknown field "detail"; "detail" is an option field, not part of a media node: put it on the option']);
+});
+
+test("lenient mode turns the same unknown field into a warning, and the node is still drawn", async (context) => {
+  const dir = await mediaDir(context);
+  const { spec, issues } = normalizeSpec(mediaQuestion({ chart: { lables: ["a"], series: [1, 2] } }), { specDir: dir, fields: "lenient" });
+  assert.deepEqual(unknownOf(issues), ['warn questions[0].chart: unknown field "lables"; did you mean "labels"?']);
+  assert.deepEqual(errorsOf(issues), []);
+  assert.equal(spec.questions[0].chart.series[0].values.length, 2);
+});
+
+test("a card, its sides and a pushed card are checked inside too", () => {
+  const card = (extra) => ({ id: "c", title: "t", left: { label: "L", chart: { series: [1], lables: [] } }, right: "R", ...extra });
+  const { issues } = normalizeDeck({ goal: "g", cards: [card({ table: { rows: [["1"]], columns: ["a"], captoin: "x" } })] });
+  assert.deepEqual(unknownOf(issues), [
+    'error cards[0].table: unknown field "captoin"; did you mean "caption"?',
+    'error cards[0].left.chart: unknown field "lables"; did you mean "labels"?',
+  ]);
+  const pushed = normalizePatch({ add: [card({})] });
+  assert.deepEqual(unknownOf(pushed.issues), ['error add[0].left.chart: unknown field "lables"; did you mean "labels"?']);
+});
+
+test("collectMedia without a switch: the reply of an explain warns, it does not refuse", async () => {
+  const { collectMedia } = await load("lib/media.mjs");
+  const seen = [];
+  const ctx = { add: (l, w, m) => seen.push(`${l} ${w}: ${m}`), exists: () => true, abs: (p) => p, fieldLevel: "warn" };
+  collectMedia({ chart: { series: [1], lables: [] } }, "explain", ctx);
+  assert.deepEqual(seen, ['warn explain.chart: unknown field "lables"; did you mean "labels"?']);
+});
+
+test("a remote preview stays in the round with a warning; a local one does not warn", async (context) => {
+  const dir = await mediaDir(context);
+  const remote = normalizeSpec(mediaQuestion({ preview: "https://example.com/mock.html" }), { specDir: dir });
+  assert.equal(remote.spec.questions[0].preview.src, "https://example.com/mock.html");
+  assert.equal(remote.spec.questions[0].preview.local, false);
+  assert.deepEqual(warnsOf(remote.issues), ["questions[0] (q): preview https://example.com/mock.html: the page frames only files it serves itself; shown as a link"]);
+  assert.deepEqual(errorsOf(remote.issues), []);
+  const local = normalizeSpec(mediaQuestion({ preview: "card.html" }), { specDir: dir });
+  assert.deepEqual(local.issues, []);
+  const http = normalizeSpec(mediaQuestion({}, { preview: "http://localhost:5173/" }), { specDir: dir });
+  assert.equal(warnsOf(http.issues).length, 1);
+});
+
+// ---- the page modules render under a small stand-in for the DOM
+
+function fakeDom() {
+  class N {}
+  class El extends N {
+    constructor(tag) {
+      super();
+      this.tag = tag;
+      this.children = [];
+      this.attrs = {};
+      this.listeners = {};
+      this.dataset = {};
+      this.className = "";
+      this.style = { cssText: "", setProperty() {} };
+      const cls = new Set();
+      this.classList = { add: (c) => cls.add(c), remove: (c) => cls.delete(c), toggle: () => {}, contains: (c) => cls.has(c) };
+    }
+    append(...kids) { this.children.push(...kids.map((k) => (k instanceof N ? k : { text: String(k) }))); }
+    replaceChildren(...kids) { this.children = []; this.append(...kids); }
+    setAttribute(k, v) { this.attrs[k] = v; }
+    getAttribute(k) { return this.attrs[k]; }
+    addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
+    querySelector() { return null; }
+    getBoundingClientRect() { return { left: 0, top: 0, width: 100, height: 100 }; }
+    set innerHTML(v) { this.html = v; }
+    get innerHTML() { return this.html || ""; }
+    get clientWidth() { return 300; }
+    get offsetWidth() { return 300; }
+    play() { return Promise.resolve(); }
+  }
+  const root = new El("html");
+  const saved = ["document", "Node", "matchMedia", "ResizeObserver", "MutationObserver", "window", "location", "navigator"].map((k) => [k, Object.getOwnPropertyDescriptor(globalThis, k)]);
+  const set = (k, v) => Object.defineProperty(globalThis, k, { value: v, configurable: true, writable: true });
+  set("Node", N);
+  set("document", { createElement: (t) => new El(t), createTextNode: (s) => ({ text: String(s) }), documentElement: root });
+  set("matchMedia", () => ({ matches: false, addEventListener() {} }));
+  set("ResizeObserver", class { observe() {} unobserve() {} });
+  set("MutationObserver", class { observe() {} });
+  set("window", { addEventListener() {} });
+  set("location", { origin: "http://127.0.0.1:1" });
+  return () => {
+    for (const [k, d] of saved) d ? Object.defineProperty(globalThis, k, d) : delete globalThis[k];
+  };
+}
+
+// Every element in a tree, as { tag, attrs, children } walks.
+const walkEl = (el) => (el && el.children ? [el, ...el.children.flatMap(walkEl)] : []);
+
+test("every page module draws the normalised example of its kind, under a stand-in DOM", async (context) => {
+  const dir = await mediaDir(context);
+  const { MEDIA } = await registry();
+  const restore = fakeDom();
+  context.after(restore);
+  const page = await load("ui/js/media/index.js");
+  const ctx = { lightbox() {}, zoom() {}, toast() {}, offline: false };
+  const env = { qid: "q", compact: false, big: false, t: (k, ...a) => `${k}${a.join(",")}`, zoom: (kind, el) => el, offline: false, dark: () => false, narrow: () => false, sameOrigin: () => true };
+  const published = await load("lib/assets.mjs");
+  const roots = published.createRoots();
+  for (const [name, def] of MEDIA) {
+    if (name === "mermaid") continue; // loads a script from the network; the browser check covers it
+    const { spec } = normalizeSpec(mediaQuestion(def.example), { specDir: dir });
+    const node = roots.publishNode(spec.questions[0]);
+    const el = page.MEDIA.get(name).render(node, ctx, env);
+    assert.ok(el && walkEl(el).length > 0, `${name}: drew something`);
+  }
+});
+
+test("a remote preview is drawn as a link that opens in a new tab, not as a frame", async (context) => {
+  const restore = fakeDom();
+  context.after(restore);
+  const { render } = await load("ui/js/media/preview.js");
+  const env = { qid: "q", compact: false, big: false, t: (k, ...a) => `${k} ${a.join(",")}`, zoom: (kind, el) => el, offline: false, dark: () => false, narrow: () => false };
+  const el = render({ preview: { src: "https://example.com/mock.html", local: false }, previewHeight: 360 }, {}, env);
+  const tree = walkEl(el);
+  assert.equal(tree.filter((n) => n.tag === "iframe").length, 0, "no frame");
+  const a = tree.find((n) => n.tag === "a");
+  assert.equal(a.attrs.href, "https://example.com/mock.html");
+  assert.equal(a.attrs.target, "_blank");
+  assert.equal(a.attrs.rel, "noopener noreferrer");
+  const local = render({ preview: { src: "/r/0/card.html", local: true }, previewHeight: 360 }, {}, env);
+  assert.equal(walkEl(local).filter((n) => n.tag === "iframe").length, 1, "a local mockup keeps its frame");
+});
+
+// ---- the generated schema
+
+// A small checker for the part of JSON Schema the generator writes: no library.
+function validate(schema, value, root, where = "$") {
+  if (schema.$ref) return validate(root.$defs[schema.$ref.replace("#/$defs/", "")], value, root, where);
+  if (schema.anyOf) {
+    const tries = schema.anyOf.map((s) => validate(s, value, root, where));
+    return tries.some((t) => !t.length) ? [] : [`${where}: matches none of ${schema.anyOf.length} shapes (${tries.map((t) => t[0]).join(" | ")})`];
+  }
+  const errs = [];
+  const kind = Array.isArray(value) ? "array" : value === null ? "null" : typeof value;
+  if (schema.enum && !schema.enum.includes(value)) return [`${where}: ${JSON.stringify(value)} is not one of ${schema.enum.join(", ")}`];
+  if (schema.type && !((Array.isArray(schema.type) ? schema.type.includes(kind) : schema.type === kind) || (schema.type === "integer" && Number.isInteger(value)))) return [`${where}: expected ${schema.type}, got ${kind}`];
+  const types = [].concat(schema.type || []);
+  if (types.includes("object") && kind === "object") {
+    for (const r of schema.required || []) if (!(r in value)) errs.push(`${where}: missing ${r}`);
+    for (const [k, v] of Object.entries(value)) {
+      if (schema.properties?.[k]) errs.push(...validate(schema.properties[k], v, root, `${where}.${k}`));
+      else if (schema.additionalProperties === false) errs.push(`${where}: unknown field "${k}"`);
+    }
+  }
+  if (types.includes("array") && kind === "array") value.forEach((v, i) => errs.push(...validate(schema.items, v, root, `${where}[${i}]`)));
+  return errs;
+}
+
+test("the schema refuses an unknown field at every level and accepts a string where an option is expected", async () => {
+  const { specSchema } = await docs();
+  const schema = specSchema();
+  assert.equal(schema.type, "object");
+  assert.equal(schema.additionalProperties, false);
+  const ok = { title: "t", questions: [{ id: "a", title: "q", options: ["Postgres", { id: "b", label: "SQLite", recommended: true, chart: { series: [1, 2] } }] }] };
+  assert.deepEqual(validate(schema, ok, schema), []);
+  const bad = (spec) => validate(schema, spec, schema);
+  assert.match(bad({ titel: "t", questions: [] })[0], /unknown field "titel"/);
+  assert.match(bad({ questions: [{ id: "a", optoins: [] }] })[0], /unknown field "optoins"/);
+  assert.match(bad({ questions: [{ id: "a", options: [{ lable: "x" }] }] })[0], /unknown field "lable"/);
+  assert.match(bad({ questions: [{ id: "a", chart: { lables: [] } }] })[0], /unknown field "lables"/);
+  assert.match(bad({ questions: [{ id: "a", options: [{ images: [{ src: "a.png", captoin: "x" }] }] }] }).join("\n"), /unknown field "captoin"/);
+  assert.match(bad({ questions: [{ id: "a", type: "sinlge" }] }).join("\n"), /not one of/);
+  assert.match(bad({ title: "t" })[0], /missing questions/);
+  assert.deepEqual(bad({ questions: [{ id: "a", images: "a.png", video: { src: "a.mp4" }, links: "https://e.com", options: ["x"] }] }), [], "a single entry stands for a list, as the engine reads it");
+});
+
+test("every spec the repository ships passes the generated schema too", async () => {
+  const { specSchema } = await docs();
+  const schema = specSchema();
+  const files = walk(examples).filter((f) => f.endsWith(".questions.json"));
+  assert.ok(files.length >= 2);
+  for (const f of files) assert.deepEqual(validate(schema, JSON.parse(readFileSync(f, "utf8")), schema), [], f);
+});
+
+test("the schema is lean: shapes written once, no examples, doc as description", async () => {
+  const { specSchema } = await docs();
+  const schema = specSchema();
+  const text = JSON.stringify(schema);
+  assert.ok(Object.keys(schema.$defs).length >= 10, "shared shapes sit in $defs");
+  assert.ok(!/"example/.test(text) && !/"doc"/.test(text), "no examples, no doc keys");
+  assert.ok(text.includes('"description"'));
+  const refs = text.match(/"\$ref":"#\/\$defs\/([A-Za-z]+)"/g) || [];
+  for (const r of new Set(refs)) assert.ok(schema.$defs[r.match(/\/([A-Za-z]+)"$/)[1]], `${r} resolves`);
+  assert.ok(text.split('"images":{"$ref"').length >= 3, "the media fields are referred to, not written out each time");
+});
+
+test("a spec may carry $schema: it is the one top-level extra, known and ignored", async () => {
+  const { specSchema } = await docs();
+  const spec = { $schema: "https://example.com/decide.schema.json", title: "t", questions: [{ id: "a", title: "q", options: ["x", "y"] }] };
+  const { spec: out, issues } = normalizeSpec(spec);
+  assert.deepEqual(errorsOf(issues), []);
+  assert.equal("$schema" in out, false);
+  assert.deepEqual(validate(specSchema(), spec, specSchema()), []);
+  assert.deepEqual(errorsOf(normalizeDeck({ $schema: "x", goal: "g", cards: [{ id: "c", title: "t", left: "L", right: "R" }] }).issues), []);
+  assert.match(errorsOf(normalizeSpec({ ...spec, $scheme: "x" }).issues)[0], /unknown field "\$scheme"/);
+});
+
+// ---- the reference tables
+
+const between = (text, tag) => {
+  const m = text.replace(/\r\n/g, "\n").match(new RegExp(`<!-- ${tag} -->\n([\\s\\S]*?)\n<!-- /${tag} -->`));
+  assert.ok(m, `markers for ${tag}`);
+  return m[1];
+};
+
+test("spec.md is in step with the registry", async () => {
+  const { docTables } = await docs();
+  const md = readFileSync(path.join(pluginDir, "skills/decide/spec.md"), "utf8");
+  assert.equal(between(md, "registry:media"), docTables().media);
+  assert.equal(between(md, "registry:types"), docTables().types);
+});
+
+test("the tables name every type and every media kind once, with no line break inside a cell", async () => {
+  const { docTables } = await docs();
+  const { TYPES: types, MEDIA } = await registry();
+  const t = docTables();
+  for (const [text, names] of [[t.types, [...types.keys()]], [t.media, [...MEDIA.keys()]]]) {
+    const rows = text.split("\n");
+    assert.ok(rows.every((r) => r.startsWith("|") && r.endsWith("|")), "every line is a row");
+    for (const n of names) assert.equal(rows.filter((r) => r.startsWith(`| \`${n}\``)).length, 1, n);
+  }
+  assert.match(t.media, /\| `preview`.*network/, "a mockup has network access");
+  assert.doesNotMatch(t.media, /no network/);
+});
+
+test("injecting the tables touches only what is between the markers, and keeps \\n", async () => {
+  const { inject, docTables } = await docs();
+  const md = readFileSync(path.join(pluginDir, "skills/decide/spec.md"), "utf8").replace(/\r\n/g, "\n");
+  assert.equal(inject(md, docTables()), md, "already in step: nothing changes");
+  const stale = md.replace(/(<!-- registry:media -->\n)[\s\S]*?(\n<!-- \/registry:media -->)/, "$1stale$2");
+  assert.notEqual(stale, md);
+  assert.equal(inject(stale, docTables()), md);
+  assert.throws(() => inject("no markers here", docTables()), /registry:types/);
+  assert.ok(!inject(md, docTables()).includes("\r"));
+  // A CRLF checkout keeps CRLF all through: no line of the file ends in a bare \n after a write.
+  const crlf = md.replace(/\n/g, "\r\n");
+  const staleCrlf = crlf.replace(/(<!-- registry:media -->\r\n)[\s\S]*?(\r\n<!-- \/registry:media -->)/, "$1stale$2");
+  const fixed = inject(staleCrlf, docTables());
+  assert.equal(fixed, crlf);
+  assert.ok(!/[^\r]\n/.test(fixed), "no bare line feed");
+});
+
+test("typeLines names every type and every media kind once", async () => {
+  const { typeLines } = await docs();
+  const { TYPES: types, MEDIA } = await registry();
+  const lines = typeLines().split("\n");
+  assert.equal(lines.length, types.size + MEDIA.size);
+  for (const n of [...types.keys(), ...MEDIA.keys()]) assert.equal(lines.filter((l) => l.startsWith(`${n}: `)).length, 1, n);
+  assert.ok(lines.every((l) => l.length < 200), "short lines");
+});
+
+test("npm run docs is the generator and is the only script this task added", () => {
+  const pkg = JSON.parse(readFileSync(path.join(pluginDir, "package.json"), "utf8"));
+  assert.equal(pkg.scripts.docs, "node lib/registry/docs.mjs --write");
+  assert.equal(pkg.version, "2.1.1");
+});
+
+test("nothing in the engine switches on a media kind outside the registry", () => {
+  const src = (f) => readFileSync(path.join(pluginDir, f), "utf8");
+  for (const f of ["lib/media.mjs", "lib/spec.mjs", "lib/swipe.mjs", "lib/assets.mjs"]) {
+    assert.doesNotMatch(src(f), /["'](mermaid|compare)["']/, `${f}: no kind named in a switch or a list`);
+  }
+});
+
+
+// ---- fix round 1: the schema never refuses more than the engine, and it is small
+
+const mdJson = () =>
+  ["skills/decide/spec.md", "skills/decide/SKILL.md", "skills/swipe/SKILL.md", "README.md"].flatMap((f) => {
+    const file = path.join(pluginDir, f);
+    let text;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      return [];
+    }
+    return [...text.matchAll(/```json\n([\s\S]*?)```/g)].flatMap((m, i) => {
+      try {
+        return [{ name: `${f} block ${i + 1}`, value: JSON.parse(m[1]) }];
+      } catch {
+        return [];
+      }
+    });
+  });
+
+test("every spec the docs show, and every deck the repository ships, passes the schema its engine accepts", async () => {
+  const { specSchema, deckSchema } = await docs();
+  const rounds = mdJson().filter((b) => Array.isArray(b.value?.questions));
+  assert.ok(rounds.length >= 2, "spec.md and the README each show a round");
+  for (const b of rounds) {
+    assert.deepEqual(errorsOf(normalizeSpec(structuredClone(b.value), { specDir: examples }).issues).filter((e) => !/missing file/.test(e)), [], `${b.name}: the engine takes it`);
+    assert.deepEqual(validate(specSchema(), b.value, specSchema()), [], b.name);
+  }
+  const decks = walk(examples).filter((f) => f.endsWith(".deck.json"));
+  assert.ok(decks.length >= 1);
+  for (const f of decks) assert.deepEqual(validate(deckSchema(), JSON.parse(readFileSync(f, "utf8")), deckSchema()), [], f);
+  for (const b of mdJson().filter((b) => Array.isArray(b.value?.cards))) assert.deepEqual(validate(deckSchema(), b.value, deckSchema()), [], b.name);
+});
+
+test("the schema takes every shape the strict engine takes without an error", async () => {
+  const { specSchema, deckSchema } = await docs();
+  const q = (extra, options = ["x", "y"]) => ({ questions: [{ id: "a", title: "t", options, ...extra }] });
+  const cases = {
+    "metrics as a list": q({}, [{ label: "x", metrics: [{ label: "Speed", value: 4 }] }, "y"]),
+    "metrics as an object": q({}, [{ label: "x", metrics: { Speed: 4, Time: "5 days" } }, "y"]),
+    "a showIf item with a name of its own": { questions: [{ id: "a", title: "t", options: [{ id: "x", label: "X" }] }, { id: "b", title: "t", options: ["x", "y"], showIf: { q: "a", in: "x", why: "because" } }] },
+    "a section with questions listed in it": { sections: [{ id: "s", title: "S", questions: ["a"] }], ...q({ section: "s" }) },
+    "one section": { sections: { id: "s", title: "S" }, ...q({ section: "s" }) },
+    "stakes the engine only warns on": q({ stakes: "normal" }),
+    "layout, lang and sim the engine only warns on": { lang: "de", ...q({ layout: "zzz", images: [{ sim: "zzz", viewport: "zzz" }] }) },
+    "options as one object": q({}, { id: "a", label: "A" }),
+    "pros, cons, tags and default as one string": q({ default: "x" }, [{ label: "x", pros: "p", cons: "c", tags: "t" }, "y"]),
+    "a table with one column": q({ table: { columns: "a", rows: [["1"]] } }),
+    "labels as one string": q({ compare: { before: "a.png", after: "b.png", labels: "x" }, diff: { before: "a", after: "b", labels: "x" }, chart: { labels: "a", series: [1] } }),
+    "one named series with a single value list": q({ chart: { series: { name: "s", values: 3 } } }),
+  };
+  for (const [name, spec] of Object.entries(cases)) {
+    assert.deepEqual(errorsOf(normalizeSpec(structuredClone(spec), { specDir: examples }).issues).filter((e) => !/missing file/.test(e)), [], `${name}: the engine takes it`);
+    assert.deepEqual(validate(specSchema(), spec, specSchema()), [], name);
+  }
+  const card = (extra) => ({ goal: "g", cards: [{ id: "c", title: "t", left: "L", right: "R", ...extra }] });
+  for (const [name, deck] of Object.entries({ "from null": card({ from: null }), "a recommendation the engine only warns on": card({ recommended: "mid", stakes: "low" }), "brief as one string": { ...card({}), brief: "x" } })) {
+    assert.deepEqual(errorsOf(normalizeDeck(structuredClone(deck)).issues), [], `${name}: the engine takes it`);
+    assert.deepEqual(validate(deckSchema(), deck, deckSchema()), [], name);
+  }
+  // It still refuses what the engine refuses.
+  assert.match(validate(specSchema(), q({ type: "zzz" }), specSchema()).join("\n"), /not one of/);
+  assert.match(validate(specSchema(), q({ titel: "x" }), specSchema()).join("\n"), /unknown field "titel"/);
+});
+
+test("the schema is small: specSchema 9,000 bytes, deckSchema 7,000", async () => {
+  const { specSchema, deckSchema } = await docs();
+  const size = (v) => JSON.stringify(v).length;
+  assert.ok(size(specSchema()) <= 9000, `specSchema ${size(specSchema())} bytes`);
+  assert.ok(size(deckSchema()) <= 7000, `deckSchema ${size(deckSchema())} bytes`);
+});
+
+test("a description sits only where the name does not say it, never on a spelling or a union arm", async () => {
+  const { specSchema } = await docs();
+  const schema = specSchema();
+  const text = JSON.stringify(schema);
+  const count = (text.match(/"description"/g) || []).length;
+  assert.ok(count > 5 && count < 40, `${count} descriptions`);
+  for (const alias of ["question", "image", "videos", "link", "selected"]) {
+    const where = schema.$defs.question.properties[alias] || schema.$defs.showIf.properties[alias];
+    if (where) assert.equal("description" in where, false, `${alias}: no description`);
+  }
+});
+
+test("the media table says everything the old one did: the names inside a kind, their values, and what a URL does to a preview", async () => {
+  const { docTables } = await docs();
+  const { media } = docTables();
+  const row = (kind) => media.split("\n").find((l) => l.startsWith(`| \`${kind}\``));
+  for (const word of ["`viewport` (desktop, mobile, both)", "`waitMs`", "`name`", "`device`", "http(s)", "when the round opens"]) assert.ok(row("images").includes(word), `images: ${word}`);
+  assert.match(row("preview"), /`previewHeight`: Height of the frame in px/);
+  assert.match(row("preview"), /network access/);
+  assert.match(row("preview"), /http\(s\) URL is shown as a link/);
+  assert.doesNotMatch(row("preview"), /no network/);
+  assert.match(row("compare"), /labels/);
+});
+
+test("the mermaid line says what the page does now: draws it from a CDN, shows the source when that fails", async () => {
+  const { typeLines } = await docs();
+  const line = typeLines().split("\n").find((l) => l.startsWith("mermaid: "));
+  assert.match(line, /CDN/);
+  assert.match(line, /source/);
+});
+
+test("a remote .html in a compare warns and is drawn as two links; a local pair keeps its frames", async (context) => {
+  const dir = await mediaDir(context);
+  const compare = { before: "https://example.com/a.html", after: "https://example.com/b.html", labels: ["Old", "New"] };
+  const out = normalizeSpec({ questions: [{ id: "q", title: "t", options: ["x", "y"], compare }] }, { specDir: dir });
+  assert.deepEqual(errorsOf(out.issues), []);
+  assert.deepEqual(warnsOf(out.issues).filter((w) => /compare/.test(w)), [
+    "questions[0] (q): compare https://example.com/a.html: the page frames only files it serves itself; shown as a link",
+    "questions[0] (q): compare https://example.com/b.html: the page frames only files it serves itself; shown as a link",
+  ]);
+  assert.equal(out.spec.questions[0].compare.live, true, "kept in the round");
+  const restore = fakeDom();
+  context.after(restore);
+  const { render } = await load("ui/js/media/compare.js");
+  const env = { qid: "q", compact: false, big: false, t: (k, ...a) => `${k} ${a.join(",")}`, zoom: (kind, el) => el, offline: false, dark: () => false, narrow: () => false };
+  const tree = walkEl(render({ compare: out.spec.questions[0].compare, previewHeight: 360 }, {}, env));
+  assert.equal(tree.filter((n) => n.tag === "iframe").length, 0, "no frames");
+  const links = tree.filter((n) => n.tag === "a");
+  assert.deepEqual(links.map((a) => a.attrs.href), ["https://example.com/a.html", "https://example.com/b.html"]);
+  for (const a of links) {
+    assert.equal(a.attrs.target, "_blank");
+    assert.equal(a.attrs.rel, "noopener noreferrer");
+  }
+  const local = render({ compare: { before: { src: "/r/0/a.html", label: "" }, after: { src: "/r/0/b.html", label: "" }, live: true }, previewHeight: 360 }, {}, env);
+  assert.equal(walkEl(local).filter((n) => n.tag === "iframe").length, 2, "two local mockups keep their frames");
+});
+
+test("metrics as a list of {label, value} is read as the object form: the same rows, no warning", async (context) => {
+  const { exportSpec } = await load("lib/export.mjs");
+  const make = (metrics) => normalizeSpec({ questions: [{ id: "q", title: "t", options: [{ label: "x", recommended: true, metrics }, "y"] }] });
+  const asList = make([{ label: "Speed", value: 4 }, { label: "Time", value: "5 days" }]);
+  const asObject = make({ Speed: 4, Time: "5 days" });
+  assert.deepEqual(asList.issues, []);
+  assert.deepEqual(asObject.issues, []);
+  assert.deepEqual(asObject.spec.questions[0].options[0].metrics, [{ label: "Speed", value: 4 }, { label: "Time", value: "5 days" }]);
+  assert.deepEqual(asList.spec.questions[0].options[0].metrics, asObject.spec.questions[0].options[0].metrics, "the page draws rows from this");
+  const dir = await mkdtemp(path.join(tmpdir(), "decide-metrics-"));
+  context.after(() => rm(dir, { recursive: true, force: true }));
+  const rows = (spec, name) => {
+    const out = path.join(dir, `${name}.html`);
+    exportSpec(spec, { id: name, out });
+    const payload = JSON.parse(readFileSync(out, "utf8").match(/<script type="application\/json" id="decide-export">([\s\S]*?)<\/script>/)[1].replace(/\\u003c/g, "<"));
+    return payload.round.spec.questions[0].options[0].metrics;
+  };
+  assert.deepEqual(rows(asList.spec, "list"), rows(asObject.spec, "object"), "the export carries the same rows");
+  const md = readFileSync(path.join(pluginDir, "skills/decide/spec.md"), "utf8");
+  assert.doesNotMatch(md, /"metrics": \[/);
+});
+
+test("an image's label and a link's src name the field they stand for", () => {
+  const img = normalizeSpec({ questions: [{ id: "q", title: "t", options: ["x", "y"], images: [{ src: "a.png", label: "Home" }] }] });
+  assert.match(errorsOf(img.issues).join("\n"), /unknown field "label".*did you mean "caption"\?/);
+  const link = normalizeSpec({ questions: [{ id: "q", title: "t", options: ["x", "y"], links: [{ label: "Doc", src: "https://example.com" }] }] });
+  assert.match(errorsOf(link.issues).join("\n"), /unknown field "src".*did you mean "url"\?/);
+});
+
+
+// ---- fix round 2
+
+test("the schema takes null for every optional field, as the engine reads it (absent), but not for what it requires", async () => {
+  const { specSchema, deckSchema } = await docs();
+  const round = {
+    title: null, lang: null, intro: null, recap: null, context: null, glossary: null, budget: null, sections: null,
+    questions: [{ id: "a", title: "t", type: null, options: [{ label: "x", recommended: null, metrics: null, pros: null, images: null, preview: null, danger: null }, "y"], showIf: null, stakes: null, images: null, table: null, chart: null, compare: null, links: null, note: null }],
+  };
+  assert.deepEqual(errorsOf(normalizeSpec(structuredClone(round), { specDir: examples }).issues).filter((e) => !/missing file/.test(e)), [], "the engine takes it");
+  assert.deepEqual(validate(specSchema(), round, specSchema()), []);
+  assert.ok(validate(specSchema(), { ...round, questions: null }, specSchema()).length, "questions stays required");
+  const deck = { title: null, goal: "g", intro: null, brief: null, confidence: null, batch: null, cards: [{ id: "c", title: "t", left: "L", right: { label: "R", detail: null, images: null }, from: null, recommended: null, stakes: null, tldr: null, body: null, images: null }] };
+  assert.deepEqual(errorsOf(normalizeDeck(structuredClone(deck)).issues), [], "the engine takes it");
+  assert.deepEqual(validate(deckSchema(), deck, deckSchema()), []);
+  assert.ok(validate(deckSchema(), { ...deck, cards: null }, deckSchema()).length, "cards stays required");
+});
+
+test("the schema is open inside scale (the engine drops a name it does not know) and takes numbers for table columns", async () => {
+  const { specSchema } = await docs();
+  const spec = { questions: [{ id: "a", title: "t", type: "scale", scale: { min: 1, max: 5, step: 1, labels: { 1: "low" } }, options: [] }, { id: "b", title: "t", options: ["x", "y"], table: { columns: [2021, 2022, "total"], rows: [[1, 2, 3]] } }] };
+  assert.deepEqual(errorsOf(normalizeSpec(structuredClone(spec), { specDir: examples }).issues).filter((e) => !/option|missing file/.test(e)), [], "the engine takes it");
+  assert.deepEqual(validate(specSchema(), spec, specSchema()), []);
+});
+
+test("a compare of one local and one remote mockup: the remote side is a link, the local side keeps its frame, live and exported", async (context) => {
+  const dir = await mediaDir(context);
+  await writeFile(path.join(dir, "local.html"), "<p>local</p>");
+  const compare = { before: "local.html", after: "https://example.com/b.html", labels: ["Old", "New"] };
+  const out = normalizeSpec({ questions: [{ id: "q", title: "t", options: ["x", "y"], compare }] }, { specDir: dir });
+  assert.deepEqual(errorsOf(out.issues), []);
+  assert.deepEqual(warnsOf(out.issues).filter((w) => /compare/.test(w)), ["questions[0] (q): compare https://example.com/b.html: the page frames only files it serves itself; shown as a link"]);
+  const restore = fakeDom();
+  context.after(restore);
+  const { render } = await load("ui/js/media/compare.js");
+  const env = { qid: "q", compact: false, big: false, t: (k, ...a) => `${k} ${a.join(",")}`, zoom: (kind, el) => el, offline: false, dark: () => false, narrow: () => false };
+  const shape = (c) => {
+    const tree = walkEl(render({ compare: c, previewHeight: 360 }, {}, env));
+    return { frames: tree.filter((n) => n.tag === "iframe").map((n) => n.attrs.src), links: tree.filter((n) => n.tag === "a" && n.attrs.target === "_blank").map((n) => [n.attrs.href, n.attrs.rel]) };
+  };
+  const live = shape({ before: { src: "/r/0/local.html", label: "Old" }, after: { src: "https://example.com/b.html", label: "New" }, live: true });
+  assert.deepEqual(live, { frames: ["/r/0/local.html"], links: [["https://example.com/b.html", "noopener noreferrer"]] });
+  const { exportSpec } = await load("lib/export.mjs");
+  const file = path.join(dir, "x.html");
+  exportSpec(out.spec, { id: "x", out: file });
+  const payload = JSON.parse(readFileSync(file, "utf8").match(/<script type="application\/json" id="decide-export">([\s\S]*?)<\/script>/)[1].replace(/\\u003c/g, "<"));
+  const exported = shape(payload.round.spec.questions[0].compare);
+  assert.equal(exported.frames.length, 1);
+  assert.match(exported.frames[0], /^data:text\/html/, "the export keeps the local frame as a data: URL");
+  assert.deepEqual(exported.links, [["https://example.com/b.html", "noopener noreferrer"]]);
+});
+
+test("the briefs still say what priority and budget do", async () => {
+  const { specSchema } = await docs();
+  const schema = specSchema();
+  assert.match(schema.$defs.question.properties.priority.description, /cut/i);
+  assert.match(schema.properties.budget.description, /dropped|cut/i);
+});
+
+test("the media table says what the old one did and what is true now", async () => {
+  const { docTables, typeLines } = await docs();
+  const row = (kind) => docTables().media.split("\n").find((l) => l.startsWith(`| \`${kind}\``));
+  assert.match(row("mermaid"), /enlarge/);
+  assert.match(row("chart"), /\{name, values\}/);
+  assert.match(row("compare"), /both run, one divider/);
+  assert.match(row("compare"), /remote.*link|link.*remote/i);
+  assert.match(row("images"), /xcrun simctl io booted screenshot/);
+  assert.match(row("images"), /adb exec-out screencap/);
+  const line = typeLines().split("\n").find((l) => l.startsWith("mermaid: "));
+  assert.match(line, /source text/);
+  assert.match(line, /export/);
 });

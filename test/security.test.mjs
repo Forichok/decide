@@ -405,7 +405,7 @@ test("an html block is served from its own URL with the sandbox policy, not as s
   assert.match(doc, /<script>/, "the height report is inline in the document, which the sandbox policy lets run");
   assert.equal((await fetch(url(port, "/h/0000000000000000.html"))).status, 404);
   assert.equal((await fetch(url(port, "/h/..%2Fdaemon.json"))).status, 400, "a dot segment is refused before anything reads it");
-  const media = readFileSync(path.join(pluginDir, "ui", "js", "media.js"), "utf8");
+  const media = readFileSync(path.join(pluginDir, "ui", "js", "media", "html.js"), "utf8");
   assert.equal([...media.matchAll(/\.srcdoc\b/g)].length, 1, "one srcdoc left in the page's code");
   assert.match(media, /if \(offline \|\| !x\.src\) frame\.srcdoc/, "and it is for an exported file, which has no server");
   assert.match(media, /frame\.src = x\.src/);

@@ -194,6 +194,7 @@ export default {
   "preview.title": "Live mockup",
   "preview.live": "Live mockup: you can click around",
   "preview.open": "Open",
+  "preview.remote": (host) => `Mockup on ${host}: this page cannot show it inside itself, open it in a new tab`,
   "diagram.wait": "Drawing the diagram…",
   "diagram.caption": "Diagram",
   "code.copy": "Copy",
@@ -202,6 +203,7 @@ export default {
   "cmp.before": "Before",
   "cmp.after": "After",
   "cmp.slider": "Drag to compare before and after",
+  "cmp.remote": (label, host) => `${label}: mockup on ${host}, open it in a new tab`,
   "diff.fold": (n) => `⋯ ${n} unchanged line${n === 1 ? "" : "s"}`,
   "code.code": "code",
 

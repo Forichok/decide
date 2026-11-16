@@ -201,6 +201,7 @@ export default {
   "preview.title": "Живой макет",
   "preview.live": "Живой макет — можно кликать",
   "preview.open": "Открыть",
+  "preview.remote": (host) => `Макет на ${host}: страница не показывает чужие сайты внутри себя, откройте его в новой вкладке`,
   "diagram.wait": "Рисую схему…",
   "diagram.caption": "Схема",
   "code.copy": "Копировать",
@@ -209,6 +210,7 @@ export default {
   "cmp.before": "До",
   "cmp.after": "После",
   "cmp.slider": "Тяните, чтобы сравнить до и после",
+  "cmp.remote": (label, host) => `${label}: макет на ${host}, откройте его в новой вкладке`,
   "diff.fold": (n) => `⋯ ещё ${n} ${n % 10 === 1 && n % 100 !== 11 ? "строка" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "строки" : "строк"} без изменений`,
   "code.code": "код",
 

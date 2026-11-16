@@ -60,10 +60,7 @@
           "recommended": "puts what is due first",
           "pros": ["…"],
           "cons": ["…"],
-          "metrics": [
-            { "label": "Speed", "value": 4 },
-            { "label": "Time", "value": "5 days" }
-          ],
+          "metrics": { "Speed": 4, "Time": "5 days" },
           "tags": ["quick"],
           "danger": false,
           "image": "slug.assets/today.svg"
@@ -108,27 +105,39 @@
 - Specs from older versions (`image` on options, `note: true`,
   `recommended: true`) still work.
 
+### Types
+
+<!-- registry:types -->
+| Type | What it is | Fields of its own |
+| --- | --- | --- |
+| `single` | Pick exactly one option, or write an own one. The default type. | `layout`, `allowOther`, `default` |
+| `multi` | Pick several options, between min (default 1) and max, or write own ones. | `layout`, `allowOther`, `default`, `min`, `max` |
+| `rank` | Put all options in order, most wanted first; default is the starting order. | `default` |
+| `scale` | A number from scale.min to scale.max (default 1 to 5, at most 11 steps), with labels for steps. | `scale` |
+| `text` | A free-text answer; placeholder is the hint shown in the empty field. | `placeholder` |
+| `confirm` | A yes / no / yes-with-changes question; the engine writes the three options, "changes" opens the note. | `default` |
+<!-- /registry:types -->
+
 ### Media
 
 Any question or option can carry media; images open in a lightbox and can be
 marked up by the user.
 
-| Field                | Value                                                                                                                                                  |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `images`             | Paths (relative to the spec file, or to `project` for inline specs), URLs, or `{src, caption}`                                                         |
-| `images[]` as a shot | `{shot: url, viewport: "desktop" \| "mobile" \| "both", caption?, name?, waitMs?}`: captured with the local Chrome when the round opens. http(s) only. |
-| `image` (option)     | One image for the option card                                                                                                                          |
-| `images[]` from a simulator | `{sim: "ios" \| "android", device?, caption?, name?}`: the booted iOS simulator (`xcrun simctl io booted screenshot`) or the Android emulator (`adb exec-out screencap -p`), captured when the round opens. `DECIDE_SIMCTL` / `DECIDE_ADB` point at other binaries. |
-| `preview`            | Path to a self-contained HTML file. Runs in a sandboxed frame with no network; `previewHeight` in px. The page offers 375 / 768 / 1440 px widths and pins with notes. |
-| `html`               | An HTML string, or `{source, maxHeight?}` (80–1200 px, default 640). Up to 200 KB. Rendered in a sandboxed frame that grows to its content.            |
-| `mermaid`            | Mermaid source; the page renders it and the user can enlarge it                                                                                        |
-| `code`               | `{text, lang?}` or `{text, diff: true}`                                                                                                                |
-| `compare`            | `{before, after, labels?: [a, b]}`; `before` / `after` take a path, a URL or `{src, label}`. Two pictures of the same size work best. Two `.html` files make a live compare: both mockups run, one divider. Mixing an image and an `.html` is skipped with a warning. |
-| `video`              | A path or URL, `{src, caption?, loop?}`, or a list. mp4, webm or gif. Clips up to 20 s loop muted unless `loop: false`.                        |
-| `diff`               | `{before, after, lang?, labels?: [a, b]}`. Changed lines are paired by likeness, with the changed part of each line marked.                             |
-| `table`              | `{columns, rows, caption?}`. Columns are strings or `{id, label}`; rows are arrays or objects keyed by column. Numeric cells align right.              |
-| `chart`              | `{type: "bar" \| "line", labels, series: [{name, values}], unit?, title?}`, or `{series: [1, 2, 3]}` for one unnamed series. `null` is a gap.       |
-| `links`              | `[{label, url}]`                                                                                                                                       |
+<!-- registry:media -->
+| Field | What it shows | What it takes |
+| --- | --- | --- |
+| `images` (also `image`) | Pictures that open large and can be marked up; or a capture of a running page or a simulator. | Paths (relative to the spec file; to project for an inline spec), URLs, {src, caption}, {shot: url, viewport?, …} to capture a page, or {sim: ios\|android, …} to capture a simulator. `src`: A path or a URL. `caption`: Shown under the picture. `shot`: An http(s) page to capture with the local Chrome when the round opens. `sim` (ios, android): Capture the booted iOS simulator (xcrun simctl io booted screenshot) or the Android emulator (adb exec-out screencap -p) when the round opens. DECIDE_SIMCTL and DECIDE_ADB point at other binaries. `viewport` (desktop, mobile, both): With shot: the screen size. Default desktop. `waitMs`: With shot: how long to let the page settle. Default 1500. `name`: With shot or sim: a name for the file. `device`: With sim: the device id. |
+| `preview` (also `previewHeight`) | A live mockup: an HTML file the user can click around in, at phone, tablet or laptop width, with notes pinned on it. | Path to a self-contained HTML file, shown in a sandboxed frame with no access to the page. The mockup itself has network access. The page frames only files it serves, so an http(s) URL is shown as a link, not framed. `previewHeight`: Height of the frame in px, default 360. The page offers 375, 768 and 1440 px widths and pins notes on the mockup. |
+| `html` | An HTML snippet drawn in a sandboxed frame that grows to its content. | An HTML string, or {source, maxHeight?}: up to 200 KB; maxHeight 80 to 1200 px, default 640. `source`: The HTML. `maxHeight`: Tallest the frame grows, 80 to 1200 px. Default 640. |
+| `mermaid` | A diagram from Mermaid source, which the user can enlarge. The live page shows the source text (its policy blocks the CDN); an exported file draws it. | Mermaid source. |
+| `code` | A code block with a copy button; a unified diff is coloured. | A string, or {text, lang?, diff?}. `text`: The code. `lang`: The language; shown in the bar. `diff`: Colour added and removed lines. Found by itself when lang is diff or the lines look like one. |
+| `compare` | A before/after slider over two pictures, or over two live mockups. | {before, after, labels?}: two pictures of the same size, or two .html mockups. Two .html files make a live compare: both run, one divider. Mixing a picture and an .html is skipped with a warning. A remote .html is shown as a link, not framed. `before`: A path or URL, or {src, label}. `after`: A path or URL, or {src, label}. `labels`: Tags for before and after. |
+| `video` (also `videos`) | A short clip: mp4, webm or gif. Up to 20 s it loops muted. | A path or URL, {src, caption?, loop?}, or a list of them. mp4, webm or gif. Clips up to 20 s loop muted unless loop is false. `src`: A path or a URL: mp4, webm or gif. `caption`: Shown under the clip. `loop`: Loop it muted (default for clips up to 20 s) or give it controls. |
+| `diff` | Two texts side by side, changed lines paired by likeness with the changed part marked. | {before, after, lang?, labels?}: two texts. Changed lines are paired by likeness; the changed part of each is marked. `before`: The old text. `after`: The new text. `lang`: The language; shown in the bar. `labels`: Headings for before and after. |
+| `table` | A data table; numeric cells align right. | {columns, rows, caption?}: columns are strings or {id, label}; rows are arrays or objects keyed by column. Up to 50 rows and 8 columns. `columns`: The columns. Taken from the first row when it is an object. `rows`: The rows. `caption`: Shown above the table. |
+| `chart` | A bar or line chart; charts on the options of one question share a scale. | {type, labels, series: [{name, values}], unit?, title?}, or {series: [1, 2, 3]} for one unnamed series. null is a gap. Up to 12 bars, 60 points, 4 series. `type`: bar or line. Default bar. `labels`: The x labels. Default 1, 2, 3… `series`: The series, or the numbers of one. `unit`: Shown after the values. `title`: Shown above the chart. |
+| `links` (also `link`) | Links to a ticket, a page or a doc, shown as chips. | Links shown with the question: URLs or {label, url}. http(s) only. `url`: An http(s) URL. `label`: The words on the chip. Default the URL. |
+<!-- /registry:media -->
 
 Limits; lint warns past them: 12 bars, 60 line points, 4 series, unnamed
 series when there are two or more, a 400-line diff, a 20 MB video, 50 table
@@ -137,7 +146,7 @@ scale, so equal bars mean equal values.
 
 Missing local files and failed shots are reported as lint warnings and
 skipped. Viewports: desktop 1440×900, mobile 390×844 at 2×. Set
-`DECIDE_CHROME` if Chrome isn't found.
+`DECIDE_CHROME` if Chrome isn't found. `DECIDE_SIMCTL` and `DECIDE_ADB` point at other simulator binaries.
 
 ## The answers file
 
