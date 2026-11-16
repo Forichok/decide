@@ -71,6 +71,7 @@
 @media (min-width: 1420px) {
   .rail { position: fixed; z-index: 20; top: 16px; left: 16px; bottom: 16px; width: 280px; border-radius: 22px; }
   .has-rail .layout { padding-left: 312px; }
+  body.has-rail.swipe-mode .layout { padding-left: 312px; }
   body.has-rail .bar { left: calc(50% + 148px); }
   body.has-rail:not(.no-toc) .bar { left: calc(50% + 288px); }
   .has-rail .round-tabs { display: none; }
