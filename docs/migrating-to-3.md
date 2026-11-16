@@ -40,7 +40,8 @@ answer, note and question comes back.
 
 A round no longer expires. In 2.1 a round was marked abandoned two hours after
 the agent left. Now it stays until it is sent, cancelled, or dismissed from the
-inbox.
+inbox. Answers nobody collected are announced at the top of the next decide
+tool result in that project.
 
 Worktrees of one repository now share one project, so they share rounds and
 the journal. The old per-worktree folders are still read. 3.0 does not write to them.
