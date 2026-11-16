@@ -274,7 +274,7 @@ export default {
   "sw.finishSub": (a, left) => `${a} answered${left ? `, ${left} cards left unanswered` : ""}. The agent gets the brief and asks whether to start.`,
   "sw.keepGoing": "Keep going",
   "sw.doneTitle": "The agent has no more questions",
-  "sw.doneSub": (c) => `It's ${c}% sure it understands what you want. Check the brief on the left and finish.`,
+  "sw.doneSub": (c) => `It's ${c}% sure it understands what you want. Check the brief and finish.`,
   "sw.doneEarly": "The agent has what it needs. You can finish now or answer the rest.",
   "sw.waitTitle": "The agent is preparing more questions",
   "sw.waitSub": "It's reading your answers. New cards appear here on their own.",

@@ -281,7 +281,13 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
 /* ---- phone and narrow windows: the brief folds into a bar, the keys move under the thumb */
 @media (max-width: 900px) {
   body.swipe-mode .wrap { padding: 0 var(--space-3, 12px); }
-  .sw { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 0; position: relative; }
+  /* the stage dissolves into the section so the brief bar can sit under the eyebrow, above the title */
+  .sw { display: flex; flex-direction: column; align-items: center; gap: var(--space-2, 10px); position: relative; overflow-x: clip; padding-bottom: calc(var(--space-2, 8px) + env(safe-area-inset-bottom, 0px)); }
+  .sw-stage { display: contents; }
+  .sw > *, .sw-stage > * { flex: none; order: 2; }
+  .sw-stage > .eyebrow { order: 0; align-self: stretch; margin-top: var(--space-2, 8px); }
+  .sw > .sw-brief { order: 1; align-self: stretch; }
+  .sw-stage > .sw-stack { flex: 0 1 auto; min-height: 0; }
   .sw-brief {
     position: relative; z-index: 5; margin: 0 calc(var(--space-3, 12px) * -1); padding: 0; max-height: none; overflow: visible;
     border-radius: 0 0 var(--r-lg) var(--r-lg); border-width: 0 0 1px;
@@ -301,7 +307,6 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
     border-radius: 0 0 var(--r-lg) var(--r-lg);
   }
   .sw-brief.open .sw-brief-body { display: block; }
-  .sw-stage { padding-top: var(--space-2, 8px); padding-bottom: calc(var(--space-2, 8px) + env(safe-area-inset-bottom, 0px)); gap: var(--space-2, 10px); }
   .sw-title { font-size: var(--step-1, 18px); }
   .sw-meta { display: none; }
   .sw-card { border-radius: 22px; }
