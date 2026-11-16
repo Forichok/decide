@@ -1222,8 +1222,8 @@ test("lint: a single or multi question with no why, or options with no then, is 
   for (const type of ["confirm", "rank", "scale", "text"]) assert.deepEqual(lint({ type, options: type === "rank" ? options({}) : undefined, ...(type === "scale" ? { scale: { min: 1, max: 5 } } : {}) }).warns, [], `${type} is not asked for them`);
 });
 
-test("pinned sizes after 3.0 milestone 2: the spec schema is 8,704 bytes, the deck schema 6,928", async () => {
+test("pinned sizes after 3.0 milestone 2: the spec schema is 8,821 bytes, the deck schema 6,928", async () => {
   const { specSchema, deckSchema } = await docs();
-  assert.equal(JSON.stringify(specSchema()).length, 8704);
+  assert.equal(JSON.stringify(specSchema()).length, 8821);
   assert.equal(JSON.stringify(deckSchema()).length, 6928);
 });

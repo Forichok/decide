@@ -16,7 +16,7 @@ import { mkdirSync } from "node:fs";
 import test from "node:test";
 import { COMMANDS, contextFor, runCommand } from "../lib/commands/index.mjs";
 import { addRule, judgeRound, levelIssues, overBar, readLevel, readRules, removeRule, writeLevel } from "../lib/settings.mjs";
-import { homeOf, scratchDir } from "./helpers.mjs";
+import { asAgent, asPage, homeOf, scratchDir, spawnServer } from "./helpers.mjs";
 
 async function inHome(home, fn) {
   const saved = process.env.DECIDE_HOME;
@@ -113,4 +113,34 @@ test("lint demands reversible at the middle level", () => {
   assert.equal(levelIssues(raw, "irreversible").length, 1);
   assert.equal(levelIssues(raw, "everything").length, 0);
   assert.deepEqual(judgeRound({ questions: [q()] }, { level: "everything", rules: [] }), { under: [], covered: [] });
+});
+
+test("page routes: settings, rules, fit to 5 minutes, ADR of an answered round", async (t) => {
+  const { dir, home } = await scratch(t);
+  const server = await spawnServer(t, home);
+  const base = `http://127.0.0.1:${server.port}`;
+  const post = (route, body, headers = asPage(server.port)) => fetch(`${base}${route}`, { method: "POST", headers, body: JSON.stringify(body) });
+  assert.equal((await post("/api/settings", { project: dir, level: "mine" })).status, 200);
+  const rule = await post("/api/rules", { project: dir, text: "Never ask about tabs", mode: "never" }).then((r) => r.json());
+  const settings = await fetch(`${base}/api/settings?project=${encodeURIComponent(dir)}`).then((r) => r.json());
+  assert.equal(settings.level, "mine");
+  assert.equal(settings.rules.length, 1);
+  await post("/api/rules", { project: dir, remove: rule.rules[0].id });
+  assert.equal((await fetch(`${base}/api/settings?project=${encodeURIComponent(dir)}`).then((r) => r.json())).rules.length, 0);
+
+  const questions = Array.from({ length: 6 }, (_, i) => ({ id: `q${i}`, title: `Question number ${i}`, stakes: i === 5 ? "high" : undefined, options: [{ id: "a", label: "A" }, { id: "b", label: "B" }] }));
+  const posted = await post("/api/rounds", { project: dir, spec: { title: "Many", questions: questions.map((q) => ({ ...q, priority: q.stakes ? 1 : 2, showIf: [], options: q.options.map((o) => ({ ...o, recommended: false })), type: "single" })), sections: [], leftOut: [] }, outPath: `${dir}/many.answers.json`, open: false, live: true }, asAgent(server.port)).then((r) => r.json());
+  const fit = await post(`/api/rounds/${posted.id}/fit`, { minutes: 1 }).then((r) => r.json());
+  assert.ok(fit.leftOut > 0 && fit.kept >= 1);
+  const view = await fetch(`${base}/api/rounds/${posted.id}`).then((r) => r.json());
+  assert.equal(view.spec.questions.length, fit.kept);
+  assert.equal(view.spec.leftOut.length, fit.leftOut);
+  assert.ok(view.spec.questions.some((q) => q.id === "q5"), "the high-stakes question stays");
+  assert.equal((await post(`/api/rounds/${posted.id}/adr`, {})).status, 409, "no decision yet");
+  const kept = view.spec.questions[0].id;
+  assert.equal((await post(`/api/rounds/${posted.id}/submit`, { answers: Object.fromEntries(view.spec.questions.map((q) => [q.id, { selected: ["a"] }])) })).status, 200);
+  const adr = await post(`/api/rounds/${posted.id}/adr`, {});
+  assert.equal(adr.status, 200);
+  assert.match((await adr.json()).file, /docs\/decisions\/0001-/);
+  assert.ok(kept);
 });

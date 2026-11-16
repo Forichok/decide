@@ -6,6 +6,8 @@ import { t } from "./i18n.js";
 import { mdInline } from "./md.js";
 import { credit, eyebrow, journalPanel, pasteLine } from "./header.js";
 import { summarize } from "./summary.js";
+import { doneActions } from "./actions.js";
+import { ruleButtons } from "./settings.js";
 
 const words = () => ({
   explain: t("sum.explain"),
@@ -20,7 +22,7 @@ const words = () => ({
   condition: (text) => t("sum.condition", text),
 });
 
-function summaryCard(spec, result) {
+function summaryCard(spec, result, env = {}) {
   if (result?.mode === "swipe" && result.brief?.length) {
     return h("section.sum", {}, h("h3.sum-h", {}, t("sum.brief")), h("ul.done-brief", {}, result.brief.map((b) => h(`li.sw-item.k-${b.kind}`, {}, b.text))));
   }
@@ -35,6 +37,7 @@ function summaryCard(spec, result) {
       r.note && h("div.sum-note", { html: icon("pen") }, h("span", {}, r.note)),
       r.files.length > 0 && h("div.sum-files", { html: icon("clip") }, h("span", {}, r.files.join(", "))),
       r.pins.map((p) => h("div.sum-files", { html: icon("pointer") }, h("span", {}, `${p.file}: ${p.text}`))),
+      !env.offline && ruleButtons(env.project, r),
     ),
   );
   const raw = result.digest && h("details.sum-raw", {}, h("summary", {}, t("sum.raw")), h("pre.done-digest", {}, result.digest));
@@ -100,7 +103,8 @@ export function renderDone(result, env) {
         ),
       action,
     ),
-    summaryCard(env.spec, result),
+    summaryCard(env.spec, result, env),
+    !env.offline && !cancelled && env.currentId && doneActions(env.currentId),
     !env.offline && journalPanel({ skip: env.currentId }),
     credit(),
   );

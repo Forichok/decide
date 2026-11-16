@@ -136,3 +136,13 @@ export function listen(onState, onStatus, onDialog, onDeck) {
   es.onerror = () => onStatus(false);
   return es;
 }
+
+// How much to ask, and the page's own buttons (settings.js, actions.js).
+const post = (path, body) => fetch(path, { method: "POST", headers: WRITE, body: JSON.stringify(body) }).then(json);
+export const getSettings = (project) => fetch(`/api/settings?${new URLSearchParams({ project })}`, { cache: "no-store" }).then(json);
+export const setLevel = (project, level) => post("/api/settings", { project, level });
+export const addRuleTo = (project, text, mode, question = "") => post("/api/rules", { project, text, mode, question });
+export const removeRuleFrom = (project, id) => post("/api/rules", { project, remove: id });
+export const exportRoundFile = (id) => post(`/api/rounds/${id}/export`, {});
+export const saveRoundAdr = (id) => post(`/api/rounds/${id}/adr`, {});
+export const fitRound = (id, minutes) => post(`/api/rounds/${id}/fit`, { minutes });

@@ -110,3 +110,13 @@ export function listen(onState, onStatus) {
   queueMicrotask(() => onStatus(true));
   return { close() {} };
 }
+
+// The daemon's own buttons have no daemon here.
+const gone = () => fail("not available in an exported file");
+export const getSettings = gone;
+export const setLevel = gone;
+export const addRuleTo = gone;
+export const removeRuleFrom = gone;
+export const exportRoundFile = gone;
+export const saveRoundAdr = gone;
+export const fitRound = gone;
