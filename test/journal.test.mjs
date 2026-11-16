@@ -118,3 +118,11 @@ test("/api/map lists the projects, takes project= and round=, and offers rounds 
   assert.deepEqual(near.trimmed, { round: "alpha-5" });
   assert.deepEqual(near.nodes.map((n) => n.round).sort(), ["alpha-4", "alpha-5", "alpha-6"]);
 });
+
+test("a big map goes top down and stacks unlinked decisions in columns", () => {
+  const dir = scratch();
+  for (let i = 1; i <= 20; i++) record(dir, `r-${i}`, [{ id: `q${i}`, title: `Q${i}` }], `2026-11-16T10:${String(i).padStart(2, "0")}:00Z`);
+  const src = graphMermaid(buildGraph(readJournal(dir, { limit: 100 })));
+  assert.match(src, /^flowchart TD/);
+  assert.equal((src.match(/~~~/g) || []).length, 17, "three columns of 8, 8 and 4: 7 + 7 + 3 invisible links");
+});
