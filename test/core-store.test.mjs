@@ -120,7 +120,7 @@ test("a second store on the same home sees the open round as it was", async (t) 
   const onDisk = readJson(path.join(dir, "spec.json")).questions[0].options[0].images[0];
   assert.equal(onDisk.local, true);
   assert.equal(path.isAbsolute(onDisk.src), true);
-  assert.match(b.get(r.id).spec.questions[0].options[0].images[0].src, /^\/r\/\d+\/a\.png$/);
+  assert.match(b.get(r.id).spec.questions[0].options[0].images[0].src, /^\/r\/[0-9a-f]{8}\/a\.png$/);
   const meta = readJson(path.join(dir, "meta.json"));
   assert.equal(meta.format, 3);
   assert.equal(meta.id, r.id);
@@ -465,7 +465,7 @@ test("delivery never changes the state it hands out", async (t) => {
   item.payload.answers.layout.selected.push("split");
   item.payload.extra = 1;
   const dialog = s.publicDialog(r);
-  assert.match(dialog[0].reply.images[0].src, /^\/r\/\d+\/a\.png$/);
+  assert.match(dialog[0].reply.images[0].src, /^\/r\/[0-9a-f]{8}\/a\.png$/);
   dialog[0].reply.text = "changed";
   const spec = r.spec;
   spec.questions[0].title = "changed";
@@ -518,7 +518,7 @@ test("an upload lands in the round's files directory and is logged", async (t) =
   const dir = roundDir(roundArgs.project.dataDir, r.id);
   assert.equal(path.dirname(up.path), path.join(dir, "files"));
   assert.equal(readFileSync(up.path, "utf8"), "fake-png");
-  assert.match(up.url, /^\/r\/\d+\//);
+  assert.match(up.url, /^\/r\/[0-9a-f]{8}\//);
   assert.equal(up.name, "экран 1.png");
   assert.equal(up.size, 8);
   assert.equal(up.type, "image/png");

@@ -10,12 +10,16 @@
  *   - the request target is read once: a target that reads two ways (dot segments, \\, #, //, absolute form) is refused 400
  *   - the page cannot be framed (frame-ancestors, X-Frame-Options); an /api request marked cross-site or same-site is refused
  *   - x-decide is gone; the legacy no-round routes are gone
+ *   - served files: an image publishes itself only, a mockup its own directory; URLs are the same after a restart;
+ *     two paths with one hash never serve each other; a round's roots are dropped with the round
+ *   - the Mermaid frame: a policy header of its own with a sandbox, nothing under ui/ names a CDN host
  *   - a stale token after a restart: the wait survives, the ack lands; a real refusal is thrown
  * Isolation:  every test has its own DECIDE_HOME; no test binds 47474; every process is stopped by its pid.
  */
 
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
 import net from "node:net";
 import path from "node:path";
@@ -23,11 +27,14 @@ import test from "node:test";
 import { mkdir } from "node:fs/promises";
 import { PAGE_CSP, ASSET_CSP, guard } from "../lib/http.mjs";
 import { startServer } from "../lib/server.mjs";
+import { createRoots, fnv1a } from "../lib/assets.mjs";
+import { prepareSpec } from "../lib/prepare.mjs";
 import { openProject } from "../lib/project.mjs";
 import { roundDir } from "../lib/store/rounds.mjs";
 import { ack, api, findServer, waitNext } from "../lib/client.mjs";
 import { PROTOCOL } from "../lib/protocol.mjs";
-import { alive, asAgent, asPage, fakeServer, homeOf, notePid, pluginDir, scratchDir, spawnServer } from "./helpers.mjs";
+import { alive, asAgent, asPage, fakeServer, hasGit, homeOf, notePid, pluginDir, repoWithWorktree, scratchDir, spawnServer } from "./helpers.mjs";
+import { exportRound } from "../lib/transfer.mjs";
 
 delete process.env.DECIDE_PORT;
 process.env.DECIDE_NOTIFY = "0";
@@ -497,4 +504,265 @@ test("a 403 that a fresh token does not cure is a refusal: the token is read aga
   await assert.rejects(() => api(handle, "/api/rounds/1-abcdef/ack", { method: "POST", body: { seq: 1 } }), (err) => err.status === 403);
   assert.deepEqual(seen, ["old", "fake-token"]);
   assert.equal(handle.token, "fake-token");
+});
+
+
+// ---- served files (Task 15)
+
+const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+
+// A server with one round over files written into the scratch project.
+async function servedFiles(t, files, rawSpec) {
+  const dir = await scratchDir(t);
+  const home = homeOf(dir);
+  await mkdir(home, { recursive: true });
+  for (const [name, content] of Object.entries(files)) {
+    mkdirSync(path.dirname(path.join(dir, name)), { recursive: true });
+    writeFileSync(path.join(dir, name), content);
+  }
+  const started = await startServer({ home, embedded: true });
+  t.after(() => started.stop());
+  const project = openProject(dir, home);
+  const { spec, errors } = await prepareSpec(rawSpec, { specDir: dir, dataDir: project.dataDir, shots: false });
+  assert.deepEqual(errors, []);
+  const res = await fetch(url(started.port, "/api/rounds"), { method: "POST", headers: asAgent(started.port), body: body({ project: dir, spec, outPath: path.join(dir, "c.answers.json"), open: false, live: true }) });
+  assert.equal(res.status, 200);
+  const { id } = await res.json();
+  const view = await (await fetch(url(started.port, `/api/rounds/${id}`))).json();
+  return { dir, home, started, port: started.port, id, view };
+}
+
+const two = [{ id: "a", label: "A" }, { id: "b", label: "B" }];
+
+test("an image publishes itself, not its neighbours", async (t) => {
+  const { port, view } = await servedFiles(t, { "a.png": PNG, "b.png": PNG, "notes.txt": "private" }, { title: "T", questions: [{ id: "q", title: "Q", images: ["a.png"], options: two }] });
+  const src = view.spec.questions[0].images[0].src;
+  assert.match(src, /^\/r\/[0-9a-f]{8}\/a\.png$/);
+  const own = await fetch(url(port, src));
+  assert.equal(own.status, 200);
+  assert.equal(own.headers.get("content-security-policy"), ASSET_CSP);
+  for (const name of ["b.png", "notes.txt", "..%2Fa.png", "a.png%00", "A.PNG"]) assert.ok([400, 404].includes((await fetch(url(port, src.replace("a.png", name)))).status), name);
+  assert.equal((await fetch(url(port, src.replace(/\/r\/[0-9a-f]{8}/, "/r/00000000")))).status, 404);
+  assert.equal((await fetch(url(port, src.replace(/\/a\.png$/, "")))).status, 404, "the id alone lists nothing");
+});
+
+test("a mockup publishes its own directory", async (t) => {
+  const files = {
+    "mock/card.html": '<link rel="stylesheet" href="card.css"><img src="img/dot.png"><p>x</p>',
+    "mock/card.css": "p{color:red}",
+    "mock/img/dot.png": PNG,
+    "secret.txt": "outside the mockup",
+  };
+  const { dir, port, view } = await servedFiles(t, files, { title: "T", questions: [{ id: "q", title: "Q", preview: "mock/card.html", options: two }] });
+  const src = view.spec.questions[0].preview.src;
+  assert.match(src, /^\/r\/[0-9a-f]{8}\/card\.html$/);
+  assert.equal((await fetch(url(port, src))).status, 200);
+  const base = src.replace(/card\.html$/, "");
+  assert.equal((await fetch(url(port, `${base}card.css`))).status, 200, "./card.css loads");
+  assert.equal((await fetch(url(port, `${base}img/dot.png`))).status, 200, "a file in a sub-directory loads");
+  assert.equal((await fetch(url(port, `${base}..%2Fsecret.txt`))).status, 400);
+  assert.equal((await fetch(url(port, `${base}img/..%2f..%2fsecret.txt`))).status, 400);
+  assert.equal((await fetch(url(port, `${base}img`))).status, 404, "a directory is not listed");
+  if (process.platform !== "win32") {
+    symlinkSync(path.join(dir, "secret.txt"), path.join(dir, "mock", "leak.txt"));
+    assert.equal((await fetch(url(port, `${base}leak.txt`))).status, 404, "a symlink that leads out of the directory is not followed");
+  }
+});
+
+test("asset URLs are the same after a restart, and answer before the page asks for the round again", async (t) => {
+  const { dir, home, port, started, id, view } = await servedFiles(t, { "a.png": PNG, "mock/card.html": "<p>x</p>" }, { title: "T", questions: [{ id: "q", title: "Q", images: ["a.png"], preview: "mock/card.html", options: two }] });
+  const urls = [view.spec.questions[0].images[0].src, view.spec.questions[0].preview.src];
+  const stop = await fetch(url(port, "/api/stop"), { method: "POST", headers: asAgent(port) });
+  assert.equal(stop.status, 200);
+  await until(async () => (await fetch(url(port, "/api/ping")).catch(() => null)) === null, "the server to stop");
+  const second = await startServer({ home, embedded: true });
+  t.after(() => second.stop());
+  for (const u of urls) assert.equal((await fetch(url(second.port, u))).status, 200, u);
+  const again = await (await fetch(url(second.port, `/api/rounds/${id}`))).json();
+  assert.deepEqual([again.spec.questions[0].images[0].src, again.spec.questions[0].preview.src], urls);
+  void dir;
+  void started;
+});
+
+test("a path has one URL: two spellings share it, and the URL is the same in every roots", async (t) => {
+  const dir = await scratchDir(t);
+  mkdirSync(path.join(dir, "real"));
+  writeFileSync(path.join(dir, "real", "a.png"), PNG);
+  const roots = createRoots();
+  const first = roots.publishFile(path.join(dir, "real", "a.png"));
+  assert.equal(roots.publishFile(path.join(dir, "real", "..", "real", "a.png")), first);
+  if (process.platform !== "win32") {
+    symlinkSync(path.join(dir, "real"), path.join(dir, "alias"));
+    assert.equal(roots.publishFile(path.join(dir, "alias", "a.png")), first, "a symlinked spelling is the same file");
+  }
+  assert.equal(createRoots().publishFile(path.join(dir, "real", "a.png")), first, "no counter: another process names it the same");
+  assert.equal(roots.fileFor(first).endsWith("a.png"), true);
+  assert.equal(roots.fileFor(`${first.slice(0, first.lastIndexOf("/"))}/other.png`), null);
+});
+
+test("two paths with the same eight digits never serve each other's file", async (t) => {
+  const dir = await scratchDir(t);
+  const seen = new Map();
+  let pair = null;
+  for (let n = 0; !pair; n++) {
+    const p = path.join(realpathSync.native(dir), `f${n}.bin`);
+    const id = fnv1a(p);
+    if (seen.has(id)) pair = [seen.get(id), p];
+    else seen.set(id, p);
+  }
+  for (const f of pair) writeFileSync(f, `file ${path.basename(f)}`);
+  const roots = createRoots();
+  const [u1, u2] = pair.map((f) => roots.publishFile(f));
+  assert.notEqual(u1.split("/")[2], u2.split("/")[2], "the second id is longer or different");
+  assert.equal(roots.fileFor(u1), pair[0]);
+  assert.equal(roots.fileFor(u2), pair[1]);
+  // The name does not rescue a wrong id: the first id with the second's name is not a file.
+  assert.equal(roots.fileFor(`/r/${u1.split("/")[2]}/${path.basename(pair[1])}`), null);
+});
+
+test("a round's roots go when the round is released, and stay for another round that shares them", async (t) => {
+  const dir = await scratchDir(t);
+  writeFileSync(path.join(dir, "a.png"), PNG);
+  const roots = createRoots();
+  const a = roots.within("1-aaaaaa", () => roots.publishFile(path.join(dir, "a.png")));
+  const b = roots.within("2-bbbbbb", () => roots.publishFile(path.join(dir, "a.png")));
+  assert.equal(a, b);
+  const h1 = roots.within("1-aaaaaa", () => roots.publishNode({ html: { source: "<b>x</b>" } })).html.src;
+  roots.release("1-aaaaaa");
+  assert.ok(roots.fileFor(a), "round 2 still shows it");
+  assert.equal(roots.htmlFor(h1), null, "an html block only round 1 had is gone");
+  roots.release("2-bbbbbb");
+  assert.equal(roots.fileFor(a), null);
+});
+
+// ---- the Mermaid frame
+
+test("no file under ui/ names a CDN host", () => {
+  const ui = path.join(pluginDir, "ui");
+  const files = filesUnder(ui).filter((f) => /\.(?:m?js|html|css|json|md)$/.test(f));
+  assert.ok(files.length > 30);
+  // Upstream's bundle is not ours to edit; its own text is checked by the frame's policy (default-src 'none'), pinned below.
+  const bundle = path.join(ui, "vendor", "mermaid.min.js");
+  assert.ok(files.includes(bundle), "the vendored bundle is there");
+  for (const full of files.filter((f) => f !== bundle)) assert.doesNotMatch(readFileSync(full, "utf8"), /jsdelivr|unpkg|cdnjs|googleapis|gstatic|esm\.sh|skypack/i, path.relative(pluginDir, full));
+});
+
+test("the vendored Mermaid is upstream's file, and the README says which", () => {
+  const dir = path.join(pluginDir, "ui", "vendor");
+  const sum = createHash("sha256").update(readFileSync(path.join(dir, "mermaid.min.js"))).digest("hex");
+  const readme = readFileSync(path.join(dir, "README.md"), "utf8");
+  assert.ok(readme.includes(sum), "the README names the sha256 of the file");
+  assert.match(readme, /mermaid@11\.\d+\.\d+/);
+  assert.match(readme, /sha512-[A-Za-z0-9+/=]{80,}/, "the registry's integrity");
+  assert.match(readFileSync(path.join(dir, "mermaid.LICENSE"), "utf8"), /Copyright \(c\) 2014 - 2022 Knut Sveidqvist/);
+});
+
+test("the Mermaid frame is served with its own policy header, sandboxed and fetching nothing", async (t) => {
+  const { port } = await served(t);
+  const res = await fetch(url(port, "/ui/vendor/mermaid-frame.html"));
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type"), /^text\/html/);
+  const policy = res.headers.get("content-security-policy");
+  const html = await res.text();
+  const inline = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => `'sha256-${createHash("sha256").update(m[1]).digest("base64")}'`);
+  assert.equal(inline.length, 1, "one inline script, allowed by its hash");
+  assert.equal(policy, `default-src 'none'; script-src 'self' ${inline[0]}; style-src 'unsafe-inline'; img-src data:; frame-ancestors 'self'; sandbox allow-scripts`);
+  assert.doesNotMatch(policy, /allow-same-origin|https?:|\*/);
+  assert.match(html, /<script src="\/ui\/vendor\/mermaid\.min\.js"><\/script>/, "a classic script: a module would be fetched with Origin: null");
+  assert.doesNotMatch(html, /type="module"/);
+  assert.equal((await fetch(url(port, "/ui/vendor/mermaid.min.js"))).status, 200);
+  assert.equal((await fetch(url(port, "/ui/vendor/mermaid.min.js"))).headers.get("content-security-policy"), null);
+  // Only a page of the same origin may frame it (frame-ancestors 'self'). X-Frame-Options stays off: it would also block the page.
+  assert.match(policy, /frame-ancestors 'self'/);
+  assert.equal(res.headers.get("x-frame-options"), null);
+  assert.equal(PAGE_CSP.includes("frame-src 'self'"), true);
+});
+
+// A case-insensitive file system finds /ui/Vendor/... for /ui/vendor/...: the policy must not depend on the spelling.
+const caseInsensitive = existsSync(path.join(pluginDir, "UI", "INDEX.HTML"));
+const spellingSkip = caseInsensitive ? false : "this file system is case-sensitive, a mis-cased path is already 404";
+
+test(`a mis-cased /ui/ path is not served at all (skipped when the file system is case-sensitive)`, { skip: spellingSkip }, async (t) => {
+  const { port } = await served(t);
+  for (const route of ["/ui/Vendor/mermaid-frame.html", "/ui/VENDOR/MERMAID-FRAME.HTML", "/ui/Index.html", "/ui/JS/main.js", "/ui/vendor/Mermaid.min.js"]) {
+    assert.equal((await fetch(url(port, route))).status, 404, route);
+  }
+  assert.equal((await fetch(url(port, "/ui/vendor/mermaid-frame.html"))).status, 200);
+  assert.equal((await fetch(url(port, "/ui/index.html"))).status, 200);
+});
+
+test("every html file under /ui/ is the page, the frame, or not served; both carry their policy", async (t) => {
+  const { port } = await served(t);
+  const ui = path.join(pluginDir, "ui");
+  const found = [];
+  const walk = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) (e.isDirectory() ? walk(path.join(d, e.name)) : /\.html?$/i.test(e.name) && found.push(path.relative(ui, path.join(d, e.name)).split(path.sep).join("/")));
+  };
+  walk(ui);
+  assert.ok(found.length >= 2);
+  for (const rel of found) {
+    const res = await fetch(url(port, `/ui/${rel}`));
+    if (rel === "index.html") {
+      assert.equal(res.headers.get("content-security-policy"), PAGE_CSP);
+      assert.equal(res.headers.get("x-frame-options"), "DENY");
+    } else if (rel === "vendor/mermaid-frame.html") assert.match(res.headers.get("content-security-policy"), /sandbox allow-scripts/);
+    else assert.equal(res.status, 404, rel);
+  }
+});
+
+test("export through the server is held to the project and the data dir unless outside: true", async (t) => {
+  const { dir, port, id } = await served(t);
+  const elsewhere = await scratchDir(t);
+  const target = path.join(elsewhere, "out.decide.html");
+  const refused = await fetch(url(port, `/api/rounds/${id}/export`), { method: "POST", headers: asAgent(port), body: body({ out: target }) });
+  assert.ok(refused.status >= 400 && refused.status < 500, `status ${refused.status}`);
+  assert.match((await refused.json()).error, /outside/);
+  assert.equal(existsSync(target), false, "nothing was written");
+  const inside = path.join(dir, "in.decide.html");
+  assert.equal((await fetch(url(port, `/api/rounds/${id}/export`), { method: "POST", headers: asAgent(port), body: body({ out: inside }) })).status, 200);
+  assert.equal(existsSync(inside), true);
+  const allowed = await fetch(url(port, `/api/rounds/${id}/export`), { method: "POST", headers: asAgent(port), body: body({ out: target, outside: true }) });
+  assert.equal(allowed.status, 200);
+  assert.equal(existsSync(target), true);
+});
+
+test("export from a linked worktree outside the main checkout: the route, the CLI and MCP judge against the worktree (skipped without git)", { skip: !hasGit && "git is not installed" }, async (t) => {
+  const { dir, main, wt } = await repoWithWorktree(t);
+  const home = homeOf(dir);
+  await mkdir(home, { recursive: true });
+  const started = await startServer({ home, embedded: true });
+  t.after(() => started.stop());
+  const project = openProject(wt, home);
+  assert.notEqual(project.root, project.top, "the identity root is the main checkout");
+  const res = await fetch(url(started.port, "/api/rounds"), { method: "POST", headers: asAgent(started.port), body: body({ project: project.top, spec, outPath: path.join(wt, "c.answers.json"), open: false, live: true }) });
+  assert.equal(res.status, 200);
+  const { id } = await res.json();
+  const post = (payload) => fetch(url(started.port, `/api/rounds/${id}/export`), { method: "POST", headers: asAgent(started.port), body: body(payload) });
+  // The route: an absolute path in the worktree, then a relative one (it starts at the round's working tree, not the server's cwd).
+  assert.equal((await post({ out: path.join(wt, "abs.html") })).status, 200);
+  assert.equal(existsSync(path.join(wt, "abs.html")), true);
+  assert.equal((await post({ out: "rel.html" })).status, 200);
+  assert.equal(existsSync(path.join(wt, "rel.html")), true, "a relative out lands in the worktree");
+  assert.equal(existsSync(path.join(process.cwd(), "rel.html")), false, "not in the server's cwd");
+  // Outside both the worktree and the main checkout: refused.
+  const away = path.join(dir, "away.html");
+  assert.equal((await post({ out: away })).status, 422);
+  assert.equal(existsSync(away), false);
+  // The CLI and MCP path (exportRound) goes through the same route and the same root.
+  const server = { port: started.port, token: started.token, home };
+  const done = await exportRound({ project, round: id, out: "page.html", getServer: async () => server });
+  assert.equal(done.file, path.join(wt, "page.html"));
+  assert.equal(existsSync(done.file), true);
+  await assert.rejects(exportRound({ project, round: id, out: away, getServer: async () => server }), /outside/);
+  assert.equal(existsSync(path.join(main, "page.html")), false);
+});
+
+test("the page and the frame only take what their own window sent", () => {
+  const page = readFileSync(path.join(pluginDir, "ui", "js", "media", "mermaid.js"), "utf8");
+  const frame = readFileSync(path.join(pluginDir, "ui", "vendor", "mermaid-frame.html"), "utf8");
+  assert.match(page, /contentWindow\s*===\s*e\.source/, "the page checks the sender");
+  assert.match(frame, /e\.source\s*!==\s*parent/, "the frame checks the sender");
+  assert.doesNotMatch(page, /import\(\s*["'`]https?:/);
+  assert.match(frame, /securityLevel:\s*["']strict["']/);
+  assert.doesNotMatch(frame, /innerHTML\s*=\s*e\.data|insertAdjacentHTML\([^)]*e\.data/, "nothing received goes into the DOM as HTML");
 });

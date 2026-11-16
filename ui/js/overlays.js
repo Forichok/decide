@@ -76,6 +76,7 @@ export function openLightbox(images, start, { onAnnotate, annotate = false } = {
     cap.textContent = images[i].caption || "";
     count.textContent = images.length > 1 ? `${i + 1} / ${images.length}` : "";
     open.href = images[i].src;
+    open.hidden = Boolean(images[i].noOriginal); // a drawing the frame made: its blob: link would open as a page of this origin
     if (mark) mark.hidden = !sameOrigin(images[i].src);
   }
   function startMarks() {

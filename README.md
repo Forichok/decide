@@ -429,10 +429,10 @@ HTML blocks run in a sandboxed frame of their own, with no access to the page. S
 
 **Does anything leave my machine?**
 No. The page, your answers and the journal stay on 127.0.0.1 and in
-`~/.decide`. The one outside request is mermaid, loaded from jsDelivr, and
-only for rounds that have a diagram. An exported round leaves only when you
+`~/.decide`. Diagrams are drawn by a copy of Mermaid that ships with decide,
+so nothing is loaded from the network. An exported round leaves only when you
 send the file to someone, and it holds the questions and pictures of that
-one round.
+one round. A round with a diagram adds about 3.5 MB for Mermaid.
 
 **I closed the tab halfway through.**
 Your answers are saved as you go. Open the same link again and carry on.

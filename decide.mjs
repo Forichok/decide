@@ -16,7 +16,7 @@
 //   node decide.mjs --sim ios|android [--device id] [--name n]  simulator screen
 //   node decide.mjs --journal [--limit n] [--query text] [--status live|superseded] [--topic text]
 //   node decide.mjs --supersede <round> [--by <round>] [--reason "…"]
-//   node decide.mjs --export <round | x.questions.json> [--out page.html]
+//   node decide.mjs --export <round | x.questions.json> [--out page.html] [--outside]   --out stays in the project unless --outside
 //   node decide.mjs --import <a.answers.json> [more.answers.json…] [--round id] [--spec x.questions.json]
 //   node decide.mjs --adr [<round>] [--consequences "…"] [--adr-dir docs/decisions]
 //   node decide.mjs --demo [--lang en|ru]             the feature tour

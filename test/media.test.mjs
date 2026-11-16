@@ -62,8 +62,8 @@ test("compare, video, diff, table and chart normalize", async (context) => {
   // Published like images: local paths become served URLs, remote ones stay.
   const roots = createRoots();
   const pub = roots.publishNode({ ...m, images: [] });
-  assert.match(pub.compare.after.src, /^\/r\/\d+\/b\.png$/);
-  assert.match(pub.video[0].src, /^\/r\/\d+\/clip\.mp4$/);
+  assert.match(pub.compare.after.src, /^\/r\/[0-9a-f]{8}\/b\.png$/);
+  assert.match(pub.video[0].src, /^\/r\/[0-9a-f]{8}\/clip\.mp4$/);
 });
 
 test("a broken attachment is dropped with a warning", async (context) => {

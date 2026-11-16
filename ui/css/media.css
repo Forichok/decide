@@ -42,6 +42,16 @@
 }
 .diagram svg { max-width: 100%; height: auto; }
 .diagram-wait { color: var(--tx-dim); font-size: 13px; padding: 24px 0; }
+/* the drawing lives in a frame of its own (ui/vendor/mermaid-frame.html); a button laid over it opens it large */
+.diagram { position: relative; }
+.diagram-frame { display: block; width: 100%; border: 0; background: transparent; }
+.diagram-hit { position: absolute; inset: 0; border: 0; padding: 0; background: none; cursor: zoom-in; border-radius: inherit; }
+.diagram-hit:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.diagram > .zoom {
+  position: absolute; right: 8px; top: 8px; width: 28px; height: 28px; border-radius: 8px; pointer-events: none;
+  display: grid; place-items: center; background: rgba(0, 0, 0, 0.55); color: #fff; opacity: 0; transition: opacity 0.15s;
+}
+.diagram:hover > .zoom, .diagram:has(.diagram-hit:focus-visible) > .zoom { opacity: 1; }
 
 .code { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--surface-2); }
 .code-bar {

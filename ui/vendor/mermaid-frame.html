@@ -1,0 +1,81 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>diagram</title>
+    <style>
+      html, body { margin: 0; background: transparent; }
+      body { font: 14px/1.4 system-ui, sans-serif; text-align: center; }
+      #host svg { max-width: 100%; height: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="host"></div>
+    <!-- A classic script: a module would be fetched with Origin: null, which the server refuses. -->
+    <script src="/ui/vendor/mermaid.min.js"></script>
+    <script>
+      // The page of decide frames this document under a sandbox without allow-same-origin and a policy the
+      // server sends as a header. It takes the diagram source from its parent and answers with sizes only,
+      // plus the drawing as SVG text for the page's lightbox. Nothing from the page's own origin is reachable.
+      (() => {
+        const post = (message) => parent.postMessage({ decideMermaid: message }, "*");
+        const host = document.getElementById("host");
+        const measure = () => post({ height: Math.ceil(document.body.getBoundingClientRect().height) });
+        new ResizeObserver(measure).observe(document.body);
+
+        // Mermaid sometimes sizes the viewBox before its nodes are placed: fit it to what was drawn.
+        function fit(svg) {
+          const b = svg.getBBox();
+          if (!b.width) return;
+          const pad = 8;
+          svg.setAttribute("viewBox", `${b.x - pad} ${b.y - pad} ${b.width + 2 * pad} ${b.height + 2 * pad}`);
+          svg.style.maxWidth = `${Math.ceil(b.width + 2 * pad)}px`;
+        }
+
+        // A standalone copy sized to fill the lightbox, on the page's background.
+        function standalone(svg, bg) {
+          const copy = svg.cloneNode(true);
+          const vb = svg.viewBox.baseVal;
+          const scale = vb && vb.width ? Math.max(1, 1600 / vb.width) : 1;
+          copy.removeAttribute("style");
+          if (vb && vb.width) {
+            copy.setAttribute("width", String(Math.round(vb.width * scale)));
+            copy.setAttribute("height", String(Math.round(vb.height * scale)));
+          }
+          copy.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+          const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          for (const [k, v] of [["x", vb ? vb.x : 0], ["y", vb ? vb.y : 0], ["width", "100%"], ["height", "100%"], ["fill", bg]]) rect.setAttribute(k, String(v));
+          copy.insertBefore(rect, copy.firstChild);
+          return new XMLSerializer().serializeToString(copy);
+        }
+
+        addEventListener("message", async (e) => {
+          if (e.source !== parent) return;
+          const d = e.data && e.data.decideMermaid;
+          if (!d || typeof d.source !== "string" || host.firstChild) return;
+          document.documentElement.style.colorScheme = d.dark ? "dark" : "light";
+          try {
+            mermaid.initialize({
+              startOnLoad: false,
+              securityLevel: "strict",
+              theme: d.dark ? "dark" : "neutral",
+              fontFamily: "system-ui, sans-serif",
+              // SVG-only labels: the drawing then also works as an <img> (lightbox).
+              htmlLabels: false,
+              flowchart: { htmlLabels: false },
+            });
+            const { svg } = await mermaid.render("decide-diagram", d.source);
+            host.innerHTML = svg;
+            const drawn = host.querySelector("svg");
+            fit(drawn);
+            post({ done: { svg: standalone(drawn, typeof d.bg === "string" ? d.bg : "white") } });
+            measure();
+          } catch (err) {
+            post({ error: String((err && err.message) || err).slice(0, 300) });
+          }
+        });
+        post({ ready: true });
+      })();
+    </script>
+  </body>
+</html>

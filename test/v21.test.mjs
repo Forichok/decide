@@ -4,7 +4,7 @@
 // simulator screenshots.
 
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { md } from "../ui/js/md.js";
@@ -157,11 +157,11 @@ test("export: one self-contained page, its modules resolved through the import m
   const specPath = path.join(pluginDir, "examples/showcase.questions.json");
   const { spec } = await prepareSpec(JSON.parse(readFileSync(specPath, "utf8")), { specDir: path.dirname(specPath), dataDir: dir, shots: false });
   const out = path.join(dir, "tour.decide.html");
-  const built = exportSpec(spec, { id: "x1", from: "showcase.questions.json", out });
+  const built = await exportSpec(spec, { id: "x1", from: "showcase.questions.json", out });
   const html = readFileSync(out, "utf8");
   assert.equal(built.missing.length, 0);
   assert.doesNotMatch(html, /["(]\/ui\//);
-  assert.doesNotMatch(html, /\/r\/\d+\//);
+  assert.doesNotMatch(html, /\/r\/[0-9a-f]{8,}\//);
   assert.match(html, /data:image\/svg\+xml;name=home-list\.svg;base64,/);
   assert.match(html, /data:text\/html;charset=utf-8;name=card\.html;base64,/);
   const map = JSON.parse(html.match(/<script type="importmap">([\s\S]*?)<\/script>/)[1]);
@@ -179,7 +179,7 @@ test("export: one self-contained page, its modules resolved through the import m
     { specDir: odd, dataDir: dir, shots: false },
   );
   const oddOut = path.join(dir, "odd.decide.html");
-  const oddBuilt = exportSpec(tricky.spec, { id: "x2", out: oddOut });
+  const oddBuilt = await exportSpec(tricky.spec, { id: "x2", out: oddOut });
   const oddHtml = readFileSync(oddOut, "utf8");
   assert.deepEqual(oddBuilt.missing, []);
   assert.match(oddHtml, /<title>Cost \$&amp; x — decide<\/title>/);
@@ -250,4 +250,130 @@ test("simulator screenshots run simctl / adb and explain a missing device", asyn
   process.env.DECIDE_SIMCTL = bin("simctl-off", 'echo "No devices are booted." >&2; exit 149');
   await assert.rejects(captureSim({ simulator: "ios", dir: path.join(dir, "shots") }), /No devices are booted\..*simctl boot/);
   await assert.rejects(captureSim({ simulator: "watch", dir }), /unknown simulator/);
+});
+
+
+// ---- export limits (Task 15)
+
+const PNG1 = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+
+test("export outside the project is refused without the flag, and the error names it", async (t) => {
+  const dir = await scratchDir(t);
+  const elsewhere = await scratchDir(t);
+  const project = { root: dir, top: dir, dataDir: path.join(dir, ".data") };
+  const raw = { title: "Pick", questions: [choice("db", "Which database?")] };
+  const specPath = path.join(dir, "pick.questions.json");
+  writeFileSync(specPath, JSON.stringify(raw));
+  const target = path.join(elsewhere, "out.decide.html");
+  await assert.rejects(exportRound({ project, raw, specPath, specDir: dir, out: target }), /--outside/);
+  assert.equal(existsSync(target), false, "nothing was written");
+  // Inside the project, and inside the data dir, it goes through.
+  const inside = await exportRound({ project, raw, specPath, specDir: dir, out: "sub/in.decide.html" });
+  assert.ok(existsSync(inside.file));
+  const data = await exportRound({ project, raw, specPath, specDir: dir, out: path.join(project.dataDir, "kept.html") });
+  assert.ok(existsSync(data.file));
+  // The flag lets it out.
+  const out = await exportRound({ project, raw, specPath, specDir: dir, out: target, outside: true });
+  assert.ok(existsSync(out.file));
+  // ".." is judged after it is resolved.
+  await assert.rejects(exportRound({ project, raw, specPath, specDir: dir, out: path.join("..", path.basename(elsewhere), "again.html") }), /--outside/);
+});
+
+test("export outside is judged on real paths: a symlink in the project that points out is outside (skipped on win32: needs symlinks)", { skip: process.platform === "win32" }, async (t) => {
+  const dir = await scratchDir(t);
+  const elsewhere = await scratchDir(t);
+  const project = { root: dir, top: dir, dataDir: path.join(dir, ".data") };
+  const raw = { title: "Pick", questions: [choice("db", "Which database?")] };
+  const specPath = path.join(dir, "pick.questions.json");
+  writeFileSync(specPath, JSON.stringify(raw));
+  symlinkSync(elsewhere, path.join(dir, "link"));
+  await assert.rejects(exportRound({ project, raw, specPath, specDir: dir, out: "link/out.html" }), /--outside/);
+  assert.equal(readdirSync(elsewhere).length, 0);
+  writeFileSync(path.join(elsewhere, "taken.html"), "old");
+  symlinkSync(path.join(elsewhere, "taken.html"), path.join(dir, "taken.html"));
+  await assert.rejects(exportRound({ project, raw, specPath, specDir: dir, out: "taken.html" }), /--outside/);
+  assert.equal(readFileSync(path.join(elsewhere, "taken.html"), "utf8"), "old");
+});
+
+test("an export over 60 MB fails before reading the media, and leaves no file", async (t) => {
+  const dir = await scratchDir(t);
+  writeFileSync(path.join(dir, "big.png"), PNG1);
+  truncateSync(path.join(dir, "big.png"), 61 * 1024 * 1024); // sparse: no disk, and reading it would take far longer
+  const { spec } = await prepareSpec({ title: "Big", questions: [{ id: "q", title: "Q", images: ["big.png"], options: [{ id: "a", label: "A" }, { id: "b", label: "B" }] }] }, { specDir: dir, dataDir: dir, shots: false });
+  const out = path.join(dir, "big.decide.html");
+  const started = Date.now();
+  await assert.rejects(exportSpec(spec, { id: "x9", out }), (err) => err.name === "UserError" || err.user === true ? /60 MB/.test(err.message) : false);
+  assert.ok(Date.now() - started < 1000, `took ${Date.now() - started} ms`);
+  assert.deepEqual(readdirSync(dir).filter((f) => f !== "big.png"), [], "no half file, no temp file");
+});
+
+test("the 60 MB counts what is written: base64 growth and the Mermaid frame, estimated by stat before any read", async (t) => {
+  const dir = await scratchDir(t);
+  const png = (mb) => {
+    writeFileSync(path.join(dir, "mid.png"), PNG1);
+    truncateSync(path.join(dir, "mid.png"), mb * 1024 * 1024); // sparse
+  };
+  const q = (extra = {}) => ({ id: "q", title: "Q", images: ["mid.png"], ...extra, options: [{ id: "a", label: "A" }, { id: "b", label: "B" }] });
+  // 46 MB raw is under 60 MB, but it is 61 MB once written as base64.
+  png(46);
+  let { spec } = await prepareSpec({ title: "Mid", questions: [q()] }, { specDir: dir, dataDir: dir, shots: false });
+  const started = Date.now();
+  await assert.rejects(exportSpec(spec, { id: "x6", out: path.join(dir, "mid.decide.html") }), /60 MB/);
+  // 44 MB raw is 58.7 MB written; with the diagram frame (4.8 MB written) it is over.
+  png(44);
+  ({ spec } = await prepareSpec({ title: "Mid", questions: [q({ mermaid: "flowchart LR\n  A --> B" })] }, { specDir: dir, dataDir: dir, shots: false }));
+  await assert.rejects(exportSpec(spec, { id: "x5", out: path.join(dir, "mid2.decide.html") }), /60 MB/);
+  assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms: nothing was read`);
+  assert.deepEqual(readdirSync(dir).filter((f) => f !== "mid.png"), [], "no half file, no temp file");
+});
+
+test("a failed export leaves the file that was there", async (t) => {
+  const dir = await scratchDir(t);
+  const out = path.join(dir, "keep.decide.html");
+  writeFileSync(out, "old export");
+  writeFileSync(path.join(dir, "big.png"), PNG1);
+  truncateSync(path.join(dir, "big.png"), 61 * 1024 * 1024);
+  const { spec } = await prepareSpec({ title: "Big", questions: [{ id: "q", title: "Q", images: ["big.png"], options: [{ id: "a", label: "A" }, { id: "b", label: "B" }] }] }, { specDir: dir, dataDir: dir, shots: false });
+  await assert.rejects(exportSpec(spec, { id: "x9", out }));
+  assert.equal(readFileSync(out, "utf8"), "old export");
+});
+
+test("a mockup's own files count toward the 60 MB, (a mockup's files are counted once per use, like a picture)", async (t) => {
+  const dir = await scratchDir(t);
+  writeFileSync(path.join(dir, "card.html"), '<img src="huge.png"><p>x</p>');
+  writeFileSync(path.join(dir, "huge.png"), PNG1);
+  truncateSync(path.join(dir, "huge.png"), 61 * 1024 * 1024);
+  const { spec } = await prepareSpec({ title: "M", questions: [{ id: "q", title: "Q", preview: "card.html", options: [{ id: "a", label: "A" }, { id: "b", label: "B" }] }] }, { specDir: dir, dataDir: dir, shots: false });
+  await assert.rejects(exportSpec(spec, { id: "x8", out: path.join(dir, "m.decide.html") }), /60 MB/);
+});
+
+test("a picture used in several questions counts once per use, because each use is written into the page", async (t) => {
+  const dir = await scratchDir(t);
+  writeFileSync(path.join(dir, "one.png"), PNG1);
+  truncateSync(path.join(dir, "one.png"), 12 * 1024 * 1024); // 16 MB written: fine once, 96 MB in six questions
+  const q = (n) => ({ id: `q${n}`, title: `Q${n}`, images: ["one.png"], options: [{ id: "a", label: "A" }, { id: "b", label: "B" }] });
+  const { spec } = await prepareSpec({ title: "Six", questions: [1, 2, 3, 4, 5, 6].map(q) }, { specDir: dir, dataDir: dir, shots: false });
+  const started = Date.now();
+  await assert.rejects(exportSpec(spec, { id: "x4", out: path.join(dir, "six.decide.html") }), /60 MB/);
+  assert.ok(Date.now() - started < 1000, `took ${Date.now() - started} ms: nothing was read`);
+  assert.deepEqual(readdirSync(dir).filter((f) => f !== "one.png"), [], "no half file, no temp file");
+});
+
+test("an exported round with mermaid has no external URL in script or link tags, and draws offline", async (t) => {
+  const dir = await scratchDir(t);
+  const { spec } = await prepareSpec({ title: "Flow", questions: [{ id: "q", title: "Q", mermaid: "flowchart LR\n  A --> B", options: [{ id: "a", label: "A" }, { id: "b", label: "B" }] }] }, { specDir: dir, dataDir: dir, shots: false });
+  const out = path.join(dir, "flow.decide.html");
+  const built = await exportSpec(spec, { id: "x7", out });
+  const html = readFileSync(out, "utf8");
+  for (const tag of html.match(/<(?:script|link)\b[^>]*>/gi) || []) assert.doesNotMatch(tag, /(?:src|href)\s*=\s*["']?(?:https?:)?\/\//i, tag.slice(0, 120));
+  assert.doesNotMatch(html, /cdn\.jsdelivr|unpkg\.com|cdnjs/i);
+  const frame = JSON.parse(html.match(/<script type="application\/json" id="decide-mermaid">([\s\S]*?)<\/script>/)[1]);
+  assert.match(frame.frame, /^<!doctype html>/i);
+  assert.match(frame.frame, /<script src="data:text\/javascript;base64,/);
+  assert.ok(built.bytes > 3_000_000, "the bundle is inside");
+  // A round without a diagram carries none of it.
+  const plain = await prepareSpec({ title: "Plain", questions: [{ id: "q", title: "Q", options: [{ id: "a", label: "A" }, { id: "b", label: "B" }] }] }, { specDir: dir, dataDir: dir, shots: false });
+  const plainBuilt = await exportSpec(plain.spec, { id: "x6", out: path.join(dir, "plain.decide.html") });
+  assert.ok(plainBuilt.bytes < 1_500_000, `${plainBuilt.bytes} bytes`);
+  assert.doesNotMatch(readFileSync(path.join(dir, "plain.decide.html"), "utf8"), /id="decide-mermaid"/);
 });

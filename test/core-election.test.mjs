@@ -382,7 +382,7 @@ test("an explanation's media are published once: the page can load them", async 
   assert.equal(res.status, 200);
   const view = await get(port, `/api/rounds/${id}`);
   const src = view.dialog[0].reply.images[0].src;
-  assert.match(src, /^\/r\/\d+\/logo\.png$/);
+  assert.match(src, /^\/r\/[0-9a-f]{8}\/logo\.png$/);
   const file = await fetch(`http://127.0.0.1:${port}${src}`);
   assert.equal(file.status, 200);
   assert.equal(await file.text(), "not-really-a-png");

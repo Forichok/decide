@@ -114,7 +114,7 @@ Other commands: `--lint <file>` checks a spec alone; `--shot <url> --viewport
 mobile` takes a screenshot; `--sim ios|android` captures a simulator;
 `--journal --query <text>` prints past decisions (`--status live`, `--topic
 <text>`); `--supersede <round> --by <round> --reason "…"`; `--adr [<round>]`;
-`--export <round | spec>`; `--import <files…>`;
+`--export <round | spec> [--out file] [--outside]`; `--import <files…>`;
 `--no-open` skips opening the browser (give the user the printed URL);
 `--stop` stops the page server.
 
@@ -126,7 +126,9 @@ becomes a flag in the answers and you explain in the next round.
 When the answer belongs to a person who can't open this machine's page,
 export the round: `export {project, round}` for an open round, or
 `export {project, spec | specPath}` without opening a page. You get one
-self-contained `.html` path; give it to the user to send. The recipient
+self-contained `.html` path; give it to the user to send. `out` must be inside
+the project or the decide data dir. For any other place, pass `outside: true`
+(`--outside` on the command line). The recipient
 answers offline, and Done saves an answers JSON with their name. End your
 turn; nothing comes back through `wait`.
 

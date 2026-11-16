@@ -754,7 +754,7 @@ test("every page module draws the normalised example of its kind, under a stand-
   const published = await load("lib/assets.mjs");
   const roots = published.createRoots();
   for (const [name, def] of MEDIA) {
-    if (name === "mermaid") continue; // loads a script from the network; the browser check covers it
+    if (name === "mermaid") continue; // draws in a frame of its own; the browser check covers it
     const { spec } = normalizeSpec(mediaQuestion(def.example), { specDir: dir });
     const node = roots.publishNode(spec.questions[0]);
     const el = page.MEDIA.get(name).render(node, ctx, env);
@@ -1024,10 +1024,12 @@ test("the media table says everything the old one did: the names inside a kind, 
   assert.match(row("compare"), /labels/);
 });
 
-test("the mermaid line says what the page does now: draws it from a CDN, shows the source when that fails", async () => {
+test("the mermaid line says what the page does now: draws it in a sandboxed frame, offline too, shows the source when that fails", async () => {
   const { typeLines } = await docs();
   const line = typeLines().split("\n").find((l) => l.startsWith("mermaid: "));
-  assert.match(line, /CDN/);
+  assert.match(line, /sandboxed frame/);
+  assert.match(line, /offline|exported file draws it too/);
+  assert.doesNotMatch(line, /CDN/);
   assert.match(line, /source/);
 });
 
@@ -1068,13 +1070,13 @@ test("metrics as a list of {label, value} is read as the object form: the same r
   assert.deepEqual(asList.spec.questions[0].options[0].metrics, asObject.spec.questions[0].options[0].metrics, "the page draws rows from this");
   const dir = await mkdtemp(path.join(tmpdir(), "decide-metrics-"));
   context.after(() => rm(dir, { recursive: true, force: true }));
-  const rows = (spec, name) => {
+  const rows = async (spec, name) => {
     const out = path.join(dir, `${name}.html`);
-    exportSpec(spec, { id: name, out });
+    await exportSpec(spec, { id: name, out });
     const payload = JSON.parse(readFileSync(out, "utf8").match(/<script type="application\/json" id="decide-export">([\s\S]*?)<\/script>/)[1].replace(/\\u003c/g, "<"));
     return payload.round.spec.questions[0].options[0].metrics;
   };
-  assert.deepEqual(rows(asList.spec, "list"), rows(asObject.spec, "object"), "the export carries the same rows");
+  assert.deepEqual(await rows(asList.spec, "list"), await rows(asObject.spec, "object"), "the export carries the same rows");
   const md = readFileSync(path.join(pluginDir, "skills/decide/spec.md"), "utf8");
   assert.doesNotMatch(md, /"metrics": \[/);
 });
@@ -1130,7 +1132,7 @@ test("a compare of one local and one remote mockup: the remote side is a link, t
   assert.deepEqual(live, { frames: ["/r/0/local.html"], links: [["https://example.com/b.html", "noopener noreferrer"]] });
   const { exportSpec } = await load("lib/export.mjs");
   const file = path.join(dir, "x.html");
-  exportSpec(out.spec, { id: "x", out: file });
+  await exportSpec(out.spec, { id: "x", out: file });
   const payload = JSON.parse(readFileSync(file, "utf8").match(/<script type="application\/json" id="decide-export">([\s\S]*?)<\/script>/)[1].replace(/\\u003c/g, "<"));
   const exported = shape(payload.round.spec.questions[0].compare);
   assert.equal(exported.frames.length, 1);
@@ -1157,4 +1159,5 @@ test("the media table says what the old one did and what is true now", async () 
   const line = typeLines().split("\n").find((l) => l.startsWith("mermaid: "));
   assert.match(line, /source text/);
   assert.match(line, /export/);
+  assert.match(line, /sandboxed frame/);
 });

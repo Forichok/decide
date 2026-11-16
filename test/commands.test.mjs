@@ -115,7 +115,9 @@ test("tools/list has the eleven 2.1 tools plus lint and stop, as 2.1 spelled the
   for (const old of surface.tools) {
     const now = tools.find((t) => t.name === old.name);
     assert.deepEqual(now.inputSchema.required ?? [], old.inputSchema.required ?? [], `${old.name}: required`);
-    assert.deepEqual(Object.keys(now.inputSchema.properties), Object.keys(old.inputSchema.properties), `${old.name}: parameter names, in order`);
+    // 3.0 added one parameter to export, last: outside (a file outside the project).
+    const added = old.name === "export" ? ["outside"] : [];
+    assert.deepEqual(Object.keys(now.inputSchema.properties), [...Object.keys(old.inputSchema.properties), ...added], `${old.name}: parameter names, in order`);
     if (old.name === "ask" || old.name === "swipe") {
       assert.ok(now.description.startsWith(old.description), `${old.name}: description starts as before`);
       const lines = old.name === "ask" ? typeLines() : deckLines();
@@ -127,7 +129,8 @@ test("tools/list has the eleven 2.1 tools plus lint and stop, as 2.1 spelled the
       assert.ok(now.inputSchema.properties.spec.description.startsWith(old.inputSchema.properties.spec.description.slice(0, 20)));
     } else {
       assert.equal(now.description, old.description, `${old.name}: description`);
-      assert.equal(canon(now.inputSchema), canon(old.inputSchema), `${old.name}: schema`);
+      const { outside: _added, ...kept } = now.inputSchema.properties;
+      assert.equal(canon({ ...now.inputSchema, properties: old.name === "export" ? kept : now.inputSchema.properties }), canon(old.inputSchema), `${old.name}: schema`);
     }
   }
 });

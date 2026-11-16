@@ -63,6 +63,7 @@ body.locked { overflow: hidden; }
 .lb-top { display: flex; align-items: center; gap: 12px; padding: 12px 16px; font-size: 13px; }
 .lb-top .icon-btn { color: #fff; }
 .lb-top .icon-btn:hover { background: rgba(255, 255, 255, 0.12); }
+.lb-open[hidden] { display: none; }
 .lb-open { display: inline-flex; align-items: center; gap: 6px; color: rgba(255, 255, 255, 0.8); text-decoration: none; }
 .lb-stage { margin: 0; display: grid; place-items: center; align-content: center; gap: 10px; overflow: auto; padding: 0 64px 24px; min-height: 0; }
 .lb-img { max-width: 100%; max-height: calc(100vh - 120px); border-radius: 8px; cursor: zoom-in; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); }
