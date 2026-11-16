@@ -9,9 +9,10 @@ import { renderQuestion, syncQuestion } from "./question.js";
 import { noteArea, paintFiles } from "./extras.js";
 import { credit, renderHeader } from "./header.js";
 import { renderToc, syncProgress, syncToc, trackCurrent } from "./nav.js";
-import { openLightbox, openZoom, toast } from "./overlays.js";
+import { openLightbox, openModal, openZoom, toast } from "./overlays.js";
 import { emptyAnswer, isResolved, isVisible, progress, withRecommendation } from "./logic.js";
-import { askAgent, holdReload, saveDraft, uploadFile } from "./net.js";
+import { askAgent, holdReload, keepAnswer, restoreItem, saveDraft, uploadFile } from "./net.js";
+import { paintRemoved, paintState, resolve, sigOf } from "./states.js";
 
 const MAX_UPLOAD = 24 * 1024 * 1024;
 
@@ -28,6 +29,13 @@ export function mountRound(round, env) {
     ui: { note: new Set(), other: new Set(), ask: new Set(), askDraft: new Map() },
   };
   const live = Boolean(round.live);
+  // Reactive rounds: the server's view, ghosts the user brought back, answers the user kept.
+  const react = { view: round.view || null, restored: new Set(), kept: new Map(), viewSig: new Map() };
+  const stamp = () => {
+    react.viewSig = new Map((react.view?.stale || []).map((qid) => [String(qid), sigOf(answers[qid])]));
+  };
+  stamp();
+  const states = () => resolve(spec, answers, react.view, react);
   holdReload("view", () => [...s.ui.askDraft.values()].some((text) => text.trim()));
   // Live "explain" means "waiting for the agent": drop it once every ask on the question has a reply.
   const settleExplain = (dialog) => {
@@ -107,6 +115,23 @@ export function mountRound(round, env) {
         },
       };
     },
+    restore(qid) {
+      react.restored.add(qid);
+      syncAll();
+      restoreItem(round.id, qid).catch(() => {});
+    },
+    keep(qid) {
+      react.kept.set(qid, sigOf(answers[qid]));
+      syncAll();
+      keepAnswer(round.id, qid).catch(() => {});
+    },
+    answerAgain(qid) {
+      react.kept.delete(qid);
+      Object.assign(answers[qid], emptyAnswer(qById.get(qid)));
+      syncAll();
+      persist();
+      card(qid)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    },
     removeFile(qid, path) {
       answers[qid].attachments = answers[qid].attachments.filter((p) => p !== path);
       syncOne(qid);
@@ -177,32 +202,82 @@ export function mountRound(round, env) {
 
   function syncOne(qid) {
     const c = card(qid);
-    if (c) syncQuestion(c, qById.get(qid), ctx);
+    if (c) {
+      syncQuestion(c, qById.get(qid), ctx);
+      const st = states();
+      paintState(c, qById.get(qid), st, ctx, h, t);
+      paintRemoved(c, qById.get(qid), st, answers);
+    }
     syncChrome();
   }
 
   function syncAll() {
     let n = 0;
+    const st = states();
     for (const q of spec.questions) {
       const c = card(q.id);
       if (!c) continue;
-      const vis = isVisible(q, answers);
-      c.hidden = !vis;
-      if (vis) $(".q-idx .n", c).textContent = String(++n);
+      // A question that no longer applies stays where it was, grey, with its reason (see states.js).
+      c.hidden = false;
+      if (!st.ghosts.has(q.id)) $(".q-idx .n", c).textContent = String(++n);
       syncQuestion(c, q, ctx);
+      paintState(c, q, st, ctx, h, t);
+      paintRemoved(c, q, st, answers);
     }
     for (const sec of $$(".sec")) sec.hidden = $$(".card", sec).every((c) => c.hidden);
     syncChrome();
   }
 
   function syncChrome() {
-    const p = progress(spec, answers);
+    const st = states();
+    const p = progress({ ...spec, questions: spec.questions.filter((q) => !st.ghosts.has(q.id)) }, answers);
+    paintCheck(st);
     const left = p.total - p.resolved;
     syncToc(spec, answers, tracker?.get());
     const bar = $("#bar");
     syncProgress(spec, answers, tracker?.get(), env.go);
     bar.classList.toggle("complete", left === 0);
     document.title = `${left ? `(${left}) ` : "✓ "}${spec.title} — decide`;
+  }
+
+  // "N answers to check" in the footer; it opens the list.
+  function paintCheck(st) {
+    const btn = $(".bar-check");
+    if (!btn) return;
+    btn.hidden = st.stale.size === 0;
+    btn.textContent = t("check.count", st.stale.size);
+  }
+
+  function openCheck() {
+    const st = states();
+    if (!st.stale.size) return;
+    const close = openModal(
+      h(
+        "div.check",
+        {},
+        h("h2.modal-title", {}, t("check.title")),
+        h("p", {}, t("check.sub")),
+        h(
+          "ul.check-list",
+          {},
+          [...st.stale].map(([qid, why]) =>
+            h(
+              "li.check-row",
+              {},
+              h("div.check-q", {}, qById.get(qid)?.title || qid),
+              why && h("div.check-why", {}, why),
+              h(
+                "div.check-acts",
+                {},
+                h("button.btn.sm", { type: "button", onclick: () => (close(), ctx.keep(qid), states().stale.size && openCheck()) }, t("state.keep")),
+                h("button.btn.sm", { type: "button", onclick: () => (close(), ctx.answerAgain(qid)) }, t("state.again")),
+                h("button.link-btn", { type: "button", onclick: () => (close(), env.go(qid)) }, t("check.go")),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   const onCurrent = () => (syncToc(spec, answers, tracker?.get()), syncProgress(spec, answers, tracker?.get(), env.go));
@@ -248,7 +323,7 @@ export function mountRound(round, env) {
   paintComment();
   document.body.classList.toggle("no-toc", spec.questions.length < 4);
   renderToc(spec, env.go);
-  renderBar(env);
+  renderBar(env, () => openCheck());
   tracker = trackCurrent(onCurrent);
   syncAll();
 
@@ -272,19 +347,30 @@ export function mountRound(round, env) {
       syncAll();
       persist();
     },
-    firstOpen: () => spec.questions.find((q) => isVisible(q, answers) && !isResolved(q, answers[q.id]))?.id,
+    firstOpen: () => {
+      const st = states();
+      return spec.questions.find((q) => !st.ghosts.has(q.id) && !isResolved(q, answers[q.id]))?.id;
+    },
+    // Reactive rounds: the server's view arrives (state event or reload); Done waits for unchecked answers.
+    setView(view) {
+      react.view = view || null;
+      stamp();
+      syncAll();
+    },
+    toCheck: () => [...states().stale.keys()],
+    openCheck,
     stop: () => tracker.stop(),
   };
 }
 
-function renderBar(env) {
+function renderBar(env, openCheck) {
   const bar = $("#bar");
   bar.hidden = false;
   bar.replaceChildren(
     h(
       "div.bar-inner",
       {},
-      h("div.bar-status", {}, h("div.bar-count"), h("div.bar-segs", { role: "group", "aria-label": t("progress.label") }), h("div.bar-hint", {}, h("span.hint-keys", {}, t("progress.keys")), h("span.hint-touch", {}, t("progress.touch")), h("span.hint-ready", {}, t("progress.ready")))),
+      h("div.bar-status", {}, h("div.bar-count"), h("button.link-btn.bar-check", { type: "button", hidden: true, onclick: openCheck }), h("div.bar-segs", { role: "group", "aria-label": t("progress.label") }), h("div.bar-hint", {}, h("span.hint-keys", {}, t("progress.keys")), h("span.hint-touch", {}, t("progress.touch")), h("span.hint-ready", {}, t("progress.ready")))),
       h(
         "div.bar-actions",
         {},
