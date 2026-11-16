@@ -22,6 +22,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
 import net from "node:net";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { mkdir } from "node:fs/promises";
@@ -633,6 +634,94 @@ test("a round's roots go when the round is released, and stay for another round 
   assert.equal(roots.htmlFor(h1), null, "an html block only round 1 had is gone");
   roots.release("2-bbbbbb");
   assert.equal(roots.fileFor(a), null);
+});
+
+// ---- a mockup's directory (final fix wave A1)
+
+test("a mockup's directory serves web files only: no dotfile, no daemon file, no type a browser would only download", async (t) => {
+  const files = {
+    "mock/card.html": '<link rel="stylesheet" href="card.css"><script src="app.js"></script><img src="img/dot.png">',
+    "mock/card.css": "p{color:red}",
+    "mock/app.js": "1",
+    "mock/app.mjs": "export {}",
+    "mock/data.json": "{}",
+    "mock/img/dot.png": PNG,
+    "mock/.env": "SECRET=1",
+    "mock/.decide/daemon.json": '{"token":"t"}',
+    "mock/.ssh/id_rsa": "key",
+    "mock/.ssh/id_rsa.txt": "key",
+    "mock/daemon.json": '{"token":"t"}',
+    "mock/daemon.lock": "1",
+    "mock/blob.bin": "x",
+    "mock/key.pem": "x",
+    "mock/noext": "x",
+  };
+  const { port, view } = await servedFiles(t, files, { title: "T", questions: [{ id: "q", title: "Q", preview: "mock/card.html", options: two }] });
+  const base = view.spec.questions[0].preview.src.replace(/card\.html$/, "");
+  for (const name of ["card.html", "card.css", "app.js", "app.mjs", "data.json", "img/dot.png"]) assert.equal((await fetch(url(port, base + name))).status, 200, name);
+  assert.match((await fetch(url(port, `${base}app.mjs`))).headers.get("content-type"), /^text\/javascript/);
+  for (const name of [".env", ".decide/daemon.json", ".ssh/id_rsa", ".ssh/id_rsa.txt", "daemon.json", "daemon.lock", "DAEMON.JSON", "blob.bin", "key.pem", "noext"]) {
+    assert.equal((await fetch(url(port, base + name))).status, 404, name);
+  }
+});
+
+test("a mockup in a directory that is or holds the decide home, $HOME, the temp dir or the root is published alone", async (t) => {
+  const dir = realpathSync.native(await scratchDir(t));
+  const home = path.join(dir, "dhome");
+  mkdirSync(path.join(home, "projects", "p"), { recursive: true });
+  writeFileSync(path.join(home, "projects", "p", "spec.json"), "{}");
+  writeFileSync(path.join(dir, "mock.html"), "<p>x</p>");
+  writeFileSync(path.join(dir, "notes.txt"), "private");
+  const roots = createRoots({ home });
+  const alone = (file) => roots.publishDir(file) === roots.publishFile(file);
+  const src = roots.publishDir(path.join(dir, "mock.html"));
+  assert.equal(alone(path.join(dir, "mock.html")), true, "a directory that holds the decide home");
+  assert.ok(roots.fileFor(src), "the mockup itself is served");
+  assert.equal(roots.fileFor(src.replace(/mock\.html$/, "notes.txt")), null, "nothing beside it");
+  assert.equal(roots.fileFor(src.replace(/mock\.html$/, "dhome/projects/p/spec.json")), null, "nothing of the home");
+  assert.equal(alone(path.join(home, "mock.html")), true, "the decide home itself");
+  // $HOME (os.homedir() reads HOME, or USERPROFILE on Windows, on every call).
+  const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };
+  const user = path.join(dir, "user");
+  mkdirSync(path.join(user, "sub"), { recursive: true });
+  process.env.HOME = user;
+  process.env.USERPROFILE = user;
+  try {
+    assert.equal(alone(path.join(user, "mock.html")), true, "$HOME itself");
+    assert.equal(alone(path.join(dir, "mock.html")), true, "a directory that holds $HOME");
+    assert.equal(alone(path.join(user, "sub", "mock.html")), false, "a directory inside $HOME is served whole");
+  } finally {
+    for (const [k, v] of Object.entries(saved)) v === undefined ? delete process.env[k] : (process.env[k] = v);
+  }
+  assert.equal(alone(path.join(realpathSync.native(tmpdir()), "mock.html")), true, "the temp dir");
+  assert.equal(alone(path.join(path.parse(dir).root, "mock.html")), true, "the root of the file system");
+  const plain = path.join(dir, "plain");
+  mkdirSync(plain);
+  assert.equal(alone(path.join(plain, "mock.html")), false, "an ordinary directory is served whole");
+});
+
+test("a finished round's view is read without publishing its files again", async (t) => {
+  const files = { "mock/card.html": "<p>x</p>", "mock/card.css": "p{}", "a.png": PNG };
+  const { home, port, id, view } = await servedFiles(t, files, { title: "T", questions: [{ id: "q", title: "Q", images: ["a.png"], preview: "mock/card.html", options: two }] });
+  const urls = [view.spec.questions[0].preview.src, view.spec.questions[0].preview.src.replace(/card\.html$/, "card.css"), view.spec.questions[0].images[0].src];
+  for (const u of urls) assert.equal((await fetch(url(port, u))).status, 200, u);
+  assert.equal((await fetch(url(port, `/api/rounds/${id}/submit`), { method: "POST", headers: asPage(port), body: body({ answers: { q: { selected: ["a"] } } }) })).status, 200);
+  // The agent collects the answers: the next server does not load the round, it reads it from disk when asked.
+  const item = await (await fetch(url(port, `/api/rounds/${id}/next?waiter=a`), { headers: asAgent(port) })).json();
+  assert.equal(item.kind, "final");
+  assert.equal((await fetch(url(port, `/api/rounds/${id}/ack`), { method: "POST", headers: asAgent(port), body: body({ seq: item.seq, waiter: "a" }) })).status, 200);
+  assert.equal((await fetch(url(port, "/api/stop"), { method: "POST", headers: asAgent(port) })).status, 200);
+  await until(async () => (await fetch(url(port, "/api/ping")).catch(() => null)) === null, "the server to stop");
+  const second = await startServer({ home, embedded: true });
+  t.after(() => second.stop());
+  for (const u of urls) assert.equal((await fetch(url(second.port, u))).status, 404, `not served after a restart: ${u}`);
+  // A token-less read of the finished round (anyone on the machine can make it) publishes nothing.
+  const again = await fetch(url(second.port, `/api/rounds/${id}`));
+  assert.equal(again.status, 200);
+  assert.equal((await again.json()).status, "answered");
+  for (const u of urls) assert.equal((await fetch(url(second.port, u))).status, 404, `not served after the read: ${u}`);
+  assert.equal((await fetch(url(second.port, `/api/rounds/${id}`))).status, 200, "a second read finds it in memory");
+  for (const u of urls) assert.equal((await fetch(url(second.port, u))).status, 404, `not served after a second read: ${u}`);
 });
 
 // ---- the Mermaid frame
