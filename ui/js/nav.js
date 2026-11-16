@@ -100,7 +100,8 @@ export function trackCurrent(onChange) {
     document.removeEventListener("focusin", onEvent);
     document.removeEventListener("pointerdown", onEvent);
   };
-  return { get: () => current, set, stop };
+  // A card added later (an agent's patch) is followed too.
+  return { get: () => current, set, stop, follow: (el) => el && io.observe(el) };
 }
 
 export function bindKeys(api) {

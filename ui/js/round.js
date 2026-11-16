@@ -334,6 +334,7 @@ export function mountRound(data, env) {
       else if (prev) prev.after(c);
       else ($(".sec.loose") || $(".sec", main) || $("#final")).prepend(c);
       itemSig.set(qid, JSON.stringify(q));
+      tracker?.follow?.(c);
     }
     if (added.length || spec.questions.map((q) => q.id).join() !== before.join()) renderToc(spec, env.go);
   }
