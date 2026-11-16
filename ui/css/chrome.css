@@ -119,6 +119,9 @@ kbd {
 .bar-status { flex: 1; min-width: 0; }
 .bar-count { font-weight: 660; font-size: 14px; }
 .bar-hint { font-size: 12.5px; color: var(--tx-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Save status (store.js): minimal until the look and shell chunks place it. */
+.bar-save { font-size: 12px; color: var(--tx-dim); min-height: 1em; }
+.bar-save[data-status="retrying"] { color: var(--warn, var(--tx)); font-weight: 600; }
 .bar-actions { display: flex; gap: 8px; }
 .bar.complete .bar-done { animation: ready 2.4s var(--ease) infinite; }
 @keyframes ready { 50% { box-shadow: 0 0 0 6px var(--accent-soft); } }

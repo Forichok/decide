@@ -90,6 +90,33 @@ export function saveDraft(id, draft) {
   draftTimer = setTimeout(sendDraft, 400);
 }
 
+// One question at a time (see store.js): each resolves {seq} once the server has the event on disk.
+const post = (path, body) => fetch(path, { method: "POST", headers: WRITE, body: JSON.stringify(body) }).then(json);
+export const postAnswer = (id, qid, answer) => post(`/api/rounds/${id}/answer`, { qid, answer });
+export const postNote = (id, qid, text) => post(`/api/rounds/${id}/note`, { qid, text });
+export const postFlag = (id, qid, flag, extra = {}) => post(`/api/rounds/${id}/flag`, { qid, flag, ...extra });
+// The round-level draft (closing comment, its files, time spent), through the store's retries.
+export const putDraft = (id, draft) => fetch(`/api/rounds/${id}/draft`, { method: "PUT", headers: WRITE, body: JSON.stringify(draft) }).then(json);
+export const getInbox = () => fetch("/api/inbox", { cache: "no-store" }).then(json);
+
+// Stream events besides the ones listen() takes: "round", "inbox", "handover" (data parsed), and
+// "reconnect" (the stream is back after a break: whatever was missed must be fetched again).
+const handlers = new Map();
+export function onEvent(name, fn) {
+  if (!handlers.has(name)) handlers.set(name, new Set());
+  handlers.get(name).add(fn);
+  return () => handlers.get(name).delete(fn);
+}
+function dispatch(name, data) {
+  for (const fn of handlers.get(name) || []) {
+    try {
+      fn(data);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+}
+
 export const swipeCard = (id, body) =>
   fetch(`/api/rounds/${id}/swipe`, { method: "POST", headers: WRITE, body: JSON.stringify(body) }).then(json);
 
@@ -128,11 +155,18 @@ export function listen(onState, onStatus, onDialog, onDeck) {
   es.addEventListener("state", (e) => onState(JSON.parse(e.data)));
   es.addEventListener("dialog", (e) => onDialog(JSON.parse(e.data)));
   es.addEventListener("deck", (e) => onDeck(JSON.parse(e.data)));
+  for (const name of ["round", "inbox", "handover"]) es.addEventListener(name, (e) => dispatch(name, e.data ? JSON.parse(e.data) : null));
+  let broken = false;
   es.onopen = () => {
     told = null;
     tellWatching();
     onStatus(true);
+    if (broken) dispatch("reconnect", null);
+    broken = false;
   };
-  es.onerror = () => onStatus(false);
+  es.onerror = () => {
+    broken = true;
+    onStatus(false);
+  };
   return es;
 }
