@@ -84,9 +84,12 @@ function mockFrame(q, ctx, { frame, theme, mini = false }) {
       setTimeout(() => last && post(el, q, last, theme), 200);
     }
   });
-  window.addEventListener("message", (e) => {
+  // One listener per frame, dropped once a re-render has taken the frame out of the page.
+  const onMessage = (e) => {
+    if (!el.isConnected) return window.removeEventListener("message", onMessage);
     if (e.source === el.contentWindow && e.data?.type === "decide:knobs-ready" && last) post(el, q, last, theme);
-  });
+  };
+  window.addEventListener("message", onMessage);
   return { box, push, label: `${ctx.t(`tune.${frame}`)} · ${ctx.t(`tune.${theme}`)}` };
 }
 

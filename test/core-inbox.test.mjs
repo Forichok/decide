@@ -109,7 +109,7 @@ test("the inbox puts high stakes first, then the longest waiting, then the round
     title: "high-first",
     mode: "questions",
     answered: 0,
-    total: 2,
+    total: 3,
     listening: false,
     stakes: "high",
     createdAt: base + 10,
@@ -120,12 +120,13 @@ test("the inbox puts high stakes first, then the longest waiting, then the round
   assert.equal(rows.find((r) => r.id === highOld.id).stakes, "high");
   assert.equal(rows.find((r) => r.id === low1.id).stakes, null);
 
-  // An answer counts, a flag beside a question counts, and the optional question is not counted.
+  // The inbox counts as the page does (logic.js progressOf): an answer counts, a flag beside a
+  // question counts, and an optional question counts like any other.
   await store.saveAnswer(low1, { qid: "color", answer: { selected: ["pink"] } });
   await store.saveFlag(low1, { qid: "size", flag: "later", revisit: "next sprint" });
   await store.saveAnswer(low1, { qid: "extra", answer: { selected: ["y"] } });
   const counted = store.inbox().rounds.find((r) => r.id === low1.id);
-  assert.deepEqual([counted.answered, counted.total], [2, 2]);
+  assert.deepEqual([counted.answered, counted.total], [3, 3]);
 
   // A waiter held now listens, and a listening round is never older.
   const waiter = store.next(lowOld, { waiter: "w", timeoutMs: 60_000 });
