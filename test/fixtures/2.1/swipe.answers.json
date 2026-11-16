@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "mode": "swipe",
+  "round": "2-a91d2a",
+  "source": "swipe.deck.json",
+  "title": "Tasks app: the 2.0 redesign",
+  "submittedAt": "2026-11-16T13:37:53.972Z",
+  "goal": "Decide what changes in the redesign of a small shared task app before any code is written",
+  "stoppedBy": "user",
+  "stats": {
+    "total": 14,
+    "answered": 4,
+    "left": 10,
+    "skipped": 1
+  },
+  "confidence": 20,
+  "answers": {
+    "pricing": {
+      "side": "right",
+      "label": "Ship the redesign"
+    },
+    "home": {
+      "side": "left",
+      "label": "List"
+    },
+    "onboarding": {
+      "side": "skip",
+      "label": null
+    },
+    "density": {
+      "side": "own",
+      "label": "Neither: ask in the first run."
+    }
+  },
+  "brief": [
+    {
+      "id": null,
+      "kind": "decision",
+      "text": "Phones first; the desktop layout follows",
+      "cards": []
+    },
+    {
+      "id": null,
+      "kind": "risk",
+      "text": "The yearly price may scare off small teams",
+      "cards": []
+    },
+    {
+      "id": null,
+      "kind": "open",
+      "text": "Who owns a task that two people edited offline?",
+      "cards": []
+    }
+  ],
+  "briefFile": "/scratch/examples/swipe.brief.md",
+  "note": "Done for today.",
+  "unread": "1. [pricing] Ship the new pricing page? → Ship the redesign (right) ★\n2. [home] Which home screen? → List (left) ★\n3. [onboarding] Teach the swipe gesture with a short clip? → skipped\n4. [density] How dense should the task list be? → their own answer, neither side: «Neither: ask in the first run.»",
+  "digest": "1. [pricing] Ship the new pricing page? → Ship the redesign (right) ★\n2. [home] Which home screen? → List (left) ★\n3. [onboarding] Teach the swipe gesture with a short clip? → skipped\n4. [density] How dense should the task list be? → their own answer, neither side: «Neither: ask in the first run.»"
+}

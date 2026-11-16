@@ -2,3 +2,4 @@
 *.answers.json
 *.answers.draft.json
 *.answers.files/
+!test/fixtures/**/*.answers.json

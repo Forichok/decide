@@ -1,0 +1,58 @@
+{
+  "version": 2,
+  "round": "1-6615e9",
+  "source": "showcase.questions.json",
+  "title": "decide tour: a new home screen for a task app",
+  "submittedAt": "2026-11-16T13:37:53.957Z",
+  "elapsedSec": 95,
+  "answers": {
+    "goal": {
+      "selected": [
+        "due"
+      ],
+      "note": "Due dates are what people open the app for."
+    },
+    "layout": {
+      "selected": [
+        "board"
+      ]
+    },
+    "card": {
+      "selected": [
+        "yes"
+      ]
+    },
+    "features": {
+      "selected": [
+        "remind",
+        "share"
+      ]
+    },
+    "order": {
+      "order": [
+        "today",
+        "cards",
+        "remind",
+        "anim"
+      ]
+    },
+    "confidence": {
+      "value": 4
+    },
+    "rollout": {
+      "flag": "delegate"
+    },
+    "share": {
+      "flag": "skip"
+    },
+    "migration": {
+      "selected": [],
+      "other": "Keep creation date, fill the rest later"
+    },
+    "name": {
+      "text": "Dues"
+    }
+  },
+  "comment": "Looks good overall.",
+  "digest": "1. [goal] What matters most in the first version of the home screen? → People see what's due ★\n   ✎ Due dates are what people open the app for.\n2. [layout] Which home screen layout do we go with? → Board by status (against the recommendation: Today view)\n3. [card] This is the task card. Do we approve it? → Yes, go with it ★\n4. [features] What else goes into the first version? → Reminders, Shared lists\n5. [order] In what order do we build it? → The today view > New task cards > Reminders > Animations\n6. [confidence] How sure are you that people plan by day rather than by project? → 4/5\n7. [rollout] How do we roll it out? → 🤝 up to the agent\n8. [share] What share of users do we start with? → ⏭ skipped\n9. [migration] What do we do with old tasks that have no due date? → own option: \"Keep creation date, fill the rest later\"\n10. [name] What do we call the new screen in the app? → \"Dues\"\nComment: Looks good overall."
+}

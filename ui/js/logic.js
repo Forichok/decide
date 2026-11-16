@@ -121,6 +121,9 @@ export function describe(q, r, w = WORDS) {
   return parts.join(" · ") || "—";
 }
 
+// What the agent reads after the arrow for one answered question (the journal's record says the same).
+export const answerText = (q, r) => `${describe(q, r)}${q.mine && r?.flag === "skip" ? " (theirs to decide: don't pick for them)" : ""}`;
+
 export function digest(spec, result) {
   const lines = [];
   const answers = result.answers || {};
@@ -129,7 +132,7 @@ export function digest(spec, result) {
     const r = answers[q.id];
     if (!r) continue;
     n += 1;
-    lines.push(`${n}. [${q.id}] ${q.title} → ${describe(q, r)}${q.mine && r.flag === "skip" ? " (theirs to decide: don't pick for them)" : ""}`);
+    lines.push(`${n}. [${q.id}] ${q.title} → ${answerText(q, r)}`);
     if (r.note) lines.push(`   ✎ ${r.note.replace(/\n/g, "\n     ")}`);
     for (const f of r.attachments || []) lines.push(`   📎 ${f}`);
     for (const p of r.pins || []) lines.push(`   📍 ${p.file}${p.width ? ` at ${p.width}px` : ""} (x ${p.x}%, y ${p.y}%): ${p.text}`);

@@ -1,0 +1,148 @@
+{
+  "title": "Tasks app: the 2.0 redesign",
+  "goal": "Decide what changes in the redesign of a small shared task app before any code is written",
+  "lang": "en",
+  "batch": 4,
+  "confidence": 20,
+  "brief": [
+    { "kind": "decision", "text": "Phones first; the desktop layout follows" },
+    { "kind": "risk", "text": "The yearly price may scare off small teams" },
+    { "kind": "open", "text": "Who owns a task that two people edited offline?" }
+  ],
+  "cards": [
+    {
+      "id": "pricing",
+      "section": "Pricing",
+      "title": "Ship the new pricing page?",
+      "tldr": "Drag the divider: the left half is today's page, the right half is the redesign.",
+      "compare": { "before": "swipe.assets/pricing-before.svg", "after": "swipe.assets/pricing-after.svg", "labels": ["Today", "Redesign"] },
+      "left": { "label": "Keep today's page", "detail": "Monthly prices, no highlighted plan" },
+      "right": { "label": "Ship the redesign", "detail": "Yearly billing, **Pro** highlighted" },
+      "recommended": "right",
+      "reason": "the highlighted plan doubled trial starts in the last test"
+    },
+    {
+      "id": "home",
+      "section": "Home",
+      "title": "Which home screen?",
+      "left": { "label": "List", "detail": "Everything due, sorted by time", "image": "swipe.assets/home-list.svg" },
+      "right": { "label": "Board", "detail": "Columns by status", "image": "swipe.assets/home-board.svg" },
+      "recommended": "left",
+      "reason": "most sessions are a 20-second check of what is due"
+    },
+    {
+      "id": "onboarding",
+      "section": "Onboarding",
+      "title": "Teach the swipe gesture with a short clip?",
+      "tldr": "A 3-second loop on the first launch, muted.",
+      "video": { "src": "swipe.assets/swipe-clip.mp4", "caption": "The clip as it would play" },
+      "left": { "label": "No clip", "detail": "A one-line hint under the first task" },
+      "right": { "label": "Show the clip", "detail": "Plays once, then a **Got it** button" },
+      "recommended": "right"
+    },
+    {
+      "id": "density",
+      "section": "Look",
+      "title": "How dense should the task list be?",
+      "left": { "label": "Compact", "detail": "One line per task, 9 tasks on a phone", "preview": "swipe.assets/row-compact.html", "previewHeight": 260 },
+      "right": { "label": "Roomy", "detail": "Two lines, the note under the title", "preview": "swipe.assets/row-roomy.html", "previewHeight": 260 },
+      "recommended": "left"
+    },
+    {
+      "id": "parser",
+      "section": "Dates",
+      "title": "Ship the new date parser?",
+      "tldr": "It reads «next fri 6pm» and «in 2 weeks»; the old one needed a date picker.",
+      "diff": {
+        "lang": "js",
+        "labels": ["parse.js today", "parse.js new"],
+        "before": "export function parseDue(text) {\n  const m = text.match(/(\\d{4})-(\\d{2})-(\\d{2})/);\n  if (!m) return null;\n  return new Date(+m[1], +m[2] - 1, +m[3]);\n}\n\nexport const formatDue = (d) => d.toLocaleDateString();",
+        "after": "import { relative } from \"./relative.js\";\n\nexport function parseDue(text, now = new Date()) {\n  const m = text.match(/(\\d{4})-(\\d{2})-(\\d{2})/);\n  if (!m) return relative(text, now);\n  return new Date(+m[1], +m[2] - 1, +m[3]);\n}\n\nexport const formatDue = (d) => d.toLocaleDateString();"
+      },
+      "left": { "label": "Not yet", "detail": "Keep the picker until the parser has tests in 5 languages" },
+      "right": { "label": "Ship it", "detail": "English first, the picker stays as a fallback" },
+      "recommended": "right"
+    },
+    {
+      "id": "pro-price",
+      "section": "Pricing",
+      "title": "Price Pro at $8 or $12 a month?",
+      "body": "### What we know\n| Plan | Price | Trial → paid |\n|---|--:|--:|\n| Pro today | $6 | 9.1% |\n| Test A | $8 | 8.4% |\n| Test B | $12 | 5.2% |\n\n> At $12 we earn more per user but lose a third of the conversions.",
+      "left": {
+        "label": "$8",
+        "detail": "Revenue a month, $k",
+        "chart": { "type": "bar", "labels": ["Jan", "Feb", "Mar", "Apr"], "series": [{ "name": "$8", "values": [21, 24, 27, 31] }] }
+      },
+      "right": {
+        "label": "$12",
+        "detail": "Revenue a month, $k",
+        "chart": { "type": "bar", "labels": ["Jan", "Feb", "Mar", "Apr"], "series": [{ "name": "$12", "values": [25, 26, 26, 27] }] }
+      },
+      "recommended": "left",
+      "reason": "it grows faster and keeps small teams"
+    },
+    {
+      "id": "digest",
+      "section": "Email",
+      "title": "Send the digest daily or weekly?",
+      "chart": {
+        "type": "line",
+        "title": "Opens per 100 emails",
+        "labels": ["W1", "W2", "W3", "W4", "W5", "W6", "W7", "W8"],
+        "series": [
+          { "name": "Daily", "values": [41, 37, 33, 30, 27, 25, 24, 22] },
+          { "name": "Weekly", "values": [52, 51, 53, 50, 52, 51, 50, 52] }
+        ]
+      },
+      "left": { "label": "Daily", "detail": "Every morning at 8" },
+      "right": { "label": "Weekly", "detail": "Monday morning" },
+      "recommended": "right",
+      "reason": "daily opens halve within two months"
+    },
+    {
+      "id": "limits",
+      "section": "Plans",
+      "title": "Which free plan?",
+      "left": {
+        "label": "Generous",
+        "table": { "columns": ["Limit", "Free"], "rows": [["Boards", "5"], ["Members", "10"], ["History", "30 days"]] }
+      },
+      "right": {
+        "label": "Tight",
+        "table": { "columns": ["Limit", "Free"], "rows": [["Boards", "1"], ["Members", "3"], ["History", "7 days"]] }
+      },
+      "recommended": "right"
+    },
+    {
+      "id": "sync",
+      "section": "Sync",
+      "title": "Keep the sync flow as drawn?",
+      "mermaid": "flowchart LR\n  A[Phone edits offline] --> B{Online?}\n  B -- yes --> C[Push change]\n  B -- no --> D[Queue locally]\n  D --> B\n  C --> E[Server merges by field]",
+      "left": { "label": "Keep it" },
+      "right": { "label": "Rethink it", "detail": "Last write wins instead of a merge" },
+      "recommended": "left"
+    },
+    {
+      "id": "share-gif",
+      "section": "Sharing",
+      "title": "Share a board as a looping preview?",
+      "left": { "label": "A still picture", "image": "swipe.assets/home-board.svg" },
+      "right": { "label": "A short loop", "video": "swipe.assets/swipe-loop.gif" },
+      "recommended": "left",
+      "reason": "most chat apps don't autoplay a link preview"
+    },
+    {
+      "id": "utc",
+      "section": "Reminders",
+      "title": "Store reminder times in UTC?",
+      "code": { "lang": "sql", "text": "ALTER TABLE reminders\n  ADD COLUMN fire_at timestamptz NOT NULL,\n  ADD COLUMN tz text NOT NULL;" },
+      "left": { "label": "UTC plus the zone", "detail": "Moves with daylight saving" },
+      "right": { "label": "Local time only", "detail": "Breaks when the user travels" },
+      "recommended": "left",
+      "stakes": "high"
+    },
+    { "id": "dark", "section": "Look", "title": "Follow the phone's dark mode?", "left": "Yes, automatically", "right": "A switch in settings", "recommended": "left" },
+    { "id": "undo", "section": "Home", "title": "Undo a finished task with a shake?", "left": "Shake to undo", "right": "An undo button for 5 s", "recommended": "right" },
+    { "id": "widgets", "section": "Home", "title": "A home-screen widget in 2.0?", "left": "Yes, today's tasks", "right": "Later", "recommended": "right" }
+  ]
+}
