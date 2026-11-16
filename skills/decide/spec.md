@@ -114,6 +114,7 @@
 | `scale` | A number from scale.min to scale.max (default 1 to 5, at most 11 steps), with labels for steps. | `scale` |
 | `text` | A free-text answer; placeholder is the hint shown in the empty field. | `placeholder` |
 | `confirm` | A yes / no / yes-with-changes question; the engine writes the three options, "changes" opens the note. | `default` |
+| `tune` | A panel of knobs (range, toggle, select, color, text, image) that drives a live mockup in `preview` or a table of derived numbers; the answer is the values. | `knobs`, `presets`, `frames`, `themes`, `derived` |
 <!-- /registry:types -->
 
 ### Media

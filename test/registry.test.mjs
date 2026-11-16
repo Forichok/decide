@@ -208,8 +208,8 @@ function checkFieldDef(def, where) {
   for (const [k, f] of Object.entries(def.fields || {})) checkFieldDef(f, `${where}.${k}`);
 }
 
-test("the registry lists the six types in the 2.1 order and spec.mjs takes TYPES from it", () => {
-  assert.deepEqual([...REGISTRY.keys()], ["single", "multi", "rank", "scale", "text", "confirm"]);
+test("the registry lists the seven types in the 2.1 order and spec.mjs takes TYPES from it", () => {
+  assert.deepEqual([...REGISTRY.keys()], ["single", "multi", "rank", "scale", "text", "confirm", "tune"]);
   assert.deepEqual(TYPES, [...REGISTRY.keys()]);
   for (const [name, def] of REGISTRY) assert.equal(def.name, name);
 });
@@ -315,7 +315,7 @@ test("the six 2.1 types normalise exactly as before", () => {
   now.issues = now.issues.filter((i) => !/^("[^"]+" has no "why"|no "then" on )/.test(i.message));
   assert.deepEqual(tokenise(now, examples), before);
   const types = new Set(now.spec.questions.map((q) => q.type));
-  assert.deepEqual([...types].sort(), [...REGISTRY.keys()].sort(), "the showcase uses all six types, so the snapshot covers them");
+  assert.deepEqual([...types].sort(), [...REGISTRY.keys()].filter((n) => n !== "tune").sort(), "the showcase uses all six types, so the snapshot covers them");
 });
 
 // ---- every spec the repository ships
@@ -997,15 +997,15 @@ test("the schema takes every shape the strict engine takes without an error", as
   assert.match(validate(specSchema(), q({ titel: "x" }), specSchema()).join("\n"), /unknown field "titel"/);
 });
 
-test("the schema is small: ask's whole input schema 9,000 bytes, swipe's 7,000, tools/list pinned near its size", async () => {
+test("the schema is small: ask's whole input schema 10,500 bytes (tune added the knobs), swipe's 7,000, tools/list pinned near its size", async () => {
   const { specSchema, deckSchema } = await docs();
   const size = (v) => JSON.stringify(v).length;
-  assert.ok(size(specSchema()) <= 9000, `specSchema ${size(specSchema())} bytes`);
+  assert.ok(size(specSchema()) <= 10500, `specSchema ${size(specSchema())} bytes`);
   assert.ok(size(deckSchema()) <= 7000, `deckSchema ${size(deckSchema())} bytes`);
   const { toolList } = await load("lib/commands/index.mjs");
   const tools = toolList();
   const input = (name) => tools.find((t) => t.name === name).inputSchema;
-  assert.ok(size(input("ask")) <= 9000 + 1000, `ask inputSchema ${size(input("ask"))} bytes`);
+  assert.ok(size(input("ask")) <= 10500 + 1000, `ask inputSchema ${size(input("ask"))} bytes`);
   assert.ok(size(input("swipe")) <= 7000 + 1000, `swipe inputSchema ${size(input("swipe"))} bytes`);
   assert.ok(size(input("ask")) >= size(specSchema()), "the whole input schema holds the spec schema, $defs and all");
   const whole = size({ result: { tools } });
@@ -1222,8 +1222,8 @@ test("lint: a single or multi question with no why, or options with no then, is 
   for (const type of ["confirm", "rank", "scale", "text"]) assert.deepEqual(lint({ type, options: type === "rank" ? options({}) : undefined, ...(type === "scale" ? { scale: { min: 1, max: 5 } } : {}) }).warns, [], `${type} is not asked for them`);
 });
 
-test("pinned sizes after 3.0 milestone 2: the spec schema is 8,704 bytes, the deck schema 6,928", async () => {
+test("pinned sizes after the tune type: the spec schema is 10,026 bytes, the deck schema 6,928", async () => {
   const { specSchema, deckSchema } = await docs();
-  assert.equal(JSON.stringify(specSchema()).length, 8704);
+  assert.equal(JSON.stringify(specSchema()).length, 10026);
   assert.equal(JSON.stringify(deckSchema()).length, 6928);
 });

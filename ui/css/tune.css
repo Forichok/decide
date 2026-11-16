@@ -1,0 +1,95 @@
+/* tune.css — the knobs question: frames on the left, an instrument rack on the right.
+   One accent. Large tabular values, ticks on every slider, short motion. */
+
+.tune { display: grid; gap: 20px; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); align-items: start; }
+.tune:has(.tn-stage[hidden]) { grid-template-columns: minmax(0, 1fr); }
+.tn-derived { grid-column: 1 / -1; }
+@media (max-width: 860px) { .tune { grid-template-columns: minmax(0, 1fr); } }
+
+/* the stage: the same mockup at every width and theme */
+.tn-stage { display: grid; grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr)); gap: 14px; }
+.tn-fig { margin: 0; display: grid; gap: 6px; }
+.tn-fig[data-frame="desktop"] { grid-column: span 1; }
+.tn-fig figcaption { font-size: 12.5px; color: var(--tx-dim); text-align: center; }
+.tn-shot { position: relative; overflow: hidden; border-radius: var(--r-md); background: var(--surface-solid); border: 1px solid var(--line); }
+.tn-shot iframe { border: 0; transform-origin: 0 0; display: block; background: #fff; }
+
+/* the rack: glass, ticks, big values */
+.tn-side { display: grid; gap: 16px; position: sticky; top: 76px; }
+.tn-rack { display: grid; gap: 4px; padding: 14px 16px 16px; border-radius: var(--r-lg); background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: var(--glass-shadow), inset 0 0 0 1px var(--glass-edge); }
+.tn-presets { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-bottom: 10px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.tn-cap { font-size: 13px; color: var(--tx-mut); margin-right: 4px; }
+.tn-row { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 10px 0; }
+.tn-row + .tn-row { border-top: 1px solid var(--line); }
+.tn-label { font-size: 13.5px; color: var(--tx-mut); }
+.tn-ctl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; align-items: center; }
+.tn-ctl > :only-child, .tn-row[data-kind="text"] .tn-ctl, .tn-row[data-kind="select"] .tn-ctl { grid-template-columns: 1fr; }
+.tn-read { font-variant-numeric: tabular-nums; font-size: 26px; font-weight: 600; letter-spacing: -0.02em; color: var(--tx); min-width: 4.2ch; line-height: 1.1; }
+.tn-read small { font-size: 13px; font-weight: 500; color: var(--tx-dim); margin-left: 3px; letter-spacing: 0; }
+.tn-hex { font-family: var(--mono); font-size: 18px; letter-spacing: 0; border-radius: 8px; outline-offset: 3px; }
+
+/* slider with ticks */
+.tn-slider { position: relative; height: 34px; cursor: pointer; touch-action: none; border-radius: 10px; outline-offset: 2px; }
+.tn-track { position: absolute; inset: 0 8px; }
+.tn-ticks { position: absolute; left: 0; right: 0; top: 4px; height: 10px; display: flex; justify-content: space-between; }
+.tn-ticks i { width: 1px; height: 6px; background: var(--line-strong); }
+.tn-ticks i.major { height: 10px; background: var(--tx-dim); opacity: 0.6; }
+.tn-track::before { content: ""; position: absolute; left: 0; right: 0; top: 20px; height: 4px; border-radius: 2px; background: var(--surface-3); }
+.tn-fill { position: absolute; left: 0; top: 20px; height: 4px; border-radius: 2px; background: var(--accent); }
+.tn-thumb { position: absolute; top: 12px; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; background: var(--surface-solid); box-shadow: 0 0 0 1px var(--line-strong), 0 2px 6px rgba(20, 16, 12, 0.22); transition: transform 0.12s var(--ease); }
+.tn-slider:active .tn-thumb { transform: scale(1.12); }
+.tn-slider:focus-visible, .tn-switch:focus-visible, .tn-opt:focus-visible, .tn-hex:focus-visible { outline: 2px solid var(--accent); }
+
+/* toggle */
+.tn-switch { width: 52px; height: 30px; border-radius: 15px; border: 0; padding: 3px; background: var(--surface-3); cursor: pointer; transition: background 0.15s var(--ease); justify-self: end; }
+.tn-knob { display: block; width: 24px; height: 24px; border-radius: 50%; background: var(--surface-solid); box-shadow: 0 1px 4px rgba(20, 16, 12, 0.3); transition: transform 0.15s var(--ease); }
+.tn-switch[aria-checked="true"] { background: var(--accent); }
+.tn-switch[aria-checked="true"] .tn-knob { transform: translateX(22px); }
+
+/* select: a segmented strip */
+.tn-seg { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px; border-radius: 12px; background: var(--surface-2); }
+.tn-opt { flex: 1 1 auto; border: 0; background: transparent; color: var(--tx-mut); font: inherit; font-size: 14px; padding: 7px 12px; border-radius: 9px; cursor: pointer; }
+.tn-opt[aria-checked="true"] { background: var(--surface-solid); color: var(--tx); font-weight: 600; box-shadow: 0 1px 3px rgba(20, 16, 12, 0.14); }
+
+/* colour, text, picture */
+.tn-color { width: 100%; height: 36px; padding: 0; border: 0; border-radius: 10px; background: none; cursor: pointer; }
+.tn-color::-webkit-color-swatch-wrapper { padding: 0; }
+.tn-color::-webkit-color-swatch { border: 1px solid var(--line-strong); border-radius: 10px; }
+.tn-text { width: 100%; font: inherit; font-size: 15px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface-solid); color: var(--tx); }
+.tn-text:focus-visible { outline: 2px solid var(--accent); border-color: transparent; }
+.tn-pic { width: 44px; height: 44px; border-radius: 10px; background: var(--surface-2) center / cover; border: 1px dashed var(--line-strong); }
+.tn-pic.has { border-style: solid; }
+.tn-row[data-kind="image"] .tn-ctl { grid-template-columns: auto auto auto; justify-content: start; }
+
+/* buttons and chips */
+.tn-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); margin-top: 4px; }
+.tn-btn, .tn-chip { font: inherit; font-size: 14px; border-radius: 999px; padding: 7px 14px; border: 1px solid var(--line-strong); background: var(--surface-solid); color: var(--tx); cursor: pointer; transition: background 0.12s var(--ease), transform 0.12s var(--ease); }
+.tn-btn:active, .tn-chip:active { transform: scale(0.97); }
+.tn-btn.primary { background: var(--accent); border-color: transparent; color: var(--on-accent); font-weight: 600; }
+.tn-btn.ghost { border-color: transparent; background: transparent; color: var(--tx-mut); }
+.tn-chip[aria-pressed="true"], .tn-btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-tx); font-weight: 600; }
+
+/* memory slots */
+.tn-slots { display: grid; gap: 8px; }
+.tn-slotrow { display: flex; gap: 12px; overflow-x: auto; padding: 2px 2px 8px; }
+.tn-slot { flex: 0 0 150px; display: grid; gap: 6px; padding: 8px; border-radius: var(--r-md); background: var(--surface-solid); border: 1px solid var(--line); }
+.tn-slot.picked { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.tn-slot.cand { border-color: var(--accent-line); background: var(--accent-soft); }
+.tn-slot-head { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+.tn-x { border: 0; background: none; color: var(--tx-dim); font-size: 18px; line-height: 1; cursor: pointer; border-radius: 6px; }
+.tn-load { display: block; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 8px; overflow: hidden; }
+.tn-load .tn-shot { pointer-events: none; }
+.tn-slot-act { display: flex; gap: 6px; flex-wrap: wrap; }
+.tn-slot-act .tn-chip { padding: 4px 10px; font-size: 12.5px; }
+.tn-mini { margin: 0; display: grid; grid-template-columns: auto auto; gap: 2px 10px; font-size: 13px; text-align: left; }
+.tn-mini dt { color: var(--tx-mut); }
+.tn-mini dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* derived numbers */
+.tn-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; border-radius: var(--r-md); overflow: hidden; background: var(--surface-solid); }
+.tn-table th, .tn-table td { padding: 10px 14px; text-align: right; border-top: 1px solid var(--line); font-size: 15px; }
+.tn-table thead th { border-top: 0; color: var(--tx-mut); font-weight: 500; font-size: 13.5px; }
+.tn-table th:first-child { text-align: left; font-weight: 500; }
+.tn-table td.now { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--tx); }
+
+@media (prefers-reduced-motion: reduce) { .tn-thumb, .tn-knob, .tn-switch, .tn-btn, .tn-chip { transition: none; } }
