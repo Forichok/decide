@@ -41,7 +41,7 @@ user what the code already says wastes their time.
 ### With the decide tools (preferred)
 
 Rounds use the plugin's MCP server: `ask`, `wait`, `explain`, `screenshot`,
-`history`, plus `supersede`, `adr`, `export` and `import` (below). `swipe` and
+`history`, plus `patch`, `lint`, `stop`, `supersede`, `adr`, `export` and `import` (below). `swipe` and
 `push` belong to the card interview, see the decide:swipe skill. **Always pass `project`**, the absolute path of the
 project you work in. Codex starts the server outside your project, and without
 it the tools can't tell where to keep the journal and screenshots.
@@ -192,15 +192,168 @@ answers") so the user can catch a misunderstanding early.
 | `pros` / `cons`: up to three each, concrete. `metrics` use the same labels on every option of a question; numbers 1–5 render as dots. | Side-by-side comparison only works when the axes match.           |
 | `stakes: "high"` for money, personal data, auth, production data; `reversible: false` for anything that can't be undone.              | Both show as badges, so the user slows down where it matters.     |
 | `danger: true` on an option that can break something live.                                                                            | Shown as a warning.                                               |
-| `showIf` for questions that only make sense after a certain answer.                                                                   | Hidden questions don't count and aren't sent.                     |
+| `rules` (or `showIf`) for questions that only make sense after a certain answer.                                                       | Such questions become ghosts: grey, with a reason, one click to restore. They don't count. |
 | At most ~10 questions per round; above six, use `sections`.                                                                           | Long rounds get skimmed.                                          |
 | `budget` (minutes) when the user is short of time, with `priority` 1–3 on questions (1 asks first; high stakes default to 1).         | The page keeps what fits and lists the rest as left out. Decide those yourself and say so. |
 | `mine: true` on a question only the user can answer: taste, their money, their name.                                                  | No recommendation fill and no "Agent decides"; Done waits for it. |
 | Write questions in the user's language, politely and without blame. The page's own buttons follow the browser language (English or Russian). | The page talks to the user, not to you.                           |
 
 Types: `single` (default), `multi` (`min`/`max`), `confirm` (yes / no /
-change), `rank`, `scale`, `text`. The full schema and the answers format are
+change), `rank`, `scale`, `text`, plus `tune`, `buckets`, `tradeoff`, `spot`, `versus` (see above). The full schema and the answers format are
 in [spec.md](spec.md); read it before your first round.
+
+## Anatomy of a question
+
+Each question answers three things without the user unfolding anything.
+
+| Field | Where | What goes in it |
+| --- | --- | --- |
+| `why` | question | One line above the options: what depends on the answer. |
+| `then` | option | What you will do if this one is picked. |
+| `more` | question | Everything else, behind one button. Markdown. |
+
+The old `what`, `how` and `goal` are gone: put them in `more`. Specs that still
+carry them are read with those joined into `more`. Lint warns on a choice
+question with no `why` and on an option with no `then`.
+
+A pro, a con, a metric or a recommendation reason may carry an evidence label:
+`{"text": "p95 is 40 ms", "evidence": "measured", "source": "bench/run.sh"}`.
+`evidence` is `measured`, `estimate` or `guess`. Lint warns when `measured` has no `source`.
+
+## Ready answers
+
+Every choice question has three buttons next to "own option", "ask the agent"
+and "you decide". Read them in the answers:
+
+| Answer | What you get | What to do |
+| --- | --- | --- |
+| Yes, but... | `selected` plus `condition`, the user's requirement in their words | Do the picked option and meet the condition. |
+| None, suggest others | `flag: "none"` and an optional `note` | With an agent listening, send new options with `patch` (`setOptions`). Otherwise it stays a flag: propose options in the next round. |
+| Later | `flag: "later"` and `revisit`, when to come back | Don't decide it. `history` and the result of `ask` list deferred decisions. Nothing reminds you. |
+
+## Rules: a round that reacts
+
+Put `rules` in the spec when one answer makes later questions or options
+pointless. The page applies them at once; no tokens are spent.
+
+```json
+"rules": [
+  { "when": { "question": "confirm", "in": ["link"] },
+    "reason": "you chose sign-in without an account",
+    "do": [
+      { "ghost": ["recover"] },
+      { "removeOptions": { "question": "store", "options": ["guest-account"] } }
+    ] }
+]
+```
+
+When question `confirm` is answered `link`, question `recover` becomes a ghost
+(grey, with the reason, one click to restore) and the option `guest-account`
+disappears from `store`. Change the answer back and both come back. Effects are
+computed from the current answers, so you never undo them by hand.
+
+- Operations: `ghost`, `restore`, `removeOptions`, `stale`.
+
+- `showIf` still works. It is read as a rule that ghosts the question, which is
+  a change from 2.x, where such a question was hidden.
+- Rules that contradict or feed each other end, and lint names the loop.
+- An answer whose option was removed or rewritten becomes stale: it stays with
+  a "check" mark, and Done is refused until the user keeps it or answers again.
+
+## Changing a round while it is open: `patch`
+
+`patch {project, round, ops, reason}` changes an open round. A reply to a
+user's question can carry the same `patch` field in `explain`. Use it when an
+answer or a question from the user changes what is ahead.
+
+```json
+{ "round": "3-a1b2c3", "reason": "you picked the paid plan",
+  "ops": [
+    { "ghost": ["trial-length"] },
+    { "addOptions": { "question": "billing", "options": [{ "id": "annual", "label": "Annual", "then": "one invoice a year" }] } },
+    { "recommend": { "question": "billing", "option": "annual", "reason": "saves two months" } }
+  ] }
+```
+
+| Operation | Effect |
+| --- | --- |
+| `ghost`, `restore` | Grey out an item with a reason, or bring it back. |
+| `set` | Change fields of an item. It shows as changed, with "what it was". |
+| `addOptions`, `removeOptions`, `setOptions` | Change options. Removing a selected one makes the answer stale. |
+| `add`, `remove` | Add an item before or after another. `remove` of an item the user has seen becomes a ghost. |
+| `recommend` | Move the recommendation, with a reason. |
+| `stale` | Ask the user to check an answer. |
+| `brief` | Rewrite the task panel. |
+
+Pass `keepAnswers: true` for a cosmetic edit so no answer turns stale. Pass
+`override: true` only when you really mean to undo a rule or a ghost the user
+restored. Order of strength: the user, your `override`, rules, your patches, the
+spec. The page never moves focus and never repaints what the user is typing in.
+
+`live: true` on the round makes `wait` return answers in batches (after about
+three answers or a pause of about twenty seconds) so you can patch what is ahead.
+Each batch wakes you, so use it only when the next questions depend on the
+answers. Without `live` you get the answers at the end. Patches work either way.
+
+## Knobs: `tune`
+
+Use `tune` when the user should adjust a thing, not pick from three pictures.
+
+```json
+{ "id": "card", "type": "tune",
+  "title": "How dense should the invitation card be?",
+  "why": "This sets the layout of every card we print.",
+  "preview": "invite.assets/card.html",
+  "knobs": [
+    { "id": "density", "type": "range", "label": "Density", "min": 0, "max": 10, "value": 4 },
+    { "id": "accent", "type": "color", "label": "Accent", "value": "#3b6cff" },
+    { "id": "names", "type": "text", "label": "Names", "value": "Anna and Max" }
+  ],
+  "presets": [{ "id": "airy", "label": "Airy", "values": { "density": 2 } }],
+  "frames": ["mobile", "desktop"], "themes": ["light", "dark"] }
+```
+
+The mockup needs no script: each value is set as `--knob-<id>` on its root, and
+an element marked `data-knob="names"` gets the text or image. A mockup that wants
+to react in script listens for the `decide:knobs` event. Controls: `range`,
+`toggle`, `select`, `color`, `text`, `image`. Give two to four `presets`. The
+answer is `{values, preset, snapshots, picked, candidates, derived}`: `snapshots`
+are variants the user saved, `picked` the one chosen. `derived` holds values the
+spec computes from knobs with a formula such as `price * clients * (1 - churn)`.
+
+## Four more forms
+
+| Type | The user | Answer | Example |
+| --- | --- | --- | --- |
+| `buckets` | Sorts items into named buckets | `{buckets: {now: [ids], later: [ids]}}` | `{"id":"scope","type":"buckets","title":"Sort these","buckets":["now","later","no"],"options":[{"id":"sso"},{"id":"export"}]}` |
+| `tradeoff` | Sets a slider between two poles | `{value: 0-100}` | `{"id":"care","type":"tradeoff","title":"Speed or care?","poles":["faster","more careful"],"recommendedAt":70}` |
+| `spot` | Marks points or areas on a screenshot | `{points: [{x, y, w, h, text}]}` in percent | `{"id":"bug","type":"spot","title":"Where does it feel off?","images":["shots/home.png"]}` |
+| `versus` | Compares 4 to 8 variants in pairs until one wins | `{winner, order, pairs}` | `{"id":"logo","type":"versus","title":"Which logo?","options":[{"id":"a","image":"a.png"},{"id":"b","image":"b.png"},{"id":"c","image":"c.png"},{"id":"d","image":"d.png"}]}` |
+
+The generated type table in [spec.md](spec.md#types) is the source for field names.
+
+## How much to ask
+
+`history` starts with the project's ask level and rules. Three levels:
+everything (default), only the irreversible and money and data, only what the
+user marked as theirs. Below "everything", `ask` rejects questions under the
+bar: decide them yourself and say so in your report.
+
+What puts a question over the bar: `reversible: false`, `stakes: "high"`,
+`mine: true`, or `touches`, a list of `money`, `data`, `security`, `public`.
+Fill these in honestly; at the middle level lint demands `reversible` on every
+question. The user can also set rules from an answer ("don't ask again", "always
+ask me"). `ask` rejects a round once when a question looks like one a rule
+covers, and lists the rules. Drop the question, or resend and say why you ask.
+
+## Other fields worth using
+
+- `dependsOn`: the ids of earlier questions or rounds this one rests on. The
+  journal map draws it as an edge.
+- `brief`: the task panel, in both modes: what the task is, what is decided,
+  what you checked yourself, what is open. Rewrite it with a `brief` patch.
+- `touches`: see above.
+- `budget` and `priority`: the page also has an "I have 5 minutes" button.
 
 ## Pictures
 
@@ -246,6 +399,11 @@ Then open the JSON for notes, attachments and the dialog.
 | `other`                              | The user's own option; it overrides `selected` for single choice. Restate it in the next `recap` if it changes scope. |
 | `note`                               | Extra conditions for this question. Treat them as requirements.                                                       |
 | `attachments`                        | Absolute paths to screenshots or marked-up images. Look at every one.                                                 |
+| `condition`                          | "Yes, but...": a requirement on the picked option. Treat it like a note.                                              |
+| `flag: "none"`                       | None of the options fit. Send new ones with `patch`, or propose them in the next round.                              |
+| `flag: "later"` + `revisit`          | Deferred. Leave it open and don't decide it silently.                                                                 |
+| `ghosts`                             | Questions that stopped being relevant, with reasons. Their earlier answers are left out of `answers`.                 |
+| `values`, `snapshots`, `derived`     | From `tune`: the knob values, the variants the user saved, the computed numbers.                                      |
 | `flag: "explain"`                    | The user still needs context. Explain in the next round; don't pick silently.                                         |
 | `flag: "delegate"`                   | "You decide." Pick (usually your recommendation) and say what you picked in your summary.                             |
 | `auto: true` + `flag: "delegate"`    | Left unanswered, and the user let your recommendation stand. List these in your summary.                              |
