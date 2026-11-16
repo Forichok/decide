@@ -1,0 +1,73 @@
+{
+  "title": "Recovery check",
+  "intro": "Answer two questions, ask the agent something, then stop the server with kill -9. Reopen the page: your answers and your question are still here.",
+  "questions": [
+    {
+      "id": "storage",
+      "title": "Where should a round's answers live while it is open?",
+      "options": [
+        {
+          "id": "disk",
+          "label": "On disk, as an event log",
+          "detail": "Every answer is a line appended to the round's log.",
+          "recommended": true
+        },
+        {
+          "id": "memory",
+          "label": "In the server's memory",
+          "detail": "Fast, gone when the server dies."
+        }
+      ]
+    },
+    {
+      "id": "servers",
+      "title": "How many decide servers should run on one machine?",
+      "options": [
+        {
+          "id": "one",
+          "label": "One for the whole home",
+          "recommended": true
+        },
+        {
+          "id": "per-project",
+          "label": "One per project, as in 2.x"
+        }
+      ]
+    },
+    {
+      "id": "checks",
+      "type": "multi",
+      "title": "Which checks must pass before milestone 1 closes?",
+      "options": [
+        {
+          "id": "kill",
+          "label": "Answers survive kill -9",
+          "recommended": true
+        },
+        {
+          "id": "cold",
+          "label": "Three cold calls share one server",
+          "recommended": true
+        },
+        {
+          "id": "csp",
+          "label": "The showcase renders with no CSP violation",
+          "recommended": true
+        }
+      ]
+    },
+    {
+      "id": "flow",
+      "title": "Is this the order a round goes through?",
+      "type": "confirm",
+      "mermaid": "flowchart LR\n  ask --> opened --> answered --> delivered --> acked"
+    },
+    {
+      "id": "notes",
+      "type": "text",
+      "title": "Anything else the agent should know?",
+      "optional": true,
+      "placeholder": "Optional"
+    }
+  ]
+}
