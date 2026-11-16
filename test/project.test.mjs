@@ -18,7 +18,7 @@ import path from "node:path";
 import test from "node:test";
 import { dataDirPath, fnv1a, gitCommonDir, openProject, projectRoot, worktreeTop } from "../lib/project.mjs";
 import { appendJournal, readJournal } from "../lib/journal.mjs";
-import { HANDLERS, enginePath, envOf, hasGit, homeOf, repoWithWorktree, scratchDir } from "./helpers.mjs";
+import { HANDLERS, enginePath, envOf, hasGit, homeOf, repoWithWorktree, scratchDir, stopServer } from "./helpers.mjs";
 
 const skip = hasGit ? false : "git binary not found";
 
@@ -174,7 +174,14 @@ test("a 2.x export recorded in a worktree's 2.1 data dir is imported from that w
   writeFileSync(path.join(legacy, "exports", "5-abcdef.json"), JSON.stringify({ round: "5-abcdef", specFile, outPath, source: "colour.questions.json", at: "2026-10-01T10:00:00.000Z" }));
   const theirs = path.join(wt, "a.answers.json");
   writeFileSync(theirs, JSON.stringify({ version: 2, round: "5-abcdef", name: "Ann", answers: { color: { selected: ["pink"] } } }));
-  const res = spawnSync(process.execPath, [enginePath, "--import", "a.answers.json"], { cwd: wt, env: envOf(dir, { DECIDE_NOTIFY: "0" }), encoding: "utf8" });
+  // The import asks the home's server first, which starts it. The scratch dir's own cleanup names the home by its
+  // unresolved path, which the server's pong does not match, and runs before any hook added here: stop it now.
+  let res;
+  try {
+    res = spawnSync(process.execPath, [enginePath, "--import", "a.answers.json"], { cwd: wt, env: envOf(dir, { DECIDE_NOTIFY: "0" }), encoding: "utf8" });
+  } finally {
+    await stopServer(homeOf(dir));
+  }
   assert.equal(res.status, 0, res.stderr + res.stdout);
   assert.equal(JSON.parse(readFileSync(outPath, "utf8")).answers.color.selected[0], "pink");
 });
