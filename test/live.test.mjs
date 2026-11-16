@@ -312,6 +312,12 @@ test("in words: a words item for a listening agent; with none, the words become 
   assert.equal(round.answers.card.note, "keep it warm\nmake it calmer");
   assert.equal(round.answers.card.values.density, 7, "the rest of the answer stays");
 
+  // A waiter that takes no events (`ask` on the command line) would never get the words: a note again.
+  const deaf = store.next(round, { waiter: "cli", timeoutMs: 5000 });
+  assert.equal(store.words(round, { qid: "card", text: "softer" }).sent, false);
+  assert.equal(round.answers.card.note, "keep it warm\nmake it calmer\nsofter");
+  void deaf;
+
   // An agent waits: an outbox item it gets like a request, with the values the user sees now.
   const held = store.next(round, { waiter: "w", events: true, timeoutMs: 5000 });
   assert.equal(store.words(round, { qid: "card", text: "calmer still" }).sent, true);
@@ -323,7 +329,7 @@ test("in words: a words item for a listening agent; with none, the words become 
   assert.match(text, /> calmer still/);
   assert.match(text, /density 7/);
   assert.match(text, /"knobs":\{"question":"card"/);
-  assert.equal(round.answers.card.note, "keep it warm\nmake it calmer", "sent words are not a note");
+  assert.equal(round.answers.card.note, "keep it warm\nmake it calmer\nsofter", "sent words are not a note");
   store.ack(round, item.seq, "w");
   // A waiter that takes no events (the CLI without --live) is not handed it.
   store.words(round, { qid: "card", text: "again" });
