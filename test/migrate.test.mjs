@@ -126,6 +126,17 @@ test("migrateSpec runs before the strict check: a format stamp is not an unknown
   assert.match(errorsOf(desc.issues)[0], /unknown field "description"/);
 });
 
+test("a spec of a newer format says to update decide, not that format is an unknown field", () => {
+  for (const fields of ["strict", "lenient"]) {
+    const out = normalizeSpec({ format: 4, title: "T", questions: [{ id: "a", title: "A", options: ["x", "y"] }] }, { fields });
+    const errors = errorsOf(out.issues);
+    assert.deepEqual(errors, ["round: format 4 is newer than this decide (3); update decide"], fields);
+    assert.doesNotMatch(JSON.stringify(out.issues), /unknown field "format"/, fields);
+  }
+  // A number that is no format at all is still a name nobody reads.
+  assert.match(errorsOf(normalizeSpec({ format: "x", title: "T", questions: [{ id: "a", title: "A", options: ["x", "y"] }] }).issues)[0], /unknown field "format"/);
+});
+
 test("2.x answers files read as format 3 and are not rewritten", (t) => {
   const dir = scratch(t);
   for (const v of VERSIONS) {

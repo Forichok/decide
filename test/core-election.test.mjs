@@ -733,3 +733,48 @@ test("a process that squats the home's port and answers as this home is not step
   }
   throw new Error("no scratch home with a free port");
 });
+
+// ---- server-side paths and races (final fix wave A5)
+
+test("explain without a base reads relative media paths from the round's working tree, not the server's cwd", async (t) => {
+  const { dir, port } = await serving(t);
+  const id = await openRound(port, dir);
+  writeFileSync(path.join(dir, "logo.png"), "not-really-a-png");
+  const res = await agentPost(port, `/api/rounds/${id}/explain`, { question: "color", text: "Like the logo.", images: ["logo.png"] });
+  const body = await res.json();
+  assert.equal(res.status, 200, body.error);
+  assert.deepEqual(body.warnings, []);
+  const view = await get(port, `/api/rounds/${id}`);
+  const file = await fetch(`http://127.0.0.1:${port}${view.dialog[0].reply.images[0].src}`);
+  assert.equal(await file.text(), "not-really-a-png");
+});
+
+test("an import whose body arrives after the page's answers loses: 409, and the page's answers stand", async (t) => {
+  const { dir, port } = await serving(t);
+  const id = await openRound(port, dir);
+  const body = JSON.stringify({ files: [{ file: "a.answers.json", name: "Ann", answers: { color: { selected: ["pink"] } } }] });
+  const half = Math.floor(body.length / 2);
+  const reply = new Promise((resolve, reject) => {
+    const req = request({ host: "127.0.0.1", port, method: "POST", path: `/api/rounds/${id}/import`, headers: { ...asAgent(port), "content-length": Buffer.byteLength(body) } }, (res) => {
+      let text = "";
+      res.on("data", (c) => (text += c));
+      res.on("end", () => resolve({ status: res.statusCode, body: JSON.parse(text) }));
+    });
+    req.on("error", reject);
+    req.write(body.slice(0, half));
+    // The route has passed its first status check and waits for the rest of the body; the page answers meanwhile.
+    setTimeout(async () => {
+      try {
+        assert.equal((await post(port, `/api/rounds/${id}/submit`, { answers: { color: { selected: ["blue"] } } })).status, 200);
+        req.end(body.slice(half));
+      } catch (e) {
+        reject(e);
+      }
+    }, 200);
+  });
+  const res = await reply;
+  assert.equal(res.status, 409, JSON.stringify(res.body));
+  assert.match(res.body.error, /^round is answered: it was settled while the import was on its way; nothing was imported$/);
+  const view = await get(port, `/api/rounds/${id}`);
+  assert.deepEqual(view.result.answers.color.selected, ["blue"]);
+});
