@@ -4,6 +4,7 @@
 import { h, icon, $, $$ } from "./dom.js";
 import { shortcut, t } from "./i18n.js";
 import { md } from "./md.js";
+import { renderMedia } from "./media.js";
 import { renderQuestion, syncQuestion } from "./question.js";
 import { noteArea, paintFiles } from "./extras.js";
 import { credit, renderHeader } from "./header.js";
@@ -42,6 +43,9 @@ export function mountRound(round, env) {
   const elapsed = () => Math.round((draft.elapsedSec || 0) + (Date.now() - loadedAt) / 1000);
 
   const ctx = {
+    // The type modules (ui/js/types) load under Node, so the page's own strings and media renderer come in here.
+    t,
+    renderMedia,
     answers,
     live,
     // An exported file has no daemon to keep attachments: no file buttons, no mark-up.

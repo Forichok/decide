@@ -12,7 +12,7 @@ import { renderJournal } from "./journal.js";
 import { bindKeys } from "./nav.js";
 import { confirmCancel, openHelp, openReview, toast } from "./overlays.js";
 import { finalizeAnswers, isResolved, recommendedIds } from "./logic.js";
-import { choose } from "./inputs.js";
+import { typeOf } from "./types/index.js";
 
 const app = {
   state: { rounds: [], history: [] },
@@ -344,16 +344,7 @@ function pick(n) {
   if (swiping()) return;
   const q = currentQuestion();
   if (!q) return;
-  const { ctx, answers } = app.round;
-  if (["single", "multi", "confirm"].includes(q.type)) {
-    const o = q.options[n - 1];
-    if (o) choose(q, o.id, ctx);
-  } else if (q.type === "scale") {
-    const v = q.scale.min + n - 1;
-    if (v > q.scale.max) return;
-    const a = answers[q.id];
-    ctx.set(q.id, { value: a.value === v ? null : v, flag: a.flag === "explain" ? "explain" : null });
-  }
+  typeOf(q).keys?.pick(q, n, app.round.ctx);
 }
 
 // ---- files dropped anywhere: onto a card → that question, elsewhere → comment

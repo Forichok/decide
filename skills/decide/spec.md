@@ -14,6 +14,14 @@
   "sections": [{ "id": "base", "title": "Basics", "intro": "…" }],
   "questions": [
     {
+      "id": "rollout",
+      "title": "How do we roll it out?",
+      "options": [
+        { "id": "gradual", "label": "Gradually" },
+        { "id": "all", "label": "To everyone at once" }
+      ]
+    },
+    {
       "id": "layout",
       "section": "base",
       "title": "Which home screen layout do we go with?",

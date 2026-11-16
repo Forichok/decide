@@ -9,6 +9,7 @@ import { renderInput, syncInput } from "./inputs.js";
 import { renderExtras, syncExtras } from "./extras.js";
 import { renderThread, syncThread } from "./dialog.js";
 import { isAnswered, recommendedIds } from "./logic.js";
+import { typeOf } from "./types/index.js";
 
 export const FACETS = [
   ["what", t("facet.what")],
@@ -69,8 +70,7 @@ function badges(q) {
   const list = [
     q.stakes === "high" && h("span.badge.stakes-high", { html: `${icon("alert")}${t("badge.high")}` }),
     q.reversible === false && h("span.badge.irreversible", { html: `${icon("lock")}${t("badge.irreversible")}` }),
-    q.type === "multi" && h("span.badge.soft", {}, t("badge.multi", q.max)),
-    q.type === "rank" && h("span.badge.soft", {}, t("badge.rank")),
+    typeOf(q).badge && h("span.badge.soft", {}, typeOf(q).badge(q, t)),
     q.optional && h("span.badge.soft", {}, t("badge.optional")),
     q.mine && h("span.badge.mine", { title: t("badge.mineTitle"), html: `${icon("hand")}${t("badge.mine")}` }),
   ].filter(Boolean);

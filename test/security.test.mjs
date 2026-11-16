@@ -372,7 +372,7 @@ test("nothing in ui/ needs an inline script or style, and the page sends no x-de
   assert.doesNotMatch(index, /\son\w+\s*=/i, "an inline handler");
   const js = filesUnder(path.join(ui, "js")).filter((f) => f.endsWith(".js"));
   assert.ok(js.length > 10);
-  assert.ok(js.some((f) => f.includes(`${path.sep}lang${path.sep}`)), "the sub-folders are scanned");
+  assert.ok(js.some((f) => f.includes(`${path.sep}lang${path.sep}`)) && js.some((f) => f.includes(`${path.sep}types${path.sep}`)), "the sub-folders are scanned");
   for (const full of js) {
     const file = path.relative(ui, full);
     const source = readFileSync(full, "utf8");
