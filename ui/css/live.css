@@ -25,6 +25,8 @@
 .msg-who { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 650; letter-spacing: 0.02em; color: var(--tx-dim); }
 .msg.agent .msg-who { color: var(--info); }
 .msg-who .i { width: 13px; height: 13px; }
+.msg-changes { margin-top: var(--space-2, 8px); font-size: var(--step--1, 0.875rem); opacity: 0.8; }
+.msg-changes ul { margin: 4px 0 0; padding-left: 1.2em; }
 .msg-text { white-space: pre-wrap; }
 .msg-text.rich { white-space: normal; }
 .msg.typing { display: flex; align-items: center; gap: 10px; color: var(--info); font-size: 13.5px; }

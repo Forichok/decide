@@ -6,6 +6,7 @@ import { t } from "./i18n.js";
 import { md } from "./md.js";
 import { renderMedia } from "./media.js";
 import { autosize } from "./inputs.js";
+import { changesOf } from "./logic.js";
 
 export function renderThread(q, ctx) {
   return ctx.live ? h("div.thread", { hidden: true, "aria-live": "polite" }) : null;
@@ -44,8 +45,16 @@ function entry(d, q, ctx) {
       h("div.msg-who", { html: `${icon("spark")}${t("dlg.reply")}` }),
       d.reply.text && h("div.msg-text.rich", { html: md(d.reply.text, ctx.glossary) }),
       renderMedia(d.reply, ctx, q.id),
+      changesList(d.reply),
     ),
   ];
+}
+
+// Under a reply: what it changed, one line per question or card (the op and its title).
+function changesList(reply) {
+  const list = changesOf(reply);
+  if (!list.length) return null;
+  return h("div.msg-changes", {}, h("div.msg-changes-head", {}, t("dlg.changed")), h("ul", {}, ...list.map((c) => h("li", { class: `op-${c.op}` }, `${t(`dlg.op.${c.op}`)}: ${c.title}`))));
 }
 
 function composer(q, ctx) {

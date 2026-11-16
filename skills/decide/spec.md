@@ -216,6 +216,21 @@ Only `question` and `text` are required. Without `askId` the reply answers
 the oldest unanswered ask on that question. If the user asked nothing there,
 it appears as a note from you, so you can also add an explanation unasked.
 
+## Live rounds and "None, suggest others"
+
+Put `live: true` in a questions spec and `wait` hands you a batch of answers
+while the round is still open: after 3 new answers, or after 20 seconds
+without a change when something new is waiting. The batch lists only what is
+new since the last one. Use it to patch the questions ahead with `explain`,
+then call `wait` again. Without `live` you hear only the final answers.
+(For tests: `DECIDE_LIVE_COUNT` and `DECIDE_LIVE_PAUSE_MS` shorten both.)
+
+When the user presses "None, suggest others" on a question and you are
+waiting, `wait` returns a request with the question and the user's note.
+Answer with `explain`; if you pass a `patch` ({add, replace, remove}) or a
+list `changes` ([{op, title}]), the page lists under the reply what it
+changed. With no agent waiting, the press stays a flag in the answers.
+
 ## Export and import
 
 `export` writes one `.html` file: the page, its CSS, its scripts (as an
