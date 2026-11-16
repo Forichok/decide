@@ -10,8 +10,12 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test",
+    "test": "node --test test/*.test.mjs",
     "demo": "node decide.mjs --demo",
-    "docs": "node lib/registry/docs.mjs --write"
+    "docs": "node lib/registry/docs.mjs --write",
+    "test:browser": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.60.0"
   }
 }

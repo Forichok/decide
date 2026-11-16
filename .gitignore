@@ -3,3 +3,6 @@
 *.answers.draft.json
 *.answers.files/
 !test/fixtures/**/*.answers.json
+node_modules/
+test-results/
+playwright-report/
