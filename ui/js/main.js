@@ -4,7 +4,9 @@
 
 import { $, $$, icon } from "./dom.js";
 import { lang, t } from "./i18n.js";
+import * as net from "./net.js";
 import { answererName, cancelRound, download, getRound, getState, listen, offline, reopen, submitRound } from "./net.js";
+import { createStore } from "./store.js";
 import { hideBar, mountRound } from "./round.js";
 import { mountSwipe } from "./swipe/index.js";
 import { pasteLine, renderIdle, roundTabs, updatePresence } from "./header.js";
@@ -17,6 +19,9 @@ import { bindKeys } from "./nav.js";
 import { confirmCancel, openHelp, openReview, toast } from "./overlays.js";
 import { finalizeAnswers, isResolved, recommendedIds } from "./logic.js";
 import { typeOf } from "./types/index.js";
+
+// Answers, notes and flags of every round this page shows, saved one question at a time (store.js).
+const store = createStore(net);
 
 const app = {
   state: { rounds: [], history: [] },
@@ -85,6 +90,7 @@ function env() {
     submit: review,
     cancel,
     nextOpen,
+    store,
   };
 }
 
@@ -350,6 +356,8 @@ async function send(fill = "recommend", name = "") {
   if (!r || app.sending) return;
   app.sending = true;
   try {
+    // A flag or an answer still on its way lands first: the server adds the flags to the answers it sends.
+    await store.flush();
     const res = await submitRound(r.id, { ...r.payload(finalizeAnswers(r.spec, r.answers, { fill })), ...(offline ? { name } : {}) });
     showDone(r.id, res.result);
   } catch (e) {

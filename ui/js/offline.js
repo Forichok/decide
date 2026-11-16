@@ -31,7 +31,13 @@ export const getState = async () => ({
   history: result ? [{ id: round.id, delivered: true }] : [],
 });
 
-export const getRound = async (id) => (id === round.id ? { ...round, draft: load()?.draft || null, status: result ? "submitted" : "pending", result } : fail("unknown round", { status: 404 }));
+// answers, notes, flags: per question, as the server keeps them; a browser that kept a draft with every answer
+// (before 3.0) gets those back.
+export const getRound = async (id) => {
+  if (id !== round.id) return fail("unknown round", { status: 404 });
+  const saved = load() || {};
+  return { ...round, draft: saved.draft || null, seq: saved.seq || 0, answers: saved.answers || saved.draft?.answers || {}, notes: saved.notes || {}, flags: saved.flags || {}, files: {}, status: result ? "submitted" : "pending", result };
+};
 
 // The answers file: the round's result as the daemon would build it, plus who answered.
 export async function submitRound(id, payload) {
@@ -40,6 +46,7 @@ export async function submitRound(id, payload) {
   const name = String(payload.name || saved.name || "").trim().slice(0, 80);
   const out = {
     version: 2,
+    format: 3,
     exported: true,
     round: round.id,
     title: round.spec.title,
@@ -47,7 +54,7 @@ export async function submitRound(id, payload) {
     name,
     submittedAt: new Date().toISOString(),
     elapsedSec: Number.isFinite(payload.elapsedSec) ? payload.elapsedSec : undefined,
-    answers: payload.answers || {},
+    answers: withFlags(payload.answers || {}, saved),
     ...(payload.comment ? { comment: String(payload.comment) } : {}),
     ...(round.spec.leftOut?.length ? { leftOut: round.spec.leftOut } : {}),
   };
@@ -56,6 +63,23 @@ export async function submitRound(id, payload) {
   store({ ...saved, name, draft: saved.draft, sent: out.submittedAt });
   download();
   return { ok: true, result };
+}
+
+// As the server does (lib/store/rounds.mjs withFlags): flags kept beside the answers go into each entry,
+// replacing an answer the page filled in itself; a "Yes, but…" condition is kept.
+function withFlags(answers, saved) {
+  const out = { ...answers };
+  for (const [qid, f] of Object.entries(saved.flags || {})) {
+    if (!f?.flag || !round.spec.questions.some((q) => q.id === qid)) continue;
+    const base = out[qid] && !out[qid].auto ? out[qid] : {};
+    const note = [base.note, f.note].filter(Boolean).join("\n");
+    out[qid] = { ...base, flag: f.flag, ...(f.revisit ? { revisit: f.revisit } : {}), ...(note ? { note } : {}) };
+  }
+  for (const [qid, a] of Object.entries(saved.answers || {})) {
+    const condition = typeof a?.condition === "string" ? a.condition.trim() : "";
+    if (condition && out[qid] && !out[qid].auto && !out[qid].condition) out[qid] = { ...out[qid], condition };
+  }
+  return out;
 }
 
 export function answersFileName(name = load()?.name || "") {
@@ -98,6 +122,28 @@ export function saveDraft(id, draft) {
   clearTimeout(draftTimer);
   draftTimer = setTimeout(() => store({ ...(load() || {}), draft }), 300);
 }
+
+// The store's writes (store.js), kept in this browser: one question at a time, numbered like the server's.
+function keep(id, field, qid, value) {
+  if (id !== round.id) return fail("unknown round", { status: 404 });
+  const saved = load() || {};
+  const map = { ...(saved[field] || (field === "answers" ? saved.draft?.answers : null) || {}) };
+  if (value === null || value === undefined || value === "") delete map[qid];
+  else map[qid] = value;
+  const seq = (saved.seq || 0) + 1;
+  store({ ...saved, [field]: map, seq });
+  return Promise.resolve({ seq });
+}
+export const postAnswer = (id, qid, answer) => keep(id, "answers", qid, answer);
+export const postNote = (id, qid, text) => keep(id, "notes", qid, String(text ?? ""));
+export const postFlag = (id, qid, flag, extra = {}) => keep(id, "flags", qid, flag ? { flag, ...(extra.revisit ? { revisit: extra.revisit } : {}), ...(extra.note ? { note: extra.note } : {}) } : null);
+export const putDraft = (id, draft) => {
+  if (id !== round.id) return fail("unknown round", { status: 404 });
+  store({ ...(load() || {}), draft });
+  return Promise.resolve({ ok: true });
+};
+export const getInbox = async () => ({ rounds: [] });
+export const onEvent = () => () => {};
 
 const noAgent = () => fail("no agent behind an exported file", { status: 409 });
 export const swipeCard = noAgent;
