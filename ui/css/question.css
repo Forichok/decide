@@ -137,3 +137,5 @@ textarea.note:focus, textarea.answer-text:focus { box-shadow: inset 0 0 0 1.5px 
 }
 .quick-input:focus { outline: 2px solid var(--accent-line); outline-offset: 1px; }
 .quick-state { margin: 0; font-size: 14px; color: var(--accent-tx); }
+.other-wrap.sel { box-shadow: inset 0 0 0 1.5px var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--surface-solid)); }
+.other-wrap.sel .other-mark { color: var(--accent-tx); }

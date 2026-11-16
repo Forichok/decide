@@ -36,6 +36,13 @@ export function renderChoice(q, ctx) {
           if (e.key === " " || e.key === "Enter") {
             e.preventDefault();
             choose(q, o.id, ctx);
+          } else if (!e.altKey && !e.metaKey && !e.ctrlKey && ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft", "Home", "End"].includes(e.key)) {
+            // arrow keys move inside the option group, as in a native radio group
+            const all = [...box.querySelectorAll(":scope > .opt")];
+            const at = all.indexOf(e.currentTarget);
+            const to = e.key === "Home" ? 0 : e.key === "End" ? all.length - 1 : (at + (e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : -1) + all.length) % all.length;
+            e.preventDefault();
+            all[to]?.focus();
           }
         },
       },
@@ -56,7 +63,7 @@ export function renderChoice(q, ctx) {
         o.then && h("div.opt-then.rich", { html: mdInline(o.then, g) }),
         prosCons(o, g),
         metrics(o, t),
-        ctx.renderMedia(o, ctx, q.id),
+        ctx.renderMedia(o, optCtx(q, o, ctx), q.id),
       ),
       i < 9 && h("kbd.opt-key", { "aria-hidden": "true" }, String(i + 1)),
     );
@@ -123,4 +130,16 @@ function metrics(o, t) {
       ),
     ),
   );
+}
+
+// A picture of an option opens in the lightbox with "pick this one" for that option.
+function optCtx(q, o, ctx) {
+  if (!ctx.lightbox) return ctx;
+  const c = Object.create(ctx);
+  c.lightbox = (images, i, qid, opts = {}) =>
+    ctx.lightbox(images, i, qid, {
+      ...opts,
+      pick: { label: o.label, selected: () => ctx.answers[q.id].selected.includes(o.id), on: () => ctx.answers[q.id].selected.includes(o.id) || choose(q, o.id, ctx) },
+    });
+  return c;
 }

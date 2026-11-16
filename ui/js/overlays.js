@@ -56,7 +56,7 @@ export function openZoom(content) {
 export const modalOpen = () => Boolean(closeCurrent) || !$("#lightbox").hidden;
 
 // onAnnotate(file): enables the mark-up button; annotate: open straight in drawing mode.
-export function openLightbox(images, start, { onAnnotate, annotate = false } = {}) {
+export function openLightbox(images, start, { onAnnotate, annotate = false, pick = null } = {}) {
   const root = $("#lightbox");
   let i = start;
   let annotating = false;
@@ -64,6 +64,21 @@ export function openLightbox(images, start, { onAnnotate, annotate = false } = {
   const cap = h("div.lb-cap");
   const count = h("div.lb-count");
   const open = h("a.lb-open", { target: "_blank", rel: "noopener", html: `${t("lb.original")}${icon("expand")}` });
+  const pickBtn =
+    pick &&
+    h("button.btn.primary.sm.lb-pick", {
+      type: "button",
+      onclick: () => {
+        pick.on();
+        paintPick();
+        close();
+      },
+    });
+  const paintPick = () => {
+    const on = pick.selected();
+    pickBtn.innerHTML = `${icon("check")}${on ? t("lb.picked") : t("lb.pick")}`;
+    pickBtn.title = pick.label || "";
+  };
   const mark = onAnnotate && h("button.btn.ghost.sm.lb-mark", { type: "button", html: `${icon("pen")}${t("lb.mark")}`, onclick: () => startMarks() });
   const nav = (d) => {
     i = (i + d + images.length) % images.length;
@@ -78,6 +93,7 @@ export function openLightbox(images, start, { onAnnotate, annotate = false } = {
     open.href = images[i].src;
     open.hidden = Boolean(images[i].noOriginal); // a drawing the frame made: its blob: link would open as a page of this origin
     if (mark) mark.hidden = !sameOrigin(images[i].src);
+    if (pickBtn) paintPick();
   }
   function startMarks() {
     annotating = true;
@@ -94,7 +110,7 @@ export function openLightbox(images, start, { onAnnotate, annotate = false } = {
   const parts = [
     h("div.lb-top", {}, count, h("span.spacer"), mark, open, h("button.icon-btn.lb-x", { type: "button", "aria-label": t("lb.close"), html: icon("x"), onclick: close })),
     multi && h("button.lb-nav.prev", { type: "button", "aria-label": t("lb.prev"), html: icon("left"), onclick: () => nav(-1) }),
-    h("figure.lb-stage", {}, img, cap),
+    h("figure.lb-stage", {}, img, cap, pickBtn && h("div.lb-pick-row", {}, pickBtn)),
     multi && h("button.lb-nav.next", { type: "button", "aria-label": t("lb.next"), html: icon("right"), onclick: () => nav(1) }),
   ];
   const view = () => {

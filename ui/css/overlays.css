@@ -126,3 +126,5 @@ body.locked { overflow: hidden; }
   border: 1px solid var(--line-strong); background: var(--surface); color: var(--tx);
 }
 .rv-name-input:focus { outline: none; border-color: var(--accent); }
+.lb-pick-row { display: flex; justify-content: center; margin-top: 4px; }
+@media (max-width: 560px) { .lb-stage { padding-bottom: 72px; } }
