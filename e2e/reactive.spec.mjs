@@ -23,9 +23,6 @@ test("a ghost patch greys the question out with its reason and one click brings 
 });
 
 test("a ghost question leaves the count in the header and the footer", async ({ page }) => {
-  // BUG (product): ui/js/nav.js syncProgress counts the whole spec, ghosts included, so a greyed-out question
-  // still shows in "0 of 3 decided" and in the segments. Expected to fail until the count skips ghosts.
-  test.fail();
   const id = await d.open(spec());
   await openRound(page, d, id);
   await d.patch(id, { ghost: "tabs" }, { reason: "Not needed" });
@@ -33,10 +30,6 @@ test("a ghost question leaves the count in the header and the footer", async ({ 
   await expect(page.locator("#bar .bar-count")).toHaveText("0 of 2 decided", { timeout: 2000 });
 });
 
-// BUG (product): the page paints the state strip (badge, reason, what it was) but never the new content of
-// a patched item. After `set`, `addOptions` and `add` the card keeps its old title and options, even after a
-// reload, although GET /api/rounds/:id carries the new item in view.items. Expected to fail until round.js
-// renders view.items[].item.
 test("a reworded question is marked changed with its reason and what it was", async ({ page }) => {
   const id = await d.open(spec());
   await openRound(page, d, id);
@@ -49,7 +42,6 @@ test("a reworded question is marked changed with its reason and what it was", as
 });
 
 test("a reworded question shows its new title", async ({ page }) => {
-  test.fail(); // BUG (product): see the note above the previous test.
   const id = await d.open(spec());
   await openRound(page, d, id);
   await d.patch(id, { set: { id: "db", title: "Which database for production?" } }, { reason: "Scope moved to production" });
@@ -58,7 +50,6 @@ test("a reworded question shows its new title", async ({ page }) => {
 });
 
 test("new options and a new question appear, marked new, without a reload", async ({ page }) => {
-  test.fail(); // BUG (product): see the note above "a reworded question".
   const id = await d.open(spec());
   await openRound(page, d, id);
   await d.patch(

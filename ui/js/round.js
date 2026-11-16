@@ -28,6 +28,8 @@ export function mountRound(data, env) {
   // The store takes the round's answers, notes and flags (and its seq), with this tab's unsaved writes on top.
   const round = store.adopt(data);
   const { spec } = round;
+  // What the agent's patches did to the items (view.items) is part of the spec the page shows, a reload included.
+  mergeItems(spec, round.view);
   const draft = round.draft || {};
   // A round from before 3.0 keeps every answer in its draft; the server reads those into `answers` too.
   const saved = round.answers || draft.answers || {};
@@ -72,6 +74,7 @@ export function mountRound(data, env) {
   };
   if (live) settleExplain(round.dialog || []);
   const qById = new Map(spec.questions.map((q) => [q.id, q]));
+  const itemSig = new Map(spec.questions.map((q) => [q.id, JSON.stringify(q)]));
   const card = (qid) => document.getElementById(`q-${qid}`);
   let tracker = null;
   const elapsed = () => Math.round((draft.elapsedSec || 0) + (Date.now() - loadedAt) / 1000);
@@ -302,16 +305,58 @@ export function mountRound(data, env) {
     syncChrome();
   }
 
+  // A patch's new content: a changed question gets its card painted again, an added one gets a card. A card
+  // with the caret in it waits for the next view; answers stay as they are (the server marks the stale ones).
+  function paintItems() {
+    const before = spec.questions.map((q) => q.id);
+    const { added } = mergeItems(spec, react.view);
+    for (const q of spec.questions) {
+      qById.set(q.id, q);
+      if (!answers[q.id]) answers[q.id] = { ...emptyAnswer(q), ...(store.state(round.id).answers?.[q.id] || {}) };
+    }
+    const changed = spec.questions.filter((q) => itemSig.has(q.id) && itemSig.get(q.id) !== JSON.stringify(q)).map((q) => q.id);
+    for (const qid of changed) {
+      const c = card(qid);
+      if (!c || c.contains(document.activeElement)) continue;
+      const fresh = renderQuestion(qById.get(qid), Number($(".q-idx .n", c)?.textContent) || 1, ctx);
+      c.replaceChildren(...fresh.childNodes);
+      c.className = fresh.className;
+      itemSig.set(qid, JSON.stringify(qById.get(qid)));
+    }
+    for (const qid of added) {
+      if (card(qid)) continue;
+      const q = qById.get(qid);
+      const c = renderQuestion(q, spec.questions.indexOf(q) + 1, ctx);
+      const prev = spec.questions.slice(0, spec.questions.indexOf(q)).reverse().map((x) => card(x.id)).find(Boolean);
+      const sec = q.section && document.getElementById(`s-${q.section}`);
+      if (prev && (!sec || sec.contains(prev))) prev.after(c);
+      else if (sec) sec.append(c);
+      else if (prev) prev.after(c);
+      else ($(".sec.loose") || $(".sec", main) || $("#final")).prepend(c);
+      itemSig.set(qid, JSON.stringify(q));
+    }
+    if (added.length || spec.questions.map((q) => q.id).join() !== before.join()) renderToc(spec, env.go);
+  }
+
   let panel = null;
+  // The brief the agent wrote with a patch wins over the one the spec opened with.
+  const briefOf = () => (Array.isArray(react.view?.brief) ? react.view.brief : spec.brief);
+  // The spec without its ghosts: what the count, the segments and the footer are about.
+  const liveSpec = (st) => ({ ...spec, questions: spec.questions.filter((q) => !st.ghosts.has(q.id)) });
   function syncChrome() {
     const st = states();
     panel?.paint(spec.questions.filter((q) => !st.ghosts.has(q.id) && isVisible(q, answers) && !isResolved(q, answers[q.id])).map((q) => q.title));
-    const p = progress({ ...spec, questions: spec.questions.filter((q) => !st.ghosts.has(q.id)) }, answers);
+    const p = progress(liveSpec(st), answers);
+    if (!panel && briefOf()?.length) {
+      panel = taskPanel(spec, briefOf());
+      $("#main").children[0]?.after(panel.el);
+    }
+    panel?.setBrief(briefOf());
     paintCheck(st);
     const left = p.total - p.resolved;
     syncToc(spec, answers, tracker?.get());
     const bar = $("#bar");
-    syncProgress(spec, answers, tracker?.get(), env.go);
+    syncProgress(liveSpec(st), answers, tracker?.get(), env.go);
     bar.classList.toggle("complete", left === 0);
     document.title = `${left ? `(${left}) ` : "✓ "}${spec.title} — decide`;
   }
@@ -356,7 +401,7 @@ export function mountRound(data, env) {
     );
   }
 
-  const onCurrent = () => (syncToc(spec, answers, tracker?.get()), syncProgress(spec, answers, tracker?.get(), env.go));
+  const onCurrent = () => (syncToc(spec, answers, tracker?.get()), syncProgress(liveSpec(states()), answers, tracker?.get(), env.go));
 
   // ---- render
   const main = $("#main");
@@ -395,7 +440,7 @@ export function mountRound(data, env) {
     !env.offline && h("div.final-tools", {}, h("button.chip.ghost", { type: "button", html: `${icon("clip")}${t("final.attach")}`, onclick: () => pickFiles((f) => ctx.attach(null, f)) })),
     commentFilesBox,
   );
-  panel = spec.brief?.length ? taskPanel(spec) : null;
+  panel = briefOf()?.length ? taskPanel(spec, briefOf()) : null;
   main.replaceChildren(renderHeader(spec, { ...env, answers, live, listening: round.listening }), ...(panel ? [panel.el] : []), ...blocks, final, credit());
   paintComment();
   document.body.classList.toggle("no-toc", spec.questions.length < 4);
@@ -438,6 +483,7 @@ export function mountRound(data, env) {
     setView(view) {
       react.view = view || null;
       stamp();
+      paintItems();
       syncAll();
       watchCards();
     },
@@ -451,6 +497,42 @@ export function mountRound(data, env) {
       seen.stop();
     },
   };
+}
+
+// A patch that came in raw (not through the patch tool) may lack the list fields the widgets read.
+const LISTS = ["tags", "pros", "cons", "metrics", "images", "video", "links"];
+function withLists(item) {
+  const out = { ...item };
+  for (const k of ["images", "video", "links", "showIf", "dependsOn", "default"]) if (!Array.isArray(item[k])) out[k] = [];
+  if (Array.isArray(item.options)) out.options = item.options.map((o) => ({ ...Object.fromEntries(LISTS.filter((k) => !Array.isArray(o?.[k])).map((k) => [k, []])), ...o }));
+  return out;
+}
+
+// Folds view.items into spec.questions in place: a changed item replaces its question, an added one is
+// inserted after the item before it. Returns the ids of both.
+function mergeItems(spec, view) {
+  const changed = [];
+  const added = [];
+  const items = Array.isArray(view?.items) ? view.items : [];
+  let at = -1;
+  for (const e of items) {
+    const item = e?.item && withLists(e.item);
+    if (!item || item.id == null) continue;
+    const id = String(item.id);
+    const i = spec.questions.findIndex((q) => q.id === id);
+    if (i >= 0) {
+      if (JSON.stringify(spec.questions[i]) !== JSON.stringify(item)) {
+        spec.questions[i] = item;
+        changed.push(id);
+      }
+      at = i;
+    } else {
+      spec.questions.splice(at + 1, 0, item);
+      added.push(id);
+      at += 1;
+    }
+  }
+  return { changed, added };
 }
 
 // The unsent question to the agent, per question: a Map whose set and delete also save the text as the

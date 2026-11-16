@@ -35,7 +35,8 @@ export function briefGroups(items, glossary, { seen = new Set(), markNew = false
 
 // The side panel of a questions round: what the task is, what is decided, checked and open.
 // paint(openTitles): the spec's own points, plus the titles of the questions still unanswered.
-export function taskPanel(spec) {
+export function taskPanel(spec, brief = spec.brief) {
+  let points = brief || [];
   const body = h("div.q-brief-body");
   const toggle = h("button.q-brief-toggle", {
     type: "button",
@@ -48,12 +49,24 @@ export function taskPanel(spec) {
   const el = h("aside.q-brief", { "aria-label": t("brief.task") }, toggle, body);
   const seen = new Set();
   function paint(openTitles = []) {
-    const own = spec.brief || [];
+    const own = points;
     const rest = openTitles.filter((x) => !own.some((b) => b.kind === "open" && b.text === x));
     const all = [...own, ...rest.map((text) => ({ kind: "open", text }))];
     body.replaceChildren(...briefGroups(all, spec.glossary, { seen }));
     toggle.innerHTML = `${icon("note")}<span>${t("brief.task")}</span><span class="n">${all.length}</span>${icon("chevron", "chev")}`;
   }
+  let open = [];
   paint();
-  return { el, paint };
+  return {
+    el,
+    paint(titles = []) {
+      open = titles;
+      paint(titles);
+    },
+    // The agent rewrote the brief (view.brief): the panel follows.
+    setBrief(next) {
+      points = next || [];
+      paint(open);
+    },
+  };
 }
