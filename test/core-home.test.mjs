@@ -34,7 +34,7 @@ after(() => rmSync(guard, { recursive: true, force: true }));
 const { DEFAULT_PORT, lockPath, portForHome, readInfo } = await import("../lib/home.mjs");
 const { PROTOCOL } = await import("../lib/protocol.mjs");
 const { startServer } = await import("../lib/server.mjs");
-const { api, ensureServer, findServer } = await import("../lib/client.mjs");
+const { api, ensureServer, findServer, handover, waitNext } = await import("../lib/client.mjs");
 const { alive, collect, enginePath, exitOf, fakeServer, homeOf, notePid, ping, scratchDir, silentServer } = await import("./helpers.mjs");
 const { HANDLERS } = await import("./helpers.mjs");
 const { importAnswers } = await import("../lib/transfer.mjs");
@@ -337,6 +337,41 @@ test("stop says the server did not answer in time, naming its pid and port, rath
   assert.match(run.stdout, new RegExp(`pid ${process.pid}.*port ${fake.port}|port ${fake.port}.*pid ${process.pid}`));
   assert.match(run.stdout, /did not answer within 5 s/);
   assert.notEqual(run.code, 0);
+});
+
+// ---- what the agent reads (final fix wave A6)
+
+test("a handover cut short by the time left says how long it really waited, not 5 s", async (t) => {
+  const { home } = await scratch(t);
+  const mute = await fakeServer(t, home, PROTOCOL, () => {}); // never answers /api/handover
+  await assert.rejects(handover(home, readInfo(home), PROTOCOL + 1, Date.now() + 1_200), (e) => {
+    assert.match(e.message, /it did not answer within 1\.[0-2] s\./);
+    assert.doesNotMatch(e.message, /\b5 s/);
+    return true;
+  });
+  await mute.close();
+  // It agrees, and keeps the port (its pid, this process, stays alive).
+  const stubborn = await fakeServer(t, home, PROTOCOL, (req, res) => res.writeHead(200, { "content-type": "application/json" }).end("{}"));
+  await assert.rejects(handover(home, readInfo(home), PROTOCOL + 1, Date.now() + 1_500), (e) => {
+    assert.match(e.message, new RegExp(`still holds port ${stubborn.port} after 1\\.[0-5] s\\.`));
+    return true;
+  });
+  await stubborn.close();
+});
+
+test("a server error that ends with a period is quoted without a doubled period", async (t) => {
+  const { home } = await scratch(t);
+  for (const said of ["the disk is full.", "the disk is full"]) {
+    const fake = await fakeServer(t, home, PROTOCOL, (req, res) => res.writeHead(500, { "content-type": "application/json" }).end(JSON.stringify({ error: said })));
+    const server = await findServer(home);
+    await assert.rejects(waitNext(server, "1-abcdef", { timeoutMs: 2_000 }), (e) => {
+      assert.match(e.message, /\(HTTP 500\): the disk is full\. The round is still open/, said);
+      assert.doesNotMatch(e.message, /\.\./, said);
+      assert.equal(e.status, 500);
+      return true;
+    });
+    await fake.close();
+  }
 });
 
 // ---- a private home (final fix wave A3)
