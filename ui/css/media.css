@@ -111,6 +111,8 @@
   position: absolute; bottom: 8px; z-index: 1; padding: 3px 8px; border-radius: 7px; pointer-events: none;
   background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 11.5px; font-weight: 650; letter-spacing: 0.02em;
 }
+.cmp-side { position: relative; }
+.cmp-side > .cmp-tag { left: 8px; }
 .cmp-tag.l { left: 8px; }
 .cmp-tag.r { right: 8px; }
 

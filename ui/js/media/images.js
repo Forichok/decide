@@ -27,6 +27,7 @@ export function render(node, ctx, env) {
         }),
         sameOrigin(img.src) &&
           !ctx.offline &&
+          ctx.canMark &&
           h("button.shot-mark", { type: "button", title: t("media.markTitle"), html: `${icon("pen")}${t("lb.mark")}`, onclick: open(true) }),
         img.caption && h("figcaption", {}, img.caption),
       ),

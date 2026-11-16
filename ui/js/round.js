@@ -150,6 +150,7 @@ export function mountRound(round, env) {
       }
     },
     lightbox: (images, i, qid, opts = {}) => openLightbox(images, i, { ...opts, onAnnotate: env.offline ? undefined : (file) => ctx.attach(qid || null, file) }),
+    canMark: !env.offline,
     zoom: openZoom,
     toast,
     shake(qid) {

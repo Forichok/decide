@@ -29,7 +29,7 @@ export function renderHeader(spec, env) {
     h("div.meta-row", {}, meta.map(([text, cls = ""]) => h(`span.chip.static${cls}`, {}, text))),
     spec.intro && h("div.intro.rich", { html: md(spec.intro, g) }),
     spec.recap && h("div.panel.recap", {}, h("div.panel-h", { html: `${icon("spark")}${t("recap")}` }), h("div.rich", { html: md(spec.recap, g) })),
-    spec.leftOut?.length &&
+    spec.leftOut?.length > 0 &&
       h(
         "details.panel.left-out",
         {},
