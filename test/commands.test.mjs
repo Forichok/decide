@@ -667,3 +667,42 @@ test("swipe's description ends with what a deck carries (card fields, media kind
   assert.doesNotMatch(lines, /^(images|preview|chart): .*(can be marked up|notes pinned|share a scale)/m, "a card has no mark-up, pinned notes or sibling options");
   assert.ok(toolList().find((x) => x.name === "ask").description.endsWith(typeLines()), "ask keeps the question types");
 });
+
+// ---- 3.0 rounds that react: patch through the tool and explain, restore and keep from the page, the finish guard
+
+test("patch: the tool ghosts a question, explain carries a patch, the page restores and keeps, submit waits for stale answers", async (t) => {
+  const { dir, home } = await scratch(t);
+  const server = await spawnServer(t, home);
+  const base = `http://127.0.0.1:${server.port}`;
+  const two = { title: "Two", questions: [...spec.questions, { id: "size", title: "Which size?", options: [{ id: "s", label: "S" }, { id: "m", label: "M" }] }] };
+  const posted = await fetch(`${base}/api/rounds`, {
+    method: "POST",
+    headers: asAgent(server.port),
+    body: JSON.stringify({ project: dir, spec: two, outPath: path.join(dir, "c.answers.json"), source: "c.questions.json", open: false, live: true }),
+  }).then((r) => r.json());
+  const view = () => fetch(`${base}/api/rounds/${posted.id}`).then((r) => r.json()).then((v) => v.view);
+  assert.deepEqual((await view()).ghosts, []);
+
+  const out = await call(home, "patch", { project: dir, round: posted.id, ops: [{ ghost: ["size"], reason: "one size fits" }] });
+  assert.match(out.text, /Ghosts now: size\./);
+  assert.deepEqual((await view()).ghosts, [{ id: "size", reason: "one size fits" }]);
+  await assert.rejects(call(home, "patch", { project: dir, round: posted.id, ops: [{ ghost: ["nope"] }] }), /no item "nope"/);
+
+  const page = (action, body) => fetch(`${base}/api/rounds/${posted.id}/${action}`, { method: "POST", headers: asPage(server.port), body: JSON.stringify(body) });
+  const restored = await page("restore", { id: "size" }).then((r) => r.json());
+  assert.equal(restored.ok, true);
+  assert.deepEqual(restored.view.ghosts, []);
+
+  await fetch(`${base}/api/rounds/${posted.id}/draft`, { method: "PUT", headers: asPage(server.port), body: JSON.stringify({ answers: { color: { selected: ["pink"] } } }) });
+  const explained = await call(home, "explain", { project: dir, round: posted.id, question: "color", text: "pink is gone", patch: { ops: [{ stale: ["color"] }], reason: "the options moved" } });
+  assert.match(explained.text, /Explanation shown under question color\./);
+  assert.deepEqual((await view()).stale, ["color"]);
+
+  const refused = await page("submit", { answers: { color: { selected: ["pink"] } } });
+  assert.equal(refused.status, 409);
+  assert.deepEqual((await refused.json()).stale.map((s) => s.id), ["color"]);
+  assert.equal((await page("keep", { qid: "color" })).status, 200);
+  const sent = await page("submit", { answers: { color: { selected: ["pink"] } } }).then((r) => r.json());
+  assert.equal(sent.ok, true);
+  assert.deepEqual(Object.keys(sent.result.answers), ["color"]);
+});
