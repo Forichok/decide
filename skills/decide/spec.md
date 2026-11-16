@@ -114,6 +114,10 @@
 | `scale` | A number from scale.min to scale.max (default 1 to 5, at most 11 steps), with labels for steps. | `scale` |
 | `text` | A free-text answer; placeholder is the hint shown in the empty field. | `placeholder` |
 | `confirm` | A yes / no / yes-with-changes question; the engine writes the three options, "changes" opens the note. | `default` |
+| `buckets` | Sort every option into one of the named buckets (buckets: ["now", "later", "no"]) by dragging or with the number keys. | `buckets` |
+| `tradeoff` | A slider from 0 to 100 between two poles (poles: ["faster", "more careful"]); recommendedAt marks the agent's pick. | `poles`, `recommendedAt` |
+| `spot` | Mark points or areas on the question's first picture (images), each with an optional note; answers are in percent. | `maxSpots` |
+| `versus` | Four to eight options compared in pairs (arrow keys) until one wins: a knockout, at most 7 pairs. Answer: winner, order, pairs. | none |
 <!-- /registry:types -->
 
 ### Media

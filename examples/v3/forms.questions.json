@@ -1,0 +1,45 @@
+{
+  "title": "The four new forms",
+  "intro": "One question of each new type: buckets, tradeoff, spot and versus.",
+  "questions": [
+    {
+      "id": "plan",
+      "type": "buckets",
+      "title": "When do these ship?",
+      "why": "The order of the next release depends on it.",
+      "buckets": ["now", "later", "no"],
+      "options": [
+        { "id": "search", "label": "Search", "then": "Goes into 3.1." },
+        { "id": "export", "label": "Export", "then": "Waits for the next milestone." },
+        { "id": "share", "label": "Sharing", "then": "Dropped from the plan." }
+      ]
+    },
+    {
+      "id": "pace",
+      "type": "tradeoff",
+      "title": "How should the agent weigh speed against care?",
+      "why": "It sets how many checks run before each merge.",
+      "poles": ["ship fast", "check everything"],
+      "recommendedAt": 65
+    },
+    {
+      "id": "where",
+      "type": "spot",
+      "title": "Where does the page feel off?",
+      "why": "The marks tell us which part to rework first.",
+      "images": [{ "src": "https://example.com/screen.png", "caption": "The page today" }]
+    },
+    {
+      "id": "logo",
+      "type": "versus",
+      "title": "Which direction wins?",
+      "why": "One direction goes to the designer.",
+      "options": [
+        { "id": "calm", "label": "Calm", "then": "Soft, quiet." },
+        { "id": "bold", "label": "Bold", "then": "Loud, high contrast." },
+        { "id": "playful", "label": "Playful", "then": "Rounded, warm." },
+        { "id": "plain", "label": "Plain", "then": "Type only." }
+      ]
+    }
+  ]
+}
