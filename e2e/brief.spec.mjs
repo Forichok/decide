@@ -47,9 +47,6 @@ test("answering a question takes it out of the open list", async ({ page }) => {
 });
 
 test("the agent rewrites the brief with a patch and the panel follows", async ({ page }) => {
-  // BUG (product): the brief patch op is stored (view.brief) but ui/js/brief.js taskPanel only reads spec.brief,
-  // so the panel never changes, live or after a reload. Expected to fail until the page reads view.brief.
-  test.fail();
   const id = await d.open(withBrief());
   await openRound(page, d, id);
   await d.patch(id, { brief: [{ kind: "decision", text: "Scope is now the pilot only." }] }, { reason: "Pilot first" });
