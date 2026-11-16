@@ -169,10 +169,14 @@ other end and give the same result on a second run; lint names the loop.
 | `recommend` | `{question, option, reason}` | Move the recommendation |
 | `stale` | question ids | Mark an answer for checking |
 | `brief` | the new brief | Rewrite the task panel |
+| `knobs` | `{question, values?, preview?}` | Move the knobs of a `tune` question and/or swap its mockup for another `.html` file; the page keeps the user's values before as a snapshot |
 
 Order of strength, strongest first: the user (a ghost they restored stays
 restored), a patch with `override: true`, the rules, ordinary patches, the spec
 as opened. `keepAnswers: true` keeps a cosmetic edit from marking answers stale.
+In swipe, `push` is the swipe-shaped form of `patch`, and `patch` works on a
+deck directly. The page reports what the user has seen; `remove` of a seen item
+makes it a ghost.
 
 **`live: true`** (round). `wait` returns batches: after 3 answers or about 20 s
 of pause. Without it the agent hears the answers at the end; rules still react.

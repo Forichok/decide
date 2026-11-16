@@ -96,7 +96,8 @@ cards. Lint warns when a choice question has no `why`, or an option has no `then
 
 ### Tools
 
-New tools: `patch`, `lint`,
+`push` is now the swipe-shaped form of the new `patch` tool. Removing an
+answered card, which 2.1 refused, now makes it a ghost. New tools: `patch`, `lint`,
 `stop`, and `rules`.
 
 ### One page, with an inbox

@@ -235,11 +235,25 @@ Reading answers:
   it as weak: note it as `open` or `risk` when it carries weight, and ask it
   once more, differently, if the work depends on it.
 
-## Ghosts
+## Ghosts and stale cards
 
-When you `push` a `remove` for a card the user has already seen, it becomes a
-ghost: the deck skips it and lists it with the reason. A card that already has
-an answer cannot be removed or replaced; add a new card instead.
+A card can stop being relevant after an answer. A rule in the deck, or your
+`push`, marks it a ghost: the deck skips it and lists it with the reason, and
+the user can bring it back. A ghost's earlier answer stays on disk and is left
+out of what you act on.
+
+An answer can turn stale: its side was removed or rewritten, or you marked it.
+Stale answers come back as cards at the end of the deck with the old answer
+preselected, so the user keeps it or answers again. The deck cannot finish
+while one is unconfirmed.
+
+`push` is the swipe-shaped form of `patch`, and `patch` works on a deck too:
+its cards are the items. `remove` on an answered card, which 2.1 refused, now
+makes it a ghost; so does `remove` on a card the user has seen. `replace` on a
+card with an answer marks the answer stale when its title, type or a side
+changes, unless you pass `keepAnswers: true`. `push` also takes a `reason`. A
+reply to a card question can carry a `patch`, so you can change the card on
+screen and the ones after it.
 
 ## Dig deeper
 

@@ -284,6 +284,7 @@ answer or a question from the user changes what is ahead.
 | `recommend` | Move the recommendation, with a reason. |
 | `stale` | Ask the user to check an answer. |
 | `brief` | Rewrite the task panel. |
+| `knobs` | Move a `tune` question's knobs or swap its mockup (see Knobs below). |
 
 Pass `keepAnswers: true` for a cosmetic edit so no answer turns stale. Pass
 `override: true` only when you really mean to undo a rule or a ghost the user
@@ -320,6 +321,16 @@ to react in script listens for the `decide:knobs` event. Controls: `range`,
 answer is `{values, preset, snapshots, picked, candidates, derived}`: `snapshots`
 are variants the user saved, `picked` the one chosen. `derived` holds values the
 spec computes from knobs with a formula such as `price * clients * (1 - churn)`.
+An image knob's file is stored with the round; the answer holds its path.
+
+Under the panel the user can also write what they want in words ("make it
+calmer"). When you are waiting with events (`wait --live` or the MCP tool),
+`wait` returns it as a `words` item with the current values. Answer with a
+`knobs` patch, through `patch` or the `patch` field of `explain`:
+`{"knobs": {"question": "card", "values": {"density": 2}, "preview": "card.assets/calm.html"}}`.
+The page moves the controls, swaps the mockup if you gave one, and keeps the
+user's values before as a saved variant. With no agent listening the words are
+kept as the question's note.
 
 ## Four more forms
 
