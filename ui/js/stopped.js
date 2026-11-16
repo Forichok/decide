@@ -3,6 +3,7 @@
 
 import { h } from "./dom.js";
 import { t } from "./i18n.js";
+import { wrongPort } from "./pwa.js";
 
 let timer = null;
 
@@ -25,6 +26,7 @@ export function showStopped(stopped, state) {
         {},
         h("strong", {}, t("stopped.title")),
         h("p", {}, t("stopped.body")),
+        ...(wrongPort(globalThis.location?.port) ? [h("p", {}, t("pwa.port"))] : []),
         h("div.paste-line", {}, h("code", {}, cmd), h("button.link-btn", { type: "button", onclick: () => navigator.clipboard?.writeText(cmd).catch(() => {}) }, t("listen.copy"))),
       ),
     );

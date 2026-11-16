@@ -19,6 +19,7 @@ import { bindKeys } from "./nav.js";
 import { confirmCancel, openHelp, openReview, toast } from "./overlays.js";
 import { finalizeAnswers, isResolved, recommendedIds } from "./logic.js";
 import { typeOf } from "./types/index.js";
+import { badgeCount, registerShell, setBadge, wrongPort } from "./pwa.js";
 
 // Answers, notes and flags of every round this page shows, saved one question at a time (store.js).
 const store = createStore(net);
@@ -275,6 +276,7 @@ function refreshInbox() {
         const nextId = () => (app.view === "done" ? nextRound(app.inbox, app.done.id)?.id : null);
         const before = nextId();
         app.inbox = rows;
+        setBadge(badgeCount(rows, app.state));
         syncRail();
         if (nextId() !== before) rerenderStatic();
         if (app.view === "done") armAdvance();
@@ -521,6 +523,8 @@ async function boot() {
   const es = listen(onState, onStatus, onDialog, onDeck);
   es.addEventListener?.("inbox", refreshInbox);
   syncRail();
+  registerShell(); // installable page: offline shell, app badge, fallback-port note
+  setBadge(badgeCount(app.inbox, app.state));
 }
 
 boot();

@@ -415,6 +415,7 @@ export default {
   "sum.condition": (text) => `with a condition: ${text}`,
 
   // a stopped server
+  "pwa.port": "This page runs on a fallback port. An installed decide app opens port 47474 and will not find it.",
   "stopped.title": "The decide server has stopped",
   "stopped.body": "Nothing you typed is lost. This page reconnects by itself once the server is back. To start it again, run:",
 };
