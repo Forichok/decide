@@ -12,7 +12,8 @@ import { prepareDeck, prepareSpec } from "../lib/prepare.mjs";
 import { openProject } from "../lib/project.mjs";
 
 export const pluginDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SCRATCH = "/private/tmp/claude-501/fin-e";
+// DECIDE_E2E_SCRATCH keeps the runs somewhere you choose; otherwise the system temp dir.
+const SCRATCH = process.env.DECIDE_E2E_SCRATCH || "";
 
 function freePort(from = 47700) {
   return new Promise((resolve, reject) => {
@@ -38,10 +39,12 @@ const alive = (pid) => {
 // Starts a server in a fresh scratch home. Returns the handle every spec uses.
 export async function startDecide({ name = "run" } = {}) {
   let base = tmpdir();
-  try {
-    mkdirSync(SCRATCH, { recursive: true });
-    base = SCRATCH;
-  } catch {}
+  if (SCRATCH) {
+    try {
+      mkdirSync(SCRATCH, { recursive: true });
+      base = SCRATCH;
+    } catch {}
+  }
   const dir = realpathSync(mkdtempSync(path.join(base, `run-${name}-`)));
   const home = path.join(dir, "home");
   const dh = path.join(dir, "dh");
