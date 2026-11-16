@@ -564,6 +564,10 @@ async function boot() {
   else if (app.state.rounds.length) await openRound(app.state.rounds.at(-1).id);
   else if (app.view === "boot") showIdle();
   const es = listen(onState, onStatus, onDialog, onDeck);
+  // 3.0 rounds that react: an agent patch, a restore or a keep moves the round's view (the store keeps answers only).
+  net.onEvent("round", (d) => {
+    if (d?.patch?.view !== undefined && app.view === "round" && app.round?.id === d.round) app.round.setView?.(d.patch.view);
+  });
   es.addEventListener?.("inbox", refreshInbox);
   syncRail();
   registerShell(); // installable page: offline shell, app badge, fallback-port note

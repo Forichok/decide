@@ -84,10 +84,10 @@ const logOf = (home, dir, id) => {
 
 // ---- the table
 
-test("lib/tools.mjs and lib/commands.mjs are gone; the table has the sixteen commands", () => {
+test("lib/tools.mjs and lib/commands.mjs are gone; the table has the sixteen commands plus 3.0 patch", () => {
   assert.equal(existsSync(path.join(pluginDir, "lib/tools.mjs")), false);
   assert.equal(existsSync(path.join(pluginDir, "lib/commands.mjs")), false);
-  assert.deepEqual(names, ["ask", "swipe", "wait", "push", "explain", "screenshot", "history", "supersede", "adr", "export", "import", "lint", "stop", "open", "notice", "rules"]);
+  assert.deepEqual(names, ["ask", "swipe", "wait", "push", "explain", "screenshot", "history", "supersede", "adr", "export", "import", "lint", "stop", "open", "notice", "rules", "patch"]);
   for (const c of COMMANDS) {
     assert.equal(typeof c.summary, "string", c.name);
     assert.equal(typeof c.run, "function", c.name);
@@ -108,15 +108,15 @@ test("swipe, push, lint and stop exist as MCP tools and as CLI commands; open an
   }
 });
 
-test("tools/list has the eleven 2.1 tools plus lint, stop and rules, as 2.1 spelled them", () => {
+test("tools/list has the eleven 2.1 tools plus lint, stop, rules and patch, as 2.1 spelled them", () => {
   const tools = toolList();
-  assert.deepEqual(tools.map((t) => t.name), [...surface.tools.map((t) => t.name), "lint", "stop", "rules"]);
+  assert.deepEqual(tools.map((t) => t.name), [...surface.tools.map((t) => t.name), "lint", "stop", "rules", "patch"]);
   const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x));
   for (const old of surface.tools) {
     const now = tools.find((t) => t.name === old.name);
     assert.deepEqual(now.inputSchema.required ?? [], old.inputSchema.required ?? [], `${old.name}: required`);
     // 3.0 added one parameter to export, last: outside (a file outside the project).
-    const added = old.name === "export" ? ["outside"] : [];
+    const added = old.name === "export" ? ["outside"] : old.name === "explain" ? ["patch"] : [];
     assert.deepEqual(Object.keys(now.inputSchema.properties), [...Object.keys(old.inputSchema.properties), ...added], `${old.name}: parameter names, in order`);
     if (old.name === "ask" || old.name === "swipe") {
       assert.ok(now.description.startsWith(old.description), `${old.name}: description starts as before`);
@@ -130,7 +130,10 @@ test("tools/list has the eleven 2.1 tools plus lint, stop and rules, as 2.1 spel
     } else {
       assert.equal(now.description, old.description, `${old.name}: description`);
       const { outside: _added, ...kept } = now.inputSchema.properties;
-      assert.equal(canon({ ...now.inputSchema, properties: old.name === "export" ? kept : now.inputSchema.properties }), canon(old.inputSchema), `${old.name}: schema`);
+      // 3.0 added explain's optional patch.
+      const { patch: _patch, ...keptExplain } = now.inputSchema.properties;
+      const props = old.name === "export" ? kept : old.name === "explain" ? keptExplain : now.inputSchema.properties;
+      assert.equal(canon({ ...now.inputSchema, properties: props }), canon(old.inputSchema), `${old.name}: schema`);
     }
   }
 });
@@ -663,4 +666,43 @@ test("swipe's description ends with what a deck carries (card fields, media kind
   assert.doesNotMatch(lines, /^(question|options|type): /m, "nothing only a question has");
   assert.doesNotMatch(lines, /^(images|preview|chart): .*(can be marked up|notes pinned|share a scale)/m, "a card has no mark-up, pinned notes or sibling options");
   assert.ok(toolList().find((x) => x.name === "ask").description.endsWith(typeLines()), "ask keeps the question types");
+});
+
+// ---- 3.0 rounds that react: patch through the tool and explain, restore and keep from the page, the finish guard
+
+test("patch: the tool ghosts a question, explain carries a patch, the page restores and keeps, submit waits for stale answers", async (t) => {
+  const { dir, home } = await scratch(t);
+  const server = await spawnServer(t, home);
+  const base = `http://127.0.0.1:${server.port}`;
+  const two = { title: "Two", questions: [...spec.questions, { id: "size", title: "Which size?", options: [{ id: "s", label: "S" }, { id: "m", label: "M" }] }] };
+  const posted = await fetch(`${base}/api/rounds`, {
+    method: "POST",
+    headers: asAgent(server.port),
+    body: JSON.stringify({ project: dir, spec: two, outPath: path.join(dir, "c.answers.json"), source: "c.questions.json", open: false, live: true }),
+  }).then((r) => r.json());
+  const view = () => fetch(`${base}/api/rounds/${posted.id}`).then((r) => r.json()).then((v) => v.view);
+  assert.deepEqual((await view()).ghosts, []);
+
+  const out = await call(home, "patch", { project: dir, round: posted.id, ops: [{ ghost: ["size"], reason: "one size fits" }] });
+  assert.match(out.text, /Ghosts now: size\./);
+  assert.deepEqual((await view()).ghosts, [{ id: "size", reason: "one size fits" }]);
+  await assert.rejects(call(home, "patch", { project: dir, round: posted.id, ops: [{ ghost: ["nope"] }] }), /no item "nope"/);
+
+  const page = (action, body) => fetch(`${base}/api/rounds/${posted.id}/${action}`, { method: "POST", headers: asPage(server.port), body: JSON.stringify(body) });
+  const restored = await page("restore", { id: "size" }).then((r) => r.json());
+  assert.equal(restored.ok, true);
+  assert.deepEqual(restored.view.ghosts, []);
+
+  await fetch(`${base}/api/rounds/${posted.id}/draft`, { method: "PUT", headers: asPage(server.port), body: JSON.stringify({ answers: { color: { selected: ["pink"] } } }) });
+  const explained = await call(home, "explain", { project: dir, round: posted.id, question: "color", text: "pink is gone", patch: { ops: [{ stale: ["color"] }], reason: "the options moved" } });
+  assert.match(explained.text, /Explanation shown under question color\./);
+  assert.deepEqual((await view()).stale, ["color"]);
+
+  const refused = await page("submit", { answers: { color: { selected: ["pink"] } } });
+  assert.equal(refused.status, 409);
+  assert.deepEqual((await refused.json()).stale.map((s) => s.id), ["color"]);
+  assert.equal((await page("keep", { qid: "color" })).status, 200);
+  const sent = await page("submit", { answers: { color: { selected: ["pink"] } } }).then((r) => r.json());
+  assert.equal(sent.ok, true);
+  assert.deepEqual(Object.keys(sent.result.answers), ["color"]);
 });
