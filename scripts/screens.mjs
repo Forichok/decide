@@ -28,7 +28,9 @@ const QUALITY = 80;
 const only = new Set(process.argv.slice(2));
 const wanted = (group) => !only.size || only.has(group);
 
-const tmp = mkdtempSync(path.join(process.env.SCREENS_SCRATCH ? process.env.SCREENS_SCRATCH : tmpdir(), "screens-png-"));
+const scratch = process.env.SCREENS_SCRATCH || tmpdir();
+mkdirSync(scratch, { recursive: true });
+const tmp = mkdtempSync(path.join(scratch, "screens-png-"));
 let hasCwebp = true;
 try {
   execFileSync("cwebp", ["-version"], { stdio: "ignore" });

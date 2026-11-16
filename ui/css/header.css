@@ -36,6 +36,12 @@
 }
 .eyebrow .brand { display: inline-flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; }
 .eyebrow .brand:hover { color: var(--tx); }
+/* The row never squeezes its dot or its buttons; on a phone it packs tighter and leaves GitHub to the footer. */
+.eyebrow > :not(.spacer) { flex-shrink: 0; }
+@media (max-width: 480px) {
+  .eyebrow { gap: 6px; padding-left: 12px; }
+  .eyebrow .gh { display: none; }
+}
 h1.title {
   font-size: var(--step-4);
   line-height: 1.12;
