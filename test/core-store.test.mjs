@@ -875,12 +875,16 @@ test("a patch ghosts a question, restore brings it back, a stale answer blocks f
 
 test("rules from the spec ghost a question by the answers, and a swipe round has no view", async (t) => {
   const { roundArgs, swipeArgs, open } = await setup(t);
-  const s = open();
+  const views = [];
+  const s = open({ on: { view: (round, view) => views.push(view.ghosts.map((g) => g.id)) } });
   const spec = { ...roundArgs.spec, rules: [{ when: { question: "layout", in: ["split"] }, do: [{ ghost: ["colour"] }], reason: "split has one colour" }] };
   const r = s.create({ ...roundArgs, spec });
   assert.deepEqual(s.roundView(r).ghosts, []);
+  s.saveDraft(r, { answers: { layout: { selected: ["today"] } } });
+  assert.deepEqual(views, [], "a draft that moves no rule tells nothing");
   s.saveDraft(r, { answers: { layout: { selected: ["split"] } } });
   assert.deepEqual(s.roundView(r).ghosts.map((g) => g.id), ["colour"]);
+  assert.deepEqual(views, [["colour"]], "the page hears the ghost the answer made");
   // R9: the ghost's answer is left out of answers and the file names the ghost.
   const result = s.finish(r, { answers: { layout: { selected: ["split"] }, colour: { selected: ["red"] } } });
   assert.deepEqual(Object.keys(result.answers), ["layout"]);

@@ -1227,3 +1227,24 @@ test("pinned sizes after 3.0 milestone 3: the spec schema is 8,784 bytes, the de
   assert.equal(JSON.stringify(specSchema()).length, 8784);
   assert.equal(JSON.stringify(deckSchema()).length, 6928);
 });
+
+// ---- 3.0 rounds that react: rules on the round spec
+
+test("rules on the round spec: kept in the normalized spec, an unknown question is an error, a loop a warning", () => {
+  const opts = [{ id: "x", label: "X" }, { id: "y", label: "Y" }];
+  const two = (rules) => ({ questions: [{ id: "a", title: "A", options: opts }, { id: "b", title: "B", options: opts }], rules });
+  const ok = normalizeSpec(two([{ when: { question: "a", in: ["x"] }, do: [{ ghost: ["b"] }], reason: "x needs no b" }]), { specDir: examples });
+  assert.deepEqual(errorsOf(ok.issues), []);
+  assert.equal(ok.spec.rules.length, 1);
+  assert.equal(normalizeSpec(two(undefined), { specDir: examples }).spec.rules, undefined, "no rules, no field");
+  assert.match(errorsOf(normalizeSpec(two([{ when: { question: "zz", answered: true }, do: [{ ghost: ["b"] }] }]), { specDir: examples }).issues).join("\n"), /unknown question "zz"/);
+  const loop = normalizeSpec(
+    two([
+      { when: { question: "b", answered: true }, do: [{ ghost: "a" }], reason: "b" },
+      { when: { question: "a", answered: true }, do: [{ ghost: "b" }], reason: "a" },
+    ]),
+    { specDir: examples },
+  );
+  assert.deepEqual(errorsOf(loop.issues), []);
+  assert.match(warnsOf(loop.issues).join("\n"), /rules loop/);
+});
