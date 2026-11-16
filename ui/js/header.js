@@ -28,6 +28,7 @@ export function renderHeader(spec, env) {
     roundTabs(env),
     h("h1.title", {}, spec.title),
     h("div.meta-row", {}, meta.map(([text, cls = ""]) => h(`span.chip.static${cls}`, {}, text))),
+    presenceNote(env.listening !== false),
     spec.intro && h("div.intro.rich", { html: md(spec.intro, g) }),
     spec.recap && h("div.panel.recap", {}, h("div.panel-h", { html: `${icon("spark")}${t("recap")}` }), h("div.rich", { html: md(spec.recap, g) })),
     spec.leftOut?.length > 0 &&
@@ -45,11 +46,39 @@ export function renderHeader(spec, env) {
 
 // The live chip follows the agent: it comes and goes between its wait calls.
 export function updatePresence(listening) {
+  paintPresenceNote(document.querySelector(".presence-note"), listening);
   const chip = document.querySelector(".meta-row .presence");
   if (!chip) return;
   chip.classList.toggle("live", listening);
   chip.classList.toggle("away", !listening);
   chip.textContent = t(listening ? "meta.live" : "meta.away");
+}
+
+// The line a user pastes into the agent's chat so it collects the answers (the same call the session-start notice names).
+export const roundIdOnPage = () => new URLSearchParams(location.hash.slice(1)).get("r") || "";
+export const pasteLine = (id) => t("listen.line", id);
+
+// "The agent is waiting", or, when nobody is listening, that the answers are saved and what to paste.
+export function presenceNote(listening) {
+  const box = h("div.presence-note");
+  paintPresenceNote(box, listening);
+  return box;
+}
+
+function paintPresenceNote(box, listening) {
+  if (!box) return;
+  box.classList.toggle("live", listening);
+  if (listening) return box.replaceChildren(h("span.pn-dot"), h("span", {}, t("listen.waiting")));
+  const line = pasteLine(roundIdOnPage());
+  box.replaceChildren(
+    h("span.pn-dot"),
+    h(
+      "div.pn-body",
+      {},
+      h("p", {}, t("listen.away")),
+      h("div.paste-line", {}, h("code", {}, line), h("button.link-btn", { type: "button", onclick: () => navigator.clipboard?.writeText(line).catch(() => {}) }, t("listen.copy"))),
+    ),
+  );
 }
 
 // The mark: a dot and a stem make a "d". The dot takes the accent, the stem the text color.
@@ -62,6 +91,7 @@ export function eyebrow(env) {
     h("a.brand", { href: REPO, ...out, title: t("brand.title") }, h("span.logo", { "aria-hidden": "true", html: LOGO }), h("span", {}, "decide")),
     h("span.conn", { title: t("conn") }),
     h("span.spacer"),
+    env.inbox && h("button.chip.ghost.inbox-btn", { type: "button", hidden: env.inbox.count < 2, "aria-label": t("inbox.open"), onclick: env.inbox.toggle }, t("inbox.button", env.inbox.count)),
     env.journal && h("button.icon-btn.jr-btn", { type: "button", title: t("journal.open"), "aria-label": t("journal.open"), html: icon("history"), onclick: env.journal }),
     h("a.icon-btn.gh", { href: REPO, ...out, title: t("brand.title"), "aria-label": t("brand.title"), html: icon("github") }),
     h("button.icon-btn.keys-btn", { type: "button", title: t("keys.button"), "aria-label": t("keys.label"), html: icon("keyboard"), onclick: env.help }),
@@ -125,65 +155,6 @@ function journalItem(item) {
 
 export function credit() {
   return h("p.credit", {}, h("span", {}, t("credit.text")), h("a", { href: REPO, ...out, html: `${icon("star")}${t("credit.star")}` }));
-}
-
-// delivery: { delivered, listening } of the answers on screen; closing: seconds left, "failed" or null.
-export function renderDone(result, env) {
-  const cancelled = result?.cancelled;
-  const others = (env.pending || []).filter((r) => r.id !== env.currentId);
-  const { delivered = true, listening = false } = env.delivery || {};
-  const state = cancelled ? "cancelled" : env.offline ? "file" : delivered ? "sent" : listening ? "handing" : "saved";
-  const ring = { cancelled: ".cancel", sent: "", handing: ".handing", saved: ".saved", file: "" }[state];
-  const next = env.offline
-    ? h(
-        "div.close-row",
-        {},
-        !cancelled && h("button.btn.primary", { type: "button", onclick: env.download, html: `${icon("download")}${t("done.downloadAgain")}` }),
-        h("button.btn", { type: "button", onclick: env.reopen, html: `${icon("pen")}${t("done.change")}` }),
-      )
-    : others.length
-    ? h("button.btn.primary", { type: "button", onclick: () => env.switchTo(others[0].id), html: `${t("done.more", others.length)}${icon("arrow")}` })
-    : state === "saved"
-      ? h("button.btn.primary", { type: "button", onclick: env.copyNudge, html: `${icon("clip")}${t("done.copy")}` })
-      : state === "handing"
-        ? h("div.waiting", {}, h("span.pulse"), t("done.handingWait"))
-        : closer(env);
-  return h(
-    "section.done-view",
-    {},
-    eyebrow(env),
-    h(
-      "div.done-card",
-      {},
-      h(`div.ring${ring}`, { html: icon(cancelled ? "x" : state === "sent" ? "check" : state === "saved" ? "alert" : "arrow") }),
-      h("h2", {}, t(`done.${state}`)),
-      h("p.done-sub", {}, state === "file" ? t("done.fileSub", result.file) : t(`done.${state}Sub`)),
-      next,
-      result?.mode === "swipe" && result.brief?.length
-        ? h("ul.done-brief", {}, result.brief.map((b) => h(`li.sw-item.k-${b.kind}`, {}, b.text)))
-        : result?.digest && h("pre.done-digest", {}, result.digest),
-    ),
-    !env.offline && journalPanel({ skip: env.currentId }),
-    credit(),
-  );
-}
-
-function closer(env) {
-  if (!env.connected) return h("div.waiting", {}, t("done.gone"));
-  if (typeof env.closing === "number") {
-    return h(
-      "div.waiting.closing",
-      {},
-      h("span.close-count", {}, t("done.closeIn", env.closing)),
-      h("button.link-btn", { type: "button", onclick: env.keepOpen }, t("done.keep")),
-    );
-  }
-  return h(
-    "div.close-row",
-    {},
-    h("div.waiting", {}, h("span.pulse"), env.closing === "failed" ? t("done.closeFailed") : t("done.waiting")),
-    h("button.btn", { type: "button", onclick: env.closeTab, html: `${icon("x")}${t("done.close")}` }),
-  );
 }
 
 export function renderIdle(env) {

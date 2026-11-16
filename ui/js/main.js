@@ -7,7 +7,11 @@ import { lang, t } from "./i18n.js";
 import { answererName, cancelRound, download, getRound, getState, listen, offline, reopen, submitRound } from "./net.js";
 import { hideBar, mountRound } from "./round.js";
 import { mountSwipe } from "./swipe/index.js";
-import { renderDone, renderIdle, roundTabs, updatePresence } from "./header.js";
+import { pasteLine, renderIdle, roundTabs, updatePresence } from "./header.js";
+import { renderDone } from "./done.js";
+import { createInbox, dismissRound, loadInbox, notifyNew } from "./inbox.js";
+import { baseName, nextRound } from "./inbox-logic.js";
+import { showStopped } from "./stopped.js";
 import { renderJournal } from "./journal.js";
 import { bindKeys } from "./nav.js";
 import { confirmCancel, openHelp, openReview, toast } from "./overlays.js";
@@ -22,10 +26,14 @@ const app = {
   done: null, // { id, result } while the done screen is shown
   seen: new Set(),
   sending: false,
-  closing: null, // seconds until the tab closes itself, "failed", or null
-  closeFor: null, // the done round the countdown already ran for
-  closeTimer: null,
+  closing: null, // "failed" after a Close tab the browser refused, else null
+  inbox: [], // the rail's rows, see inbox.js
+  advance: null, // seconds until Done goes on to the next round, or null
+  advanceFor: null, // the done round the countdown already ran for
+  advanceTimer: null,
+  spec: null, // spec of the round on the done screen
 };
+let rail = null;
 
 // ---- theme (per-viewer convenience; storage may be unavailable)
 const THEME_KEY = "decide-theme";
@@ -56,8 +64,12 @@ function env() {
     connected: app.connected,
     delivery: app.done && deliveryOf(app.done.id),
     closing: app.closing,
-    keepOpen,
     closeTab,
+    spec: app.spec,
+    nextRound: app.view === "done" ? nextRound(app.inbox.length ? app.inbox : [], app.done?.id) : null,
+    advance: app.advance,
+    stay,
+    inbox: { count: app.inbox.length, toggle: () => toggleRail() },
     copyNudge,
     help: openHelp,
     isDark,
@@ -89,19 +101,21 @@ async function openRound(id, fallback = true) {
   history.replaceState(null, "", `#r=${data.id}`);
   app.seen.add(data.id);
   if (data.status === "pending") showRound(data);
-  else showDone(data.id, data.result || { cancelled: true });
+  else showDone(data.id, data.result || { cancelled: true }, data.spec);
 }
 
 function showRound(data) {
-  disarmClose();
+  disarmAdvance();
   app.round?.stop();
   app.view = "round";
   app.done = null;
   app.round = data.mode === "swipe" ? mountSwipe(data, env()) : mountRound(data, env());
   window.scrollTo({ top: 0 });
+  syncRail();
 }
 
-function showDone(id, result) {
+function showDone(id, result, spec = null) {
+  app.spec = spec || app.round?.spec || null;
   app.round?.stop();
   app.round = null;
   app.view = "done";
@@ -109,44 +123,48 @@ function showDone(id, result) {
   hideBar();
   renderDoneView();
   window.scrollTo({ top: 0 });
-  armClose();
+  syncRail();
+  armAdvance();
 }
 
-// ---- after the answers reach the agent the tab closes itself, unless more rounds wait
+// ---- after Done the page goes on to the next open round; the tab never closes itself
 const deliveryOf = (id) => app.state.history.find((e) => e.id === id) || { delivered: true };
+const ADVANCE_SEC = 6;
 
-function armClose() {
+function armAdvance() {
   const { id, result } = app.done;
-  // An exported file stays open: its done screen offers the download again.
-  if (offline || result?.cancelled || !deliveryOf(id).delivered || app.closeFor === id || app.state.rounds.some((r) => r.id !== id)) return;
-  app.closeFor = id;
-  app.closing = 5;
+  // Answers the agent has not collected stay on screen: the user may need the line to paste.
+  const held = !result?.cancelled && !result?.dismissed && !deliveryOf(id).delivered;
+  if (offline || held || app.advanceFor === id || !nextRound(app.inbox, id)) return;
+  app.advanceFor = id;
+  app.advance = ADVANCE_SEC;
   rerenderStatic();
-  app.closeTimer = setInterval(() => {
-    app.closing -= 1;
-    if (app.closing > 0) {
-      const count = $(".close-count");
-      if (count) count.textContent = t("done.closeIn", app.closing);
+  app.advanceTimer = setInterval(() => {
+    app.advance -= 1;
+    if (app.advance > 0) {
+      const count = $(".next-count");
+      if (count) count.textContent = t("done.advance", app.advance);
       return;
     }
-    closeTab();
+    const next = nextRound(app.inbox, app.done?.id);
+    disarmAdvance();
+    if (next) openRound(next.id);
   }, 1000);
 }
 
-function disarmClose() {
-  clearInterval(app.closeTimer);
-  app.closeTimer = null;
-  app.closing = null;
+function disarmAdvance() {
+  clearInterval(app.advanceTimer);
+  app.advanceTimer = null;
+  app.advance = null;
 }
 
-function keepOpen() {
-  disarmClose();
+function stay() {
+  disarmAdvance();
   rerenderStatic();
 }
 
-// Browsers let a page close only a tab that scripts opened or that has one history entry.
+// A button, never a timer. Browsers let a page close only a tab that scripts opened or that has one history entry.
 function closeTab() {
-  disarmClose();
   window.close();
   setTimeout(() => {
     app.closing = "failed";
@@ -155,14 +173,15 @@ function closeTab() {
 }
 
 function copyNudge() {
+  const line = pasteLine(app.done?.id || "");
   navigator.clipboard
-    .writeText(t("done.nudge"))
+    .writeText(line)
     .then(() => toast(t("done.copied")))
-    .catch(() => toast(t("done.nudge")));
+    .catch(() => toast(line));
 }
 
 function showIdle(message) {
-  disarmClose();
+  disarmAdvance();
   app.round?.stop();
   app.round = null;
   app.view = "idle";
@@ -170,12 +189,13 @@ function showIdle(message) {
   hideBar();
   $("#main").replaceChildren(renderIdle(env()));
   document.title = "decide";
+  syncRail();
   if (message) toast(message);
 }
 
 function showJournal() {
   if (app.round) app.journalFrom = app.round.id;
-  disarmClose();
+  disarmAdvance();
   app.round?.stop();
   app.round = null;
   app.view = "journal";
@@ -184,6 +204,7 @@ function showJournal() {
   $("#main").replaceChildren(renderJournal(env()));
   document.title = `${t("journalPage.title")} — decide`;
   window.scrollTo({ top: 0 });
+  syncRail();
 }
 
 function leaveJournal() {
@@ -201,24 +222,89 @@ function refreshTabs() {
   else if (fresh) $(".top .eyebrow")?.after(fresh);
 }
 
+// ---- the rail (inbox.js)
+let railTimer = null;
+function ensureRail() {
+  if (rail || offline) return;
+  rail = createInbox({
+    open: (id) => {
+      closeRail();
+      if (id !== app.round?.id) openRound(id);
+    },
+    dismiss: (id) =>
+      dismissRound(id)
+        .then(() => refreshInbox())
+        .catch(() => toast(t("inbox.dismissFailed"))),
+    askNotify: () => Notification.requestPermission().then(() => rail.repaint()),
+    close: closeRail,
+  });
+  const scrim = Object.assign(document.createElement("div"), { className: "rail-scrim", onclick: closeRail });
+  $(".layout").prepend(rail.el);
+  document.body.append(scrim);
+  document.addEventListener("keydown", (e) => e.key === "Escape" && document.body.classList.contains("rail-open") && closeRail());
+}
+
+const toggleRail = () => document.body.classList.toggle("rail-open");
+const closeRail = () => document.body.classList.remove("rail-open");
+
+function syncRail() {
+  if (offline) return;
+  ensureRail();
+  rail.set(app.inbox, app.round?.id ?? app.done?.id ?? null);
+  // The header's "Rounds · n" button, where the rail is a drawer.
+  for (const b of $$(".inbox-btn")) {
+    b.textContent = t("inbox.button", app.inbox.length);
+    b.hidden = app.inbox.length < 2;
+  }
+}
+
+// Called on every state or inbox event: one fetch after a short pause, however many events came.
+function refreshInbox() {
+  if (offline) return Promise.resolve();
+  clearTimeout(railTimer);
+  return new Promise((resolve) => {
+    railTimer = setTimeout(async () => {
+      const rows = await loadInbox(app.state);
+      if (rows) {
+        const nextId = () => (app.view === "done" ? nextRound(app.inbox, app.done.id)?.id : null);
+        const before = nextId();
+        app.inbox = rows;
+        syncRail();
+        if (nextId() !== before) rerenderStatic();
+        if (app.view === "done") armAdvance();
+      }
+      resolve();
+    }, 80);
+  });
+}
+
 // ---- daemon push
+const rowOf = (r) => ({ id: r.id, title: r.title, projectName: baseName(r.project) });
+
 function onState(st) {
   app.state = st;
   const fresh = st.rounds.filter((r) => !app.seen.has(r.id));
   fresh.forEach((r) => app.seen.add(r.id));
+  refreshInbox();
+  const announce = () => {
+    for (const r of fresh) {
+      toast(t("toast.newRound", r.title));
+      notifyNew(rowOf(r));
+    }
+  };
   if (app.view === "round") {
     const current = st.rounds.find((r) => r.id === app.round.id);
     if (!current) return openRound(app.round.id, false);
     if (app.round.mode === "swipe") app.round.setListening(current.listening !== false);
     else updatePresence(current.listening !== false);
     refreshTabs();
-    for (const r of fresh) toast(t("toast.newRound", r.title));
-    return;
+    return announce();
   }
-  if (fresh.length) return openRound(fresh.at(-1).id);
+  // Sitting on the inbox (nothing open): the new round opens here. Elsewhere it joins the rail.
+  if (fresh.length && (app.view === "idle" || app.view === "boot")) return openRound(fresh.at(-1).id);
+  announce();
   if (app.view === "journal") return;
   rerenderStatic();
-  if (app.view === "done") armClose();
 }
 
 function onDialog(d) {
@@ -233,6 +319,7 @@ function onStatus(ok) {
   if (app.connected === ok) return;
   app.connected = ok;
   document.body.classList.toggle("offline", !ok);
+  showStopped(!ok, app.state);
   if (app.view !== "round") rerenderStatic();
 }
 
@@ -409,8 +496,10 @@ async function boot() {
     app.connected = true;
   } catch {
     showIdle();
+    showStopped(true, app.state);
   }
   app.state.rounds.forEach((r) => app.seen.add(r.id));
+  if (app.connected && !offline) app.inbox = (await loadInbox(app.state)) || [];
   window.addEventListener("hashchange", () => {
     if (location.hash === "#journal") return app.view !== "journal" && showJournal();
     const id = new URLSearchParams(location.hash.slice(1)).get("r");
@@ -421,7 +510,9 @@ async function boot() {
   else if (id) await openRound(id);
   else if (app.state.rounds.length) await openRound(app.state.rounds.at(-1).id);
   else if (app.view === "boot") showIdle();
-  listen(onState, onStatus, onDialog, onDeck);
+  const es = listen(onState, onStatus, onDialog, onDeck);
+  es.addEventListener?.("inbox", refreshInbox);
+  syncRail();
 }
 
 boot();
