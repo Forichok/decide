@@ -301,9 +301,18 @@ function tokenise(value, dir) {
 }
 
 test("the six 2.1 types normalise exactly as before", () => {
-  const raw = JSON.parse(readFileSync(path.join(examples, "showcase.questions.json"), "utf8"));
+  const raw = JSON.parse(readFileSync(path.join(pluginDir, "test/fixtures/2.1/showcase.questions.json"), "utf8"));
   const now = JSON.parse(JSON.stringify(normalizeSpec(raw, { specDir: examples })));
   const before = JSON.parse(readFileSync(path.join(pluginDir, "test/fixtures/2.1/showcase.normalized.json"), "utf8"));
+  // Three things moved in 3.0: the folded points became `more` (test/migrate.test.mjs checks the text) and each option has
+  // a `then`. Everything else is what 2.1 wrote.
+  for (const q of before.spec.questions) {
+    for (const k of ["what", "how", "goal", "then"]) delete q[k];
+    for (const o of q.options) o.then = "";
+  }
+  for (const q of now.spec.questions) delete q.more;
+  // The new lint asks for `why` and `then`; the 2.1 showcase has few of them.
+  now.issues = now.issues.filter((i) => !/^("[^"]+" has no "why"|no "then" on )/.test(i.message));
   assert.deepEqual(tokenise(now, examples), before);
   const types = new Set(now.spec.questions.map((q) => q.type));
   assert.deepEqual([...types].sort(), [...REGISTRY.keys()].sort(), "the showcase uses all six types, so the snapshot covers them");
@@ -436,7 +445,7 @@ test("an option or question field met one level away says where it goes", () => 
     assert.deepEqual(said({ [name]: true }, {}), [`unknown field "${name}"; "${name}" is an option field: put it on the option`], name);
   }
   assert.deepEqual(said({}, { default: ["x"], optional: true }), ["default", "optional"].map((n) => `unknown field "${n}"; "${n}" is a question field: put it on the question`));
-  assert.deepEqual(said({}, { how: "x", note: "y", then: "z" }), ["how", "note", "then"].map((n) => `unknown field "${n}"; "${n}" is a question field; for text on one option use its "detail"`));
+  assert.deepEqual(said({}, { how: "x", note: "y" }), ["how", "note"].map((n) => `unknown field "${n}"; "${n}" is a question field; for text on one option use its "detail"`));
   assert.deepEqual(said({ detail: "d" }, {}), ['unknown field "detail"; "detail" is an option field; the question has no "detail": "tldr" is its one line, "body" its longer text']);
   assert.deepEqual(said({ label: "l" }, {}), ['unknown field "label"; "label" is an option field; the question has no "label": its words are "title"']);
 });
@@ -566,7 +575,7 @@ async function mediaDir(context) {
   for (const f of ["card.html", "after.html", "before.png", "after.png", "clip.mp4"]) await writeFile(path.join(dir, f), "x");
   return dir;
 }
-const mediaQuestion = (extra = {}, option = {}) => ({ questions: [{ id: "q", title: "t", options: [{ id: "a", label: "A", recommended: true, ...option }, { id: "b", label: "B" }], ...extra }] });
+const mediaQuestion = (extra = {}, option = {}) => ({ questions: [{ id: "q", title: "t", why: "w", options: [{ id: "a", label: "A", then: "x", recommended: true, ...option }, { id: "b", label: "B", then: "y" }], ...extra }] });
 const unknownOf = (issues) => issues.filter((i) => /unknown field/.test(i.message)).map((i) => `${i.level} ${i.where}: ${i.message}`);
 
 test("every media kind has a page module, a doc row and a valid example", async (context) => {
@@ -1064,7 +1073,7 @@ test("a remote .html in a compare warns and is drawn as two links; a local pair 
 
 test("metrics as a list of {label, value} is read as the object form: the same rows, no warning", async (context) => {
   const { exportSpec } = await load("lib/export.mjs");
-  const make = (metrics) => normalizeSpec({ questions: [{ id: "q", title: "t", options: [{ label: "x", recommended: true, metrics }, "y"] }] });
+  const make = (metrics) => normalizeSpec({ questions: [{ id: "q", title: "t", why: "w", options: [{ label: "x", then: "t", recommended: true, metrics }, { label: "y", then: "t" }] }] });
   const asList = make([{ label: "Speed", value: 4 }, { label: "Time", value: "5 days" }]);
   const asObject = make({ Speed: 4, Time: "5 days" });
   assert.deepEqual(asList.issues, []);
@@ -1179,4 +1188,42 @@ test("default is valid on scale and text; a table column may have a number for a
   }
   const { issues } = normalizeSpec({ questions: [{ id: "a", title: "t", options: ["x", "y"], table: { columns: [{ id: "y", label: 2024 }], rows: [["1"]] } }] });
   assert.deepEqual(errorsOf(issues), []);
+});
+
+// ---- question anatomy: why, more, option then
+
+test("a question has why and more, an option has then; the folded points are older spellings of more", () => {
+  assert.ok(QUESTION_FIELDS.why && QUESTION_FIELDS.more, "why and more");
+  assert.equal(OPTION_FIELDS.then.type, "string");
+  for (const k of ["what", "how", "goal", "then"]) assert.equal(QUESTION_FIELDS[k].alias, "more", `${k} reads into more`);
+  const { spec, issues } = normalizeSpec({ questions: [{ id: "a", title: "A", why: "w", more: "m", options: [{ label: "x", then: "t", recommended: true }, "y"] }] });
+  assert.deepEqual(errorsOf(issues), []);
+  assert.equal(spec.questions[0].why, "w");
+  assert.equal(spec.questions[0].more, "m");
+  assert.equal(spec.questions[0].options[0].then, "t");
+  assert.equal(spec.questions[0].options[1].then, "");
+});
+
+test("lint: a single or multi question with no why, or options with no then, is a warning, not an error", () => {
+  const lint = (q) => {
+    const { issues } = normalizeSpec({ questions: [{ id: "a", title: "A", ...q }] });
+    return { errors: errorsOf(issues), warns: warnsOf(issues).filter((w) => /no "why"|no "then"/.test(w)) };
+  };
+  const options = (then) => [{ id: "x", label: "X", recommended: true, ...(then.x && { then: "t" }) }, { id: "y", label: "Y", ...(then.y && { then: "t" }) }];
+  const bare = lint({ options: options({}) });
+  assert.deepEqual(bare.errors, []);
+  assert.equal(bare.warns.length, 2);
+  assert.match(bare.warns[0], /"a" has no "why"/);
+  assert.match(bare.warns[1], /no "then" on any option/);
+  const partial = lint({ why: "w", options: options({ x: true }) });
+  assert.deepEqual(partial.warns.map((w) => w.replace(/^[^:]*: /, "")), ['no "then" on option "y": say what happens next if it is picked']);
+  assert.deepEqual(lint({ why: "w", options: options({ x: true, y: true }) }).warns, []);
+  assert.equal(lint({ type: "multi", options: options({}) }).warns.length, 2, "multi too");
+  for (const type of ["confirm", "rank", "scale", "text"]) assert.deepEqual(lint({ type, options: type === "rank" ? options({}) : undefined, ...(type === "scale" ? { scale: { min: 1, max: 5 } } : {}) }).warns, [], `${type} is not asked for them`);
+});
+
+test("pinned sizes after 3.0 milestone 2: the spec schema is 8,704 bytes, the deck schema 6,928", async () => {
+  const { specSchema, deckSchema } = await docs();
+  assert.equal(JSON.stringify(specSchema()).length, 8704);
+  assert.equal(JSON.stringify(deckSchema()).length, 6928);
 });

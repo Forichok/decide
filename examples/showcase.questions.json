@@ -19,15 +19,14 @@
       "section": "base",
       "title": "What matters most in the first version of the home screen?",
       "tldr": "This decides what we build first and what waits.",
-      "what": "We pick one main goal for the release.",
+      "more": "We pick one main goal for the release.\n\nThe other goals aren't dropped; they go into the next PR.\n\nSuccess is a clear test we can check with real users.",
       "why": "One week of design isn't enough for everything at once.",
-      "how": "The other goals aren't dropped; they go into the next PR.",
-      "goal": "A clear test of success we can check with real users.",
       "stakes": "high",
       "images": [{ "src": "showcase.assets/current-list.svg", "caption": "Today: 140 tasks in one list" }],
       "options": [
         {
           "id": "due",
+          "then": "I design the home screen around the due list.",
           "label": "People see what's due",
           "detail": "Overdue and today's tasks on top, everything else below.",
           "recommended": "31 of the last 50 complaints are about a missed deadline; it's the main pain.",
@@ -37,6 +36,7 @@
         },
         {
           "id": "wow",
+          "then": "I spend the week on visuals and leave the lists plain.",
           "label": "The screen looks stunning",
           "detail": "Animations, large cards, striking transitions.",
           "pros": ["Looks great in screenshots"],
@@ -45,6 +45,7 @@
         },
         {
           "id": "fast",
+          "then": "I cut everything that slows the first paint.",
           "label": "The app opens instantly",
           "detail": "Speed work without changing the look.",
           "pros": ["Fewer drop-offs on a bad connection"],
@@ -57,11 +58,13 @@
       "id": "layout",
       "section": "base",
       "title": "Which home screen layout do we go with?",
+      "why": "The layout sets what people see first and what we design next.",
       "tldr": "Three mockups. Click a picture to look closer.",
       "layout": "compare",
       "options": [
         {
           "id": "list",
+          "then": "I keep today’s list and polish it.",
           "label": "One list",
           "image": { "src": "showcase.assets/home-list.svg", "caption": "Every task, newest first" },
           "detail": "Everything in one scrollable list, like now but tidier.",
@@ -71,6 +74,7 @@
         },
         {
           "id": "today",
+          "then": "I build the Today view and move the rest behind it.",
           "label": "Today view",
           "image": { "src": "showcase.assets/home-today.svg", "caption": "Overdue and today on top" },
           "detail": "Overdue and today's tasks on top, the rest folded under Later.",
@@ -81,6 +85,7 @@
         },
         {
           "id": "board",
+          "then": "I build the board and its status columns.",
           "label": "Board by status",
           "image": { "src": "showcase.assets/home-board.svg", "caption": "To do, Doing, Done" },
           "detail": "Columns by status; drag a card to move it.",
@@ -108,15 +113,16 @@
       "id": "features",
       "section": "details",
       "title": "What else goes into the first version?",
+      "why": "Each feature adds days to the first release.",
       "tldr": "Pick up to three.",
       "type": "multi",
       "max": 3,
       "layout": "grid",
       "options": [
-        { "id": "remind", "label": "Reminders", "detail": "A notification 15 minutes before a task is due.", "recommended": true, "tags": ["main pain"] },
-        { "id": "repeat", "label": "Recurring tasks", "detail": "Every Monday, every month, and so on.", "recommended": true, "tags": ["quick"] },
-        { "id": "share", "label": "Shared lists", "detail": "Invite someone to a list.", "tags": ["often asked"] },
-        { "id": "comments", "label": "Comments", "detail": "Only useful with notifications.", "tags": ["slower"] }
+        { "id": "remind", "then": "Reminders go into the first release.", "label": "Reminders", "detail": "A notification 15 minutes before a task is due.", "recommended": true, "tags": ["main pain"] },
+        { "id": "repeat", "then": "Recurring tasks go into the first release.", "label": "Recurring tasks", "detail": "Every Monday, every month, and so on.", "recommended": true, "tags": ["quick"] },
+        { "id": "share", "then": "Shared lists go into the first release.", "label": "Shared lists", "detail": "Invite someone to a list.", "tags": ["often asked"] },
+        { "id": "comments", "then": "Comments go into the first release.", "label": "Comments", "detail": "Only useful with notifications.", "tags": ["slower"] }
       ]
     },
     {
@@ -143,12 +149,14 @@
       "id": "rollout",
       "section": "ship",
       "title": "How do we roll it out?",
+      "why": "It decides who finds a bug first, and how fast we can undo it.",
       "tldr": "Speed against the risk of breaking the app for people who open it every morning.",
       "stakes": "high",
       "mermaid": "flowchart LR\n  A[Ready] --> B{Roll out how}\n  B -->|at once| C[All users]\n  B -->|gradually| D[10% of users] --> E[All users]\n  B -->|flag| F[Our team only]",
       "options": [
         {
           "id": "all",
+          "then": "I ship it to everyone in one release.",
           "label": "Everyone at once",
           "detail": "The fastest way.",
           "danger": true,
@@ -157,6 +165,7 @@
         },
         {
           "id": "gradual",
+          "then": "I widen the audience in steps and check each one.",
           "label": "Gradually",
           "detail": "Some users first, then everyone.",
           "recommended": "A bug shows up for a small share of users, not all of them.",
@@ -165,6 +174,7 @@
         },
         {
           "id": "flag",
+          "then": "I ship it hidden and switch it on per user.",
           "label": "Behind a feature flag",
           "detail": "Turned on by hand for specific accounts.",
           "pros": ["Full control"],
@@ -177,17 +187,19 @@
       "id": "share",
       "section": "ship",
       "title": "What share of users do we start with?",
+      "why": "A larger share finds bugs sooner and hurts more people if something breaks.",
       "tldr": "This question appeared because you picked a gradual rollout.",
       "showIf": { "q": "rollout", "in": ["gradual"] },
       "options": [
-        { "id": "p10", "label": "10%", "recommended": "Enough to catch bugs, and it affects few people." },
-        { "id": "p50", "label": "50%" }
+        { "id": "p10", "then": "I start with one user in ten.", "label": "10%", "recommended": "Enough to catch bugs, and it affects few people." },
+        { "id": "p50", "then": "I start with half of the users.", "label": "50%" }
       ]
     },
     {
       "id": "migration",
       "section": "ship",
       "title": "What do we do with old tasks that have no due date?",
+      "why": "Old tasks must land somewhere on the new screen, or people think they were lost.",
       "tldr": "A migration that can't be undone: afterwards we can't tell which dates were real.",
       "stakes": "high",
       "reversible": false,
@@ -198,6 +210,7 @@
       "options": [
         {
           "id": "created",
+          "then": "Old tasks get their creation date as the due date.",
           "label": "Use the creation date",
           "detail": "Each old task gets the day it was created.",
           "pros": ["Every task gets a date"],
@@ -205,6 +218,7 @@
         },
         {
           "id": "nodate",
+          "then": "I add a section for tasks without a date.",
           "label": "A separate \"No date\" section",
           "detail": "We leave them as they are.",
           "recommended": "Guessing would fill Overdue with tasks nobody meant to date, and it can't be undone.",

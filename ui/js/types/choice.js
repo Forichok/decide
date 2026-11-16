@@ -53,6 +53,7 @@ export function renderChoice(q, ctx) {
         ),
         o.recommended && o.reason && h("div.opt-reason.rich", { html: mdInline(o.reason, g) }),
         o.detail && h("div.opt-detail.rich", { html: md(o.detail, g) }),
+        o.then && h("div.opt-then.rich", { html: mdInline(o.then, g) }),
         prosCons(o, g),
         metrics(o, t),
         ctx.renderMedia(o, ctx, q.id),

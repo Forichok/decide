@@ -14,6 +14,11 @@ export const FLAGS = {
   skip: "skipped",
 };
 
+// The ready answers of a choice question (ui/js/quick.js): a flag that settles the question without a pick.
+// "none" asks the agent for other options; "later" parks the decision with a condition to come back to it.
+export const READY_FLAGS = ["none", "later"];
+export const isReadyFlag = (flag) => READY_FLAGS.includes(flag);
+
 // The common fields of a blank answer; the type adds what it owns (selected, order…).
 export function emptyAnswer(q) {
   return { selected: [], other: "", note: "", attachments: [], pins: [], order: [], value: null, text: "", flag: null, touched: false, ...typeOf(q).emptyAnswer(q) };
@@ -27,7 +32,8 @@ export function isVisible(q, answers) {
   });
 }
 
-export const isAnswered = (q, a) => Boolean(a) && typeOf(q).isAnswered(q, a);
+// A question answered "none of these" or "later" counts as answered: the user dealt with it.
+export const isAnswered = (q, a) => Boolean(a) && (isReadyFlag(a.flag) || typeOf(q).isAnswered(q, a));
 
 // A question marked mine waits for the user's own answer: handing it to the agent doesn't resolve it.
 export function isResolved(q, a) {
@@ -106,6 +112,9 @@ function compact(q, a) {
   if (a.other.trim()) r.other = a.other.trim();
   Object.assign(r, own);
   if (a.note.trim()) r.note = a.note.trim();
+  // "Yes, but…": the requirement belongs to what was picked, so it goes only with a pick.
+  if (a.condition?.trim() && (r.selected?.length || r.other)) r.condition = a.condition.trim();
+  if (a.flag === "later" && a.revisit?.trim()) r.revisit = a.revisit.trim();
   if (a.attachments.length) r.attachments = [...a.attachments];
   // Notes pinned on a mockup: where (in % of the frame, and at which layout width) and what.
   if (a.pins?.length) r.pins = a.pins.map(({ src, x, y, width, text }) => ({ file: fileName(src), x, y, ...(width ? { width } : {}), text }));
@@ -134,6 +143,9 @@ const WORDS = {
   autoDelegate: "🤝 no answer → the recommendation",
   against: (recs) => `(against the recommendation: ${recs})`,
   own: (text) => `own option: "${text}"`,
+  yesBut: (text) => `Yes, but: ${text}`,
+  none: (note) => `None of these; suggest others${note ? `: ${note}` : ""}`,
+  later: (revisit) => `Later${revisit ? `: ${revisit}` : ""}`,
 };
 
 export function describe(q, r, w = WORDS) {
@@ -142,8 +154,12 @@ export function describe(q, r, w = WORDS) {
   if (r.flag === "explain") parts.push(w.explain);
   if (r.flag === "skip") parts.push(r.auto ? w.autoSkip : w.skip);
   if (r.flag === "delegate") parts.push(r.auto ? w.autoDelegate : w.delegate);
+  // The page may pass a translation without the ready answers: the English words fill in.
+  if (r.flag === "none") parts.push((w.none ?? WORDS.none)(r.note));
+  if (r.flag === "later") parts.push((w.later ?? WORDS.later)(r.revisit));
   const own = typeOf(q).describe(q, r, w);
   if (own) parts.push(own);
+  if (r.condition) parts.push((w.yesBut ?? WORDS.yesBut)(r.condition));
   return parts.join(" · ") || "—";
 }
 
@@ -159,7 +175,8 @@ export function digest(spec, result) {
     if (!r) continue;
     n += 1;
     lines.push(`${n}. [${q.id}] ${q.title} → ${answerText(q, r)}`);
-    if (r.note) lines.push(`   ✎ ${r.note.replace(/\n/g, "\n     ")}`);
+    // The "none of these" note is already part of the line above.
+    if (r.note && r.flag !== "none") lines.push(`   ✎ ${r.note.replace(/\n/g, "\n     ")}`);
     for (const f of r.attachments || []) lines.push(`   📎 ${f}`);
     for (const p of r.pins || []) lines.push(`   📍 ${p.file}${p.width ? ` at ${p.width}px` : ""} (x ${p.x}%, y ${p.y}%): ${p.text}`);
   }
