@@ -40,8 +40,10 @@ Always pass `project`, the absolute path of the project you work in.
 1. Commit the change. Run the checks and note for each the command, the exit
    code and the seconds. The page runs nothing, and the user approves on what
    you report.
-2. Read the diff yourself (`git diff <base>...HEAD`) and cut it into chapters
-   (below).
+2. Run `outline {project}` (pass `base` and `head` when needed). Read its
+   pieces and regroup the skeleton by meaning: a chapter is an idea, not a
+   directory. Take `at` and `text` for key places from
+   `outline {project, place: "path:from-to"}`; do not type line text by hand.
 3. `lint {project, spec}` lays the spec on the diff without opening anything.
    Fix what it names: a reference that matches no hunk, hunks in no chapter.
 4. `review {project, spec}` opens the page and returns the round id, the URL
@@ -124,10 +126,11 @@ the user to message you when they are done, and on that message call
 | `chapters[].watch`     | The line or the decision you are least sure of. The user reads it before the diff.                         |
 | `chapters[].risk`      | `high`, `medium` or `low` (default). A high chapter wants a risk in the overview that points to it.        |
 | `chapters[].hunks`     | References to the hunks of this chapter.                                                                   |
-| `chapters[].focus`     | `[{at, note, kind, checkedBy, question, options}]`: the places to read, up to five. `at` is `"path:from-to"` in lines of the new file, inside this chapter's hunks. `kind` is optional: `risk`, `decision` or `check`. |
+| `chapters[].focus`     | `[{at, text, note, kind, checkedBy, question, options}]`: the places to read, up to five. `at` is `"path:from-to"` in lines of the new file, inside this chapter's hunks. `kind` is optional: `risk`, `decision` or `check`. |
 | `chapters[].focus[].checkedBy` | For `risk`: what check covers it, or say nothing does. |
 | `chapters[].focus[].question` | For `decision`: one yes/no question about behaviour the owner can judge. Without it the place stays a blue mark. |
 | `chapters[].focus[].options` | For `decision`: two short labels, yes then no. Leave out for localised Yes / No. |
+| `chapters[].focus[].text` | Trimmed text of the place's first line, copied from `outline`. Lint checks it so a later commit cannot silently move the place. |
 | `chapters[].skim`      | One sentence on why the chapter needs no reading line by line. Not for a high-risk chapter.                |
 | `mechanicalWhy`        | Why mechanical groups hold more than one third of all added and removed lines. One or two sentences; required above that share. |
 | `mechanical[]`         | `{title, hunks}`: one folded line on the page with a count.                                                |
@@ -306,6 +309,7 @@ When the tools are not available, the same runs through `decide.mjs` in the
 plugin root:
 
 ```bash
+node <plugin>/decide.mjs outline --project <project> [--base <ref>] [--head <ref>] [--json] [--place path:from-to] [--out spec.json] [--force] [--outside]
 node <plugin>/decide.mjs lint <spec.json> --project <project>
 node <plugin>/decide.mjs review <spec.json> --project <project> [--base <ref>] [--head <ref>]
 node <plugin>/decide.mjs wait <round> --live --project <project>

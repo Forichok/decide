@@ -1012,6 +1012,7 @@ test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tun
   assert.ok(size(input("swipe")) <= 7000 + 1000, `swipe inputSchema ${size(input("swipe"))} bytes`);
   assert.ok(size(input("ask")) >= size(specSchema()), "the whole input schema holds the spec schema, $defs and all");
   const whole = size({ result: { tools } });
+  // Outline adds about 1,400 bytes for preparation parameters and description.
   // 37,000 before the review tool; review (its schema, its description, the chapter lines) and lint's base/head add about 4,200; a chapter's focus and skim about 400 more.
   assert.ok(whole <= 46_000, `tools/list ${whole} bytes: pinned near the size after Task 13's deck lines plus the review tool, far under 2.1.1's 11,281 plus the 2.1 ask schema growth`);
 });

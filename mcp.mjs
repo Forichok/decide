@@ -32,7 +32,7 @@ async function callTool(name, args, signal) {
   if (!COMMANDS.some((c) => c.mcp && c.name === name)) return { result: { content: [{ type: "text", text: `Unknown tool ${name}` }], isError: true } };
   try {
     const out = await runCommand(name, args || {}, contextFor(args || {}, { signal }));
-    return { result: { content: out.content ?? [{ type: "text", text: out.text }] }, delivered: out.delivered };
+    return { result: { content: out.content ?? [{ type: "text", text: out.text }], ...(out.structuredContent ? { structuredContent: out.structuredContent } : {}) }, delivered: out.delivered };
   } catch (e) {
     const text = e instanceof UserError || e.user ? e.message : `decide failed: ${e.message}`;
     return { result: { content: [{ type: "text", text }], isError: true } };

@@ -29,6 +29,7 @@ import { checkState, normalizeReview } from "../lib/review/spec.mjs";
 import { uncollected } from "../lib/store/scan.mjs";
 import { asAgent, asPage, envOf, exitOf, hasGit, homeOf, pluginDir, scratchDir, spawnServer } from "./helpers.mjs";
 
+const missingTextWarning = 'key places have no `text`: after another commit they can point at other lines unnoticed; `outline` prints the text';
 const errorsOf = (issues) => issues.filter((i) => i.level === "error").map((i) => `${i.where}: ${i.message}`);
 const warnsOf = (issues) => issues.filter((i) => i.level === "warn").map((i) => `${i.where}: ${i.message}`);
 
@@ -329,7 +330,7 @@ test("the spec lint: key places and skim", () => {
   const chapter = (extra) => ({ id: "a", title: "T", summary: "S", hunks: ["a"], ...extra });
   const lint = (extra) => normalizeReview({ acceptance: { changed: "Nothing changes from outside." }, summary: "s", checks: [{ command: "x", exit: 0 }], chapters: [chapter(extra)] });
   const ok = lint({ focus: [{ at: "lib/a.mjs:10-30", note: "the guard" }, { at: " lib/b.mjs:7 ", note: "one line" }], skim: " generated " });
-  assert.deepEqual(ok.issues, []);
+  assert.deepEqual(ok.issues, [{ level: "warn", where: "focus", message: missingTextWarning }]);
   assert.deepEqual([ok.spec.chapters[0].focus, ok.spec.chapters[0].skim], [[{ at: "lib/a.mjs:10-30", note: "the guard" }, { at: "lib/b.mjs:7", note: "one line" }], "generated"]);
   assert.deepEqual(normalizeReview(ok.spec, { fields: "lenient" }).spec.chapters, ok.spec.chapters, "a spec read back from disk keeps its key places");
   assert.deepEqual(lint({ focus: { at: "lib/a.mjs:1-3", note: "one place, not in a list" } }).spec.chapters[0].focus.length, 1);
@@ -337,7 +338,7 @@ test("the spec lint: key places and skim", () => {
   // What the place is: one of three words, any case; another word is dropped with a warning.
   const kinds = lint({ focus: [{ at: "lib/a.mjs:1-3", note: "n", kind: "Risk" }, { at: "lib/a.mjs:5", note: "n", kind: "decision" }, { at: "lib/a.mjs:7", note: "n", kind: "scary" }] });
   assert.deepEqual(kinds.spec.chapters[0].focus.map((f) => f.kind), ["risk", "decision", undefined]);
-  assert.deepEqual(warnsOf(kinds.issues), ['chapters[0].focus[0]: say which check covers it, or write that nothing does', 'chapters[0].focus[1]: a decision place asks the owner a yes/no question: add `question`', 'chapters[0].focus[2]: kind is one of risk, decision, check, or left out; got "scary"']);
+  assert.deepEqual(warnsOf(kinds.issues), ['chapters[0].focus[0]: say which check covers it, or write that nothing does', 'chapters[0].focus[1]: a decision place asks the owner a yes/no question: add `question`', 'chapters[0].focus[2]: kind is one of risk, decision, check, or left out; got "scary"', "focus: " + missingTextWarning]);
 
   const bad = lint({ focus: ["lib/a.mjs:1-3", { at: "lib/a.mjs" }, { at: "lib/a.mjs:9-3" }, { at: "lib/a.mjs:0" }, { at: "lib/a.mjs:1-2", note: "n", why: "x" }] });
   assert.deepEqual(errorsOf(bad.issues).slice(0, 4), [
@@ -355,6 +356,7 @@ test("the spec lint: key places and skim", () => {
     "chapters[0].focus[5]: 101 lines is a file, not a key place: name the 10 to 30 lines that matter",
     'chapters[0]: "a" names 6 key places: more than 5 and the reviewer is back to reading everything',
     'chapters[0]: "a" is high risk and marked skim: a risky chapter is read, name its key places in focus',
+    "focus: " + missingTextWarning,
     'risks: chapter "a" marked high risk but no risk in the overview points there',
   ]);
   const three = normalizeReview({ acceptance: { changed: "Nothing changes from outside." }, summary: "s", checks: [{ command: "x", exit: 0 }], chapters: ["a", "b", "c"].map((id) => chapter({ id })) });
@@ -390,7 +392,7 @@ test("the spec the skill shows passes its own lint", () => {
   const skill = readFileSync(path.join(pluginDir, "skills/review/SKILL.md"), "utf8");
   const [, block] = skill.match(/```json\n([\s\S]*?)```/);
   const { spec, issues } = normalizeReview(JSON.parse(block));
-  assert.deepEqual(issues, []);
+  assert.deepEqual(issues, [{ level: "warn", where: "focus", message: missingTextWarning }]);
   assert.deepEqual(spec.chapters.map((c) => c.id), ["token", "mail"]);
   assert.deepEqual(spec.checks.map(checkState), ["ok", "failed", "missing"]);
 });
@@ -927,7 +929,7 @@ test("lint refuses lost focus and unexplained mechanical shares; owner pins rema
   // Owner decision of 2026-11-17: one chapter and all-risk key places are both valid choices.
   for (const focus of [[], [{ at: 'lib/a.mjs:3', note: 'The parser.', kind: 'risk', checkedBy: 'Nothing covers this yet.' }, { at: 'lib/a.mjs:50', note: 'The tail.', kind: 'risk', checkedBy: 'Nothing covers this yet.' }]]) {
     const result = await run({ ...one, chapters: [{ ...one.chapters[0], focus }] });
-    assert.deepEqual(result, { text: 'decide lint: ok', exit: 0 });
+    assert.deepEqual(result, { text: focus.length ? "decide lint: warn  focus: " + missingTextWarning + "\n" + "decide lint: ok" : 'decide lint: ok', exit: 0 });
   }
   for (const [at, message] of [['lib/a.mjs:50', /chapter "tail"; move the place or the hunk/], ['lib/a.mjs:9999', /this chapter has new-file lines 1-6/]]) {
     const spec = { ...REPO_SPEC, chapters: [{ ...REPO_SPEC.chapters[0], focus: [{ at, note: 'Check.' }] }, REPO_SPEC.chapters[1]] };

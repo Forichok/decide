@@ -455,7 +455,8 @@ puts the agent's answer on the page, `screenshot` captures a running page or
 a simulator, `history` searches past decisions, `supersede` marks one as no
 longer holding, `adr` writes one into the repo, `export` and `import`
 carry a round to someone else and back, `lint` checks a spec without opening a
-page, `patch` changes an open round, and `stop` stops the server. Agents without MCP can run the same
+page, `outline` lists a review snapshot with line numbers and a spec skeleton,
+`patch` changes an open round, and `stop` stops the server. Agents without MCP can run the same
 engine as a CLI (`node decide.mjs --help`).
 
 One server serves every project's page on 127.0.0.1:47474. It starts on
