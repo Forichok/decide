@@ -6,6 +6,7 @@ import { t } from "../i18n.js";
 import { md, mdInline } from "../md.js";
 import { reviewPieces } from "../net.js";
 import { mechanicalLine } from "./overview.js";
+import { paintOpenCount } from "./reviewers.js";
 import { renderPiece } from "./hunk.js";
 
 const fileList = (names, max = 3) => (names.length > max ? `${names.slice(0, max).join(", ")} ${t("cr.moreFiles", names.length - max)}` : names.join(", "));
@@ -65,10 +66,11 @@ export function createChapters(s) {
     }
   }
   // The fold opens by itself for the whole diff and for a piece somebody wrote on; the reader closes it.
+  const hasNotes = (id) => s.notesOf(id).length || s.draft?.hunk === id || s.findingsOf(id).length;
   function openOthers(key) {
     const o = others.get(key);
     if (!o) return;
-    if (s.full || o.ids.some((id) => s.notesOf(id).length || s.draft?.hunk === id)) o.fold.open = true;
+    if (s.full || o.ids.some(hasNotes)) o.fold.open = true;
   }
 
   // The space a chapter will take, so that loading one above the screen moves the page as little as it can.
@@ -87,6 +89,7 @@ export function createChapters(s) {
       "div.cr-ch-badges",
       {},
       c.risk !== "low" && h(`span.badge.cr-${c.risk}`, {}, t(`cr.risk.${c.risk}`)),
+      h("span.cr-open-findings", { hidden: true }),
       h("span.cr-files", {}, `${t("cr.pieces", stat.pieces)} · ${fileList(stat.names)} · +${stat.added} −${stat.removed}`),
     );
     const el = h(
@@ -122,6 +125,7 @@ export function createChapters(s) {
       body,
     );
     el.addEventListener("toggle", () => el.open && load(key));
+    el.open = s.full || stat.ids.some(hasNotes);
     return el;
   }
   const mech = s.spec.mechanical.map((m, i) => fold(`mech:${i}`, { title: mdInline(m.title), stat: s.rv.mechanical[i] }));
@@ -139,8 +143,10 @@ export function createChapters(s) {
     cards,
     // Read marks and everything said on the pieces already on screen.
     paint() {
+      const findings = s.openCounts();
       for (const [id, card] of cards) {
         const read = Object.hasOwn(s.rv.read, id);
+        paintOpenCount(card.badges.querySelector(".cr-open-findings"), findings.get(`ch:${id}`));
         card.el.classList.toggle("read", read);
         card.num.textContent = read ? "✓" : card.index + 1;
         card.read.textContent = read ? t("cr.readDone") : t("cr.readMark");
@@ -149,6 +155,15 @@ export function createChapters(s) {
       }
       for (const { el: pieceEl } of s.loaded.values()) pieceEl.paint();
       for (const key of others.keys()) openOthers(key);
+    },
+    openFindingGroups() {
+      for (const [key, g] of groups) {
+        if (!key.startsWith("ch:") && g.body.parentNode && g.body.parentNode.dataset.stop === key) {
+          const ids = key === "rest" ? s.rv.rest.ids : s.rv.mechanical[Number(key.slice(5))].ids;
+          if (ids.some(id => s.findingsOf(id).length)) g.body.parentNode.open = true;
+        }
+        openOthers(key);
+      }
     },
     paintPiece(id) {
       const hit = s.loaded.get(id);
@@ -163,8 +178,11 @@ export function createChapters(s) {
       }
 
       for (const { el: pieceEl } of s.loaded.values()) pieceEl.update();
-      for (const o of others.values()) o.fold.open = s.full || o.ids.some((id) => s.notesOf(id).length || s.draft?.hunk === id);
-      if (!s.full) for (const [key, g] of groups) if (!key.startsWith("ch:")) g.body.parentNode.open = false;
+      for (const o of others.values()) o.fold.open = s.full || o.ids.some(hasNotes);
+      if (!s.full) {
+        for (const [key, g] of groups) if (!key.startsWith("ch:")) g.body.parentNode.open = false;
+        this.openFindingGroups();
+      }
       return [...groups.values()].every((g) => g.state === "ready");
     },
     // Load every chapter above the destination before measuring its scroll position.
@@ -179,13 +197,13 @@ export function createChapters(s) {
       await load(`ch:${chapter}`);
       return cards.get(chapter)?.el.querySelector(`tr.cr-place[data-focus="${CSS.escape(`${chapter}:${k}`)}"]`) ?? null;
     },
-    async piece(id, key) {
+    async piece(id, key, { unfold = true } = {}) {
       await this.prepare(key);
       await this.show(key);
       const other = others.get(key);
       if (other?.ids.includes(id)) other.fold.open = true;
       const hit = s.loaded.get(id);
-      hit?.el.unfold();
+      if (unfold) hit?.el.unfold();
       return hit?.el;
     },
     // Opens the group a piece lives in (a folded one too) and resolves once it is on screen.

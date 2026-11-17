@@ -57,6 +57,7 @@ function fixtureRepo(dir) {
 }
 
 const SPEC = {
+  reviewers: { none: "This fixture opens without agents." },
   title: "The fixture change",
   summary: "Two lines of a.mjs are rewritten and a module is renamed.",
   risks: [{ level: "high", what: "line three is read by a parser", chapter: "top" }],
@@ -203,6 +204,7 @@ test("a review: overview, a chapter, a comment of each kind, a question, the ver
 // A change too long to read by line: the agent names the place to read, the page folds the rest, and
 // every folded line is one click away: by the gap, by the hunk, around it, the whole file, the whole diff.
 const GUIDE = {
+  reviewers: { none: "This fixture opens without agents." },
   title: "The guided change",
   summary: "A new module and one line of a.mjs.",
   chapters: [
@@ -322,6 +324,7 @@ test("a review with key places: the rest is folded and opens by the gap, the hun
 
 
 const TALL = {
+  reviewers: { none: "This fixture opens without agents." },
   title: "Tall review", summary: "Many chapters.",
   chapters: Array.from({ length: 9 }, (_, i) => ({ id: `c${i}`, title: `Chapter ${i}`, hunks: [`chapter-${i}/`], focus: [{ at: `chapter-${i}/file-0.mjs:30`, kind: "risk", note: `Risk ${i}` }] })),
 };
@@ -612,7 +615,7 @@ test('owner overview: decisions, risk checks, acceptance and persisted answers',
   const opened = await d.must('POST', '/api/rounds', { project: d.project, spec, mode: 'review', open: false });
   await page.goto(`${d.origin}/?lang=en#r=${opened.id}`);
   const overview = page.locator('#cr-overview');
-  await expect(overview.locator('h3')).toHaveText(['Decisions for you', 'Risks', 'How to check it yourself', 'What changed', 'Checks']);
+  await expect(overview.locator('h3')).toHaveText(['Decisions for you', 'Risks', 'Independent reviewers', 'How to check it yourself', 'What changed', 'Checks']);
   await expect(overview).toContainText('Checked by: Parser test covers the word.');
   await expect(overview.locator('.cr-overview-section > .cr-said')).toHaveCount(0);
   await expect(overview.locator('.cr-ch-head > .cr-said')).toHaveCount(1);
@@ -647,4 +650,120 @@ test('owner overview: decisions, risk checks, acceptance and persisted answers',
   await expect(overview.getByRole('button', { name: 'Use digit', exact: true })).toHaveAttribute('aria-pressed', 'false');
   await overview.getByRole('button', { name: 'Verdict', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'A note to the agent' })).toBeFocused();
+});
+
+for (const [colorScheme, lang, label] of [
+  ["light", "en", "Open findings: 1"],
+  ["dark", "ru", "Открытые замечания: 1"],
+]) test(`the chapter rail fits a finding count badge in the ${colorScheme} theme`, async ({ page }) => {
+  test.skip(!hasGit, "git is not installed");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ colorScheme });
+  const title = "Страница ревью";
+  const spec = {
+    ...SPEC,
+    chapters: SPEC.chapters.map(c => ({ ...c, title })),
+    reviewers: {
+      ran: [{ role: "correctness", model: "", summary: "The parser may reject the word.", verdict: "concerns" }],
+      findings: [{ id: "f1", role: "correctness", severity: "blocking", at: "lib/a.mjs:3", text: "Keep the digit." }],
+    },
+  };
+  const { id } = await d.must("POST", "/api/rounds", { project: d.project, spec, mode: "review", open: false });
+  await page.goto(`${d.origin}/?lang=${lang}#r=${id}`);
+  const rows = page.locator(".toc .cr-rail-item").filter({ hasText: title });
+  await expect(rows).toHaveCount(2);
+  const badge = rows.first().locator(".cr-open-findings");
+  await expect(rows.last().locator(".cr-open-findings")).toBeHidden();
+  await expect.soft(badge).toHaveText("1");
+  await expect.soft(badge).toHaveAccessibleName(label);
+  await expect.soft(badge).toHaveAttribute("title", label);
+  for (const row of [rows.last(), rows.first()]) {
+    const text = row.getByText(title, { exact: true });
+    await expect.poll(() => text.evaluate(el => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)))).toBe(1);
+  }
+});
+
+test("independent reviewer findings at their lines, decisions, and approval warnings", async ({ page }) => {
+  test.skip(!hasGit, "git is not installed");
+  const reviewers = {
+    ran: [{ role: "correctness", model: "sonnet", summary: "The parser may reject the word.", verdict: "concerns" }],
+    skipped: [{ role: "safety", model: "missing", why: "Model unavailable." }],
+    findings: [
+      { id: "f1", role: "correctness", severity: "blocking", at: "lib/a.mjs:3", line: "line three", text: "Keep the digit." },
+      { id: "f2", role: "correctness", severity: "blocking", at: "lib/a.mjs:50", text: "Keep the other digit." },
+      { id: "f3", role: "correctness", severity: "blocking", at: "notes.txt:3", text: "Check the new note." },
+      { id: "f4", role: "correctness", severity: "minor", at: "lib/a.mjs:30", line: "line three", text: "Check this outside line." },
+    ],
+  };
+  const { id } = await d.must("POST", "/api/rounds", { project: d.project, spec: { ...SPEC, reviewers }, mode: "review", open: false });
+  await page.goto(`${d.origin}/?lang=en#r=${id}`);
+  const overview = page.locator(".cr-reviewers");
+  await expect(overview).toContainText("Independent reviewers");
+  await expect(overview).toContainText("Bugs and regressions");
+  await expect(overview).toContainText("sonnet");
+  await expect(overview).toContainText("Model unavailable.");
+  await expect(overview).toContainText("lib/a.mjs:30, not in this diff");
+  await expect(overview).toContainText("3 blocking · 0 major · 1 minor");
+  await expect(overview).toContainText("The line text now appears at line 3");
+  await overview.getByRole("button", { name: "lib/a.mjs:3", exact: true }).click();
+  const f1 = page.locator('tr[data-key="new:3"] .cr-finding[data-finding="f1"]');
+  const f2 = page.locator('tr[data-key="new:50"] .cr-finding[data-finding="f2"]');
+  const rest = page.locator('details[data-stop="rest"]');
+  await expect(rest).toHaveAttribute("open", "");
+  await expect(page.locator("#cr-ch-top .cr-open-findings")).toHaveText("1 open finding");
+  await expect(f1).toBeFocused();
+  await expect(f1).toContainText("Open");
+  await page.getByRole("button", { name: "Hide reviewer findings" }).click();
+  await expect(f1).toBeHidden();
+  await page.reload();
+  await expect(f1).toBeHidden();
+  await page.getByRole("button", { name: "Show reviewer findings" }).click();
+  let releaseSave;
+  const saving = new Promise(resolve => { releaseSave = resolve; });
+  await page.route(`**/api/rounds/${id}/finding`, async route => {
+    await saving;
+    await route.continue();
+  }, { times: 1 });
+  try {
+    await f1.getByRole("button", { name: "Fix", exact: true }).click();
+    await expect(f1.getByRole("button", { name: "Dismiss", exact: true })).toBeDisabled();
+    await expect(overview.locator('[data-finding="f1"]').getByRole("button", { name: "Dismiss", exact: true })).toBeDisabled();
+  } finally { releaseSave(); }
+  await expect(f1).toContainText("To fix");
+  await f2.getByRole("button", { name: "Dismiss", exact: true }).click();
+  await f2.getByPlaceholder("Reason (optional)").fill("Out of scope");
+  await f2.getByRole("button", { name: "Dismiss", exact: true }).click();
+  await expect(f2).toContainText("Out of scope");
+  await page.reload();
+  await overview.getByRole("button", { name: "lib/a.mjs:3", exact: true }).click();
+  await expect(f1).toContainText("To fix");
+  await overview.getByRole("button", { name: "lib/a.mjs:50", exact: true }).click();
+  await expect(f2).toContainText("Dismissed");
+  await expect(page.locator("#cr-ch-top .cr-open-findings")).toBeHidden();
+  await expect(page.locator(".cr-bar .state small")).toContainText("1 to fix");
+  await page.locator('.cr-bar [data-verdict="approve"]').click();
+  const modal = page.locator(".cr-verdict");
+  await expect(modal.locator('[data-alert="reviewer-blocking"]')).toContainText("2 blocking");
+  await expect(modal.locator('[data-alert="reviewer-blocking"]')).toContainText("Line three");
+  await expect(modal.locator('[data-alert="reviewer-skipped"]')).toContainText("Security and data");
+  await modal.locator('.cr-seg [data-verdict="nits"]').click();
+  await expect(modal.locator('[data-alert="reviewer-blocking"]')).toBeVisible();
+  await modal.locator(".btn.primary").click();
+  await expect.poll(async () => (await d.round(id)).result?.verdict).toBe("nits");
+});
+
+test("the overview explains why a team did not run", async ({ page }) => {
+  test.skip(!hasGit, "git is not installed");
+  const none = await d.must("POST", "/api/rounds", { project: d.project, spec: { ...SPEC, reviewers: { none: "Sub-agents are unavailable." } }, mode: "review", open: false });
+  await page.goto(`${d.origin}/?lang=en#r=${none.id}`);
+  await expect(page.locator(".cr-reviewers")).toContainText("Sub-agents are unavailable.");
+  await page.locator('.cr-bar [data-verdict="approve"]').click();
+  await expect(page.locator('.cr-verdict [data-alert="reviewer-none"]')).toContainText("Sub-agents are unavailable.");
+  await page.locator('.cr-verdict .cr-seg [data-verdict="nits"]').click();
+  await expect(page.locator('.cr-verdict [data-alert="reviewer-none"]')).toBeVisible();
+
+  const { reviewers, ...spec } = SPEC;
+  const small = await d.must("POST", "/api/rounds", { project: d.project, spec: { ...spec, risks: [], chapters: spec.chapters.map(c => ({ ...c, risk: "low" })) }, mode: "review", open: false });
+  await page.goto(`${d.origin}/?lang=en#r=${small.id}`);
+  await expect(page.locator(".cr-reviewers")).toContainText("No independent reviewers ran: not required for this change");
 });

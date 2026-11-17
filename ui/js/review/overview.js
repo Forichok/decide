@@ -7,6 +7,7 @@ import { t } from "../i18n.js";
 import { md, mdInline } from "../md.js";
 import { coverageCounts } from "./coverage.js";
 import { decisionsOf, renderDecision } from "./decisions.js";
+import { renderReviewers } from "./reviewers.js";
 import { collectRisks } from "./risks.js";
 
 export const checkState = (c) => (Number.isInteger(c.exit) ? (c.exit === 0 ? "ok" : "failed") : "missing");
@@ -66,14 +67,13 @@ export function renderOverview(s) {
       h("td.dur", {}, seconds(c.seconds)),
     );
   });
-  const section = (key, title, body) => h("section.cr-overview-section", { dataset: { section: key } }, h("h3.cr-sub", {}, title), body);
+  const section = (key, title, body) => h(`section.cr-overview-section${key === "reviewers" ? ".cr-reviewers" : ""}`, { dataset: { section: key } }, h("h3.cr-sub", {}, title), body);
   const decisions = decisionsOf(s);
   const acceptance = spec.acceptance;
-  // Wave 5 can fill conclusion without moving the surrounding sections.
   const sections = [
     decisions.length && section("decisions", t("cr.decisions"), decisions.map((d) => h("div.cr-overview-decision", {}, renderDecision(s, d), h("button.link-btn", { type: "button", onclick: () => s.goPlace(d.chapter, d.index) }, t("cr.goPlace"))))),
     section("risks", t("cr.risks"), risks.length ? h("ul.cr-risks", {}, risks) : h("p.cr-none", {}, t("cr.noRisks"))),
-    null, // reviewers' conclusion
+    section("reviewers", t("cr.reviewers.title"), renderReviewers(s)),
     acceptance && section("acceptance", t("cr.acceptance"), [
       acceptance.changed && h("p", { html: mdInline(acceptance.changed) }),
       acceptance.where && h("p", {}, t("cr.acceptance.where"), " ", h("span", { html: mdInline(acceptance.where) })),
@@ -114,7 +114,7 @@ export function renderRail(s) {
     {},
     h("h2", {}, t("cr.rail")),
     item("overview", "≡", t("cr.overview"), null, () => s.go("overview")),
-    spec.chapters.map((c, i) => item(`ch:${c.id}`, i + 1, mdInline(c.title), h("span.tail", {}, h("span.c"), h(`span.cr-dot.${c.risk}`)), () => s.go(`ch:${c.id}`))),
+    spec.chapters.map((c, i) => item(`ch:${c.id}`, i + 1, mdInline(c.title), h("span.tail", {}, h("span.c"), h("span.cr-open-findings", { hidden: true, role: "img" }), h(`span.cr-dot.${c.risk}`)), () => s.go(`ch:${c.id}`))),
     folds > 0 && h("div.sep"),
     spec.mechanical.length > 0 && item("mech", "⋯", t("cr.railMech", rv.mechanical.reduce((n, m) => n + m.pieces, 0)), null, () => s.goFolds()),
     rv.rest.pieces > 0 && item("rest", "?", t("cr.railRest", rv.rest.pieces), null, () => s.goFolds("rest")),
@@ -127,6 +127,7 @@ export function renderRail(s) {
     el,
     paint() {
       const said = s.byChapter();
+      const findings = s.openCounts();
       const c = coverageCounts(s);
       progress.replaceChildren(
         h("span", {}, t("cr.coverage.viewed", spec.chapters.filter((c) => Object.hasOwn(s.rv.read, c.id)).length, spec.chapters.length)),
@@ -143,6 +144,12 @@ export function renderRail(s) {
         const read = Object.hasOwn(s.rv.read, id);
         node.classList.toggle("read", read);
         node.querySelector(".n").textContent = read ? "✓" : i + 1;
+        const badge = node.querySelector(".cr-open-findings");
+        const open = findings.get(stop);
+        badge.hidden = !open;
+        badge.textContent = open || "";
+        badge.title = open ? t("cr.reviewers.openCountLabel", open) : "";
+        badge.setAttribute("aria-label", badge.title);
         const n = said.get(id) || 0;
         node.querySelector(".c").textContent = n || "";
         node.querySelector(".c").title = n ? t("cr.comments", n) : "";

@@ -7,7 +7,8 @@ description: Show the user a code review of a branch on a local page: your overv
 
 You open a page with the change you made (or any branch against its base).
 The user reads your overview first: decisions for them, risks and what checks
-cover them, how to check the change, what changed, and the checks you ran. Then they walk the diff, which you
+cover them, the independent reviewers’ findings, how to check the change,
+what changed, and the checks you ran. Then they walk the diff, which you
 have cut into chapters by meaning, not by file. On any line they can leave a
 comment of two kinds (fix, nit) or ask you a question. At the end they give
 one of three verdicts: approve, approve with nits, return.
@@ -28,11 +29,12 @@ with `explain {project, round, askId: <message id>, text}` and **omit
 question**. Text accepts markdown and every media kind a card accepts.
 Omit `askId` too when you want to write first.
 
-If the user asks you to redo something, do it at once in the working
-tree, then say what changed in the dialog. For a complaint or doubt,
-propose a solution and ask whether to settle it in the dialog or as a
-card/question in the round. Then do what they pick. A reply can offer
-`choice: {text: "Where?", options: ["Here in the dialog", "As a card"]}`;
+If the user asks you to redo something, do it at once in the working tree.
+Then say in the dialog what you changed and that it will be in the next
+review round: the open page keeps its commit snapshot, so never say that it
+changed. For a complaint or doubt, propose a solution in the dialog. A reply
+can offer two buttons,
+`choice: {text: "Take the cap out?", options: ["Take it out", "Keep it"]}`;
 the pick comes through `wait` as a new message.
 
 Messages stay queued when no agent listens. The final answers JSON has
@@ -41,10 +43,6 @@ a reply as `NOT answered`. Item-level questions stay under their own item.
 With CLI `--live`, a message prints `DECIDE message:` and exits with the
 same code as a question. Without `--live`, it comes with the final result.
 Exported offline pages have no conversation button.
-
-In a review, the page keeps its commit snapshot. Make explicitly requested
-changes in the working tree and say what you did and that it will be in
-the next review round. Never say that the open review page changed.
 
 ## Arguments
 
@@ -69,9 +67,10 @@ Always pass `project`, the absolute path of the project you work in.
 2. Run `outline {project}` (pass `base` and `head` when needed). Read its
    pieces and regroup the skeleton by meaning: a chapter is an idea, not a
    directory. Take `at` and `text` for key places from
-   `outline {project, place: "path:from-to"}`; do not type line text by hand.
+   `outline {project, place: "path:from-to"}`; copy the line text it prints.
+   Before you write the spec, run the reviewer team when required.
 3. `lint {project, spec}` lays the spec on the diff without opening anything.
-   Fix what it names: a reference that matches no hunk, hunks in no chapter.
+   Correct the chapter references and read the reviewer requirement it prints.
 4. `review {project, spec}` opens the page and returns the round id, the URL
    and the lint warnings. Tell the user in one line that the review is open,
    with the URL.
@@ -87,11 +86,67 @@ Always pass `project`, the absolute path of the project you work in.
 6. Act on the verdict (below).
 
 **Don't end your turn while the review is open.** Wait for the verdict
-before changing code unless the user explicitly requests a change in the
-round conversation. Their page keeps its original snapshot; requested
-changes belong to the next review round. If you must stop, tell
+before changing code, unless the user asks for a change in the round
+conversation (above). If you must stop, tell
 the user to message you when they are done, and on that message call
 `wait {project, round, timeoutSec: 5}` first.
+
+## The reviewer team
+
+After committing and before writing the spec, run `rules {project, json: true}`
+and read the effective `settings.reviewers.value`. In `always` mode every
+review needs a team. In `request` mode run one when the user asks. In `large`
+mode a team is required at the configured number of added plus removed lines
+(200 by default), or when there is a risk in `risks[]`, a high-risk chapter,
+a risk key place, or a path that matches a money, auth, migrations or security
+rule. The path rules match whole words in paths, ignoring case and using
+`/`, `.`, `_` and `-` as separators. They check both names of a renamed file.
+
+| Rule | Words |
+| --- | --- |
+| Money | `payment`, `payments`, `billing`, `checkout`, `stripe`, `money` |
+| Auth | `auth`, `oauth`, `oauth2`, `authentication`, `authorization`, `authn`, `authz` |
+| Migrations | `migration`, `migrations` |
+| Security | `security`, `secret`, `secrets`, `permission`, `permissions`, `crypto` |
+
+`outline` reports the line and path rules and gives you the base and head
+commits. Include any risks you plan to name. `lint` confirms the requirement
+once it has the spec. Use the same commits for reviewers, lint and review.
+
+Start one fresh agent per configured role in your own system, in parallel
+where available. In Claude Code use Task/Agent with a fresh context and the
+role's model when set. In Codex use a separate `codex exec` with a read-only
+sandbox or a sub-agent with history forking disabled. An empty model uses
+that system's default. Give each agent only this prompt, filled in for its role.
+
+```text
+Repository: <absolute repository path>
+Base commit: <base SHA>
+Head commit: <head SHA>
+Brief: <role brief from settings>
+
+Review the committed diff between these two SHAs.
+Read-only: change nothing, run nothing destructive.
+Return one JSON object with summary (one or two sentences), verdict
+(clean, concerns or blocking), and findings (an array, empty if clean).
+Each finding has severity (blocking, major or minor), text, and why.
+Use at: "path:line" or "path:from-to" for lines of the new file and include
+line: the trimmed text of the first line at that location. Use at: "path"
+for a whole file. Omit at and line for a finding about the whole change.
+```
+
+Copy each reviewer's summary and verdict into `reviewers.ran` with its role
+and the model you started. Copy their findings as written, adding the role
+and dropping only exact duplicates. The user decides on each one, so don't
+fix them before the verdict: the commit on the page must be the one the
+reviewers read. If you disagree with a finding, say why in the chapter's
+`watch` or in your overview.
+
+If a role's model cannot start, record the requested model and the reason in
+`reviewers.skipped`. Don't run the role on another model instead: the user
+chose that one. If none can run, set `reviewers.none` to a sentence explaining why. The page
+shows that reason. For a required team, an empty `ran` needs `none` even when
+you listed the skipped roles.
 
 ## The spec
 
@@ -113,6 +168,18 @@ the user to message you when they are done, and on that message call
     { "command": "npx playwright test e2e/signin.spec.mjs", "exit": 1, "seconds": 73, "note": "the resend case fails, see the chapter on mail" },
     { "command": "npm run lint", "note": "not run: no linter in this repo yet" }
   ],
+  "reviewers": {
+    "ran": [
+      { "role": "correctness", "model": "", "summary": "Two requests can both read the token before it is deleted.", "verdict": "concerns" },
+      { "role": "tests", "model": "", "summary": "The tests cover expiry and reusing the link after sign-in.", "verdict": "clean" }
+    ],
+    "skipped": [
+      { "role": "safety", "model": "configured-model", "why": "That model is unavailable in this system." }
+    ],
+    "findings": [
+      { "id": "f1", "role": "correctness", "severity": "blocking", "at": "lib/auth/token.mjs:41", "line": "const row = await tokens.find(hash);", "text": "Read and delete are separate statements.", "why": "Two requests can read the same token before either deletes it." }
+    ]
+  },
   "chapters": [
     {
       "id": "token",
@@ -148,6 +215,7 @@ the user to message you when they are done, and on that message call
 | `risks[]`              | `{level, what, why, chapter, checkedBy}`. `checkedBy` names the check that covers the risk, or says nothing does. `level` is `high`, `medium` or `low`. `chapter` is a chapter id: the risk on the page jumps there. |
 | `acceptance` | `{changed, where, steps, expect}`. All optional; `steps` is a list of strings. Say what changed for the user and how to check it. |
 | `checks[]`             | `{command, exit, seconds, note}`. Leave `exit` out for a check you did not run; the page shows it as not run. |
+| `reviewers` | Who ran, who was skipped, and what they found. See the fields below. |
 | `chapters[].id`        | Short, unique, a word (`token`, not `h3`: those are the hunks' own ids).                                   |
 | `chapters[].summary`   | What this part does and why. Two or three sentences.                                                       |
 | `chapters[].watch`     | The line or the decision you are least sure of. The user reads it before the diff.                         |
@@ -161,6 +229,34 @@ the user to message you when they are done, and on that message call
 | `chapters[].skim`      | One sentence on why the chapter needs no reading line by line. Not for a high-risk chapter.                |
 | `mechanicalWhy`        | Why mechanical groups hold more than one third of all added and removed lines. One or two sentences; required above that share. |
 | `mechanical[]`         | `{title, hunks}`: one folded line on the page with a count.                                                |
+
+<!-- registry:reviewers -->
+
+| Field | Meaning |
+| --- | --- |
+| `reviewers.ran` | The reviewers who ran. |
+| `reviewers.skipped` | Roles that could not start. |
+| `reviewers.findings` | Findings as the reviewers wrote them. |
+| `reviewers.none` | Why no team could run. Use only when ran is empty. |
+| `ran[].role` | Role id from the settings, or another word. |
+| `ran[].model` | Model as started or requested. An empty string means the agent default. |
+| `ran[].summary` | The reviewer's own conclusion, in one or two sentences. |
+| `ran[].verdict` | The reviewer's verdict. |
+| `skipped[].role` | Role id from the settings, or another word. |
+| `skipped[].model` | Model as started or requested. An empty string means the agent default. |
+| `skipped[].why` | Why the role could not run. |
+| `findings[].id` | Unique in the review. The server assigns an id when absent. |
+| `findings[].role` | Role id from the settings, or another word. |
+| `findings[].severity` | How serious the finding is. |
+| `findings[].at` | A path with optional new-file lines, or omit for a finding about the whole change. |
+| `findings[].line` | Trimmed text of the first line at at. Lint warns if it moved. |
+| `findings[].text` | The finding in the reviewer's words. |
+| `findings[].why` | Why it matters, in the reviewer's words. |
+
+<!-- /registry:reviewers -->
+
+A finding outside the diff stays in the overview. Lint warns about that or a
+moved anchor. When you leave out a finding id, the server assigns one.
 
 ### Naming hunks
 
@@ -236,7 +332,13 @@ hunk takes a comment; the file's lines outside the change do not.
 
 So don't choose places to make the change look smaller. If the risky line is
 line 3 of a 200-line file, that line is the place. A place must lie inside
-the chapter's own hunks: lint refuses a place that touches none of them. A place that extends beyond them stays, with a warning naming the lines shown.
+the chapter's own hunks: lint refuses a place that touches none of them. A
+place that extends beyond them stays, with a warning naming the lines shown.
+
+Chapter marks mean "Viewed". Piece coverage records which changes reached the
+viewport with their changed lines unfolded. Neither mark claims the user read
+or understood the code. Approvals warn about pieces opened only in part or
+not opened, and the verdict includes those counts and files.
 
 ## What counts as mechanical
 
@@ -258,11 +360,6 @@ removed lines, give the reason in `mechanicalWhy`. Lint refuses the review
 without it. With a reason, lint still warns about the share. The page labels
 the share and reason as the agent's account. Move edits that change behaviour
 into chapters rather than using this field to excuse them.
-
-Chapter marks mean "Viewed". Piece coverage records which changes reached the
-viewport with their changed lines unfolded. Neither mark claims the user read
-or understood the code. Approvals warn about pieces opened only in part or
-not opened, and the verdict includes those counts and files.
 
 ## Writing the overview
 
@@ -309,6 +406,12 @@ links to that dialog with the note focused.
 | Approved with nits  | Fix the nits or say why not. No new review is needed.                                                  |
 | Approved            | Follow the decision answers below.                                                                                        |
 
+For any verdict, fix the items under "To fix", including reviewer findings
+with ids such as `[f1]`. Use your judgment on "Reviewer findings left open"
+and tell the user what you did with each. Leave the entries under "Dismissed
+by the owner" alone. The answers JSON records these choices in
+`reviewers.findings[].decision`, including a dismissal reason when given.
+
 Read the result's `decisions` before acting on any verdict. Each entry gives
 `chapter`, `at` (file:lines), `question`, `answer` (`yes`, `no` or `null`), and
 `label` (the chosen label, or `null`). The digest puts these before "To fix".
@@ -322,8 +425,8 @@ nothing: that stays under the repository's own rules, and you ask as you
 would have without the review.
 
 The full result is in the JSON that `wait` names: the verdict, the note, the
-snapshot head SHA and ref, the range of commits, and every comment with its file, line, side and the code on
-that line. An approval covers only that snapshot commit. If the branch has
+snapshot head SHA and ref, the range of commits, and every comment with its
+file, line, side and the code on that line. An approval covers only that snapshot commit. If the branch has
 moved, the verdict names both commits.
 
 `Full JSON:` points to the round's own `answers.json`, which later rounds do

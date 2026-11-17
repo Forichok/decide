@@ -115,6 +115,13 @@ the result.
    with text, a screenshot, a diagram or code.
 4. Press Done. The tab closes, and the agent gets your answers and carries on.
 
+## Code review
+
+Ask your agent for `/decide:review` to read a committed change by chapter, leave
+line comments and give a verdict. On large or risky changes, independent
+reviewers run before the page opens. Change when they run and who reviews
+in [Settings](#settings).
+
 ## Settings
 
 Open the gear next to the theme button on any page. Back returns to the round

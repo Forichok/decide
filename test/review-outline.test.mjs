@@ -86,7 +86,9 @@ test("outline lists the snapshot pieces, exact anchors and a lintable starting s
   const result = cli(dir, "--base", base, "--json", "--place", "lib/long.mjs:3-5");
   assert.equal(result.status, 0, result.stderr);
   const out = JSON.parse(result.stdout);
-  assert.equal(out.reviewers, null);
+  assert.equal(out.reviewers.required, true);
+  assert.match(out.reviewers.reason, /the threshold is 200/);
+  assert.ok(out.reviewers.roles.some(r => r.id === "correctness" && r.brief && r.model === ""));
   assert.equal(out.snapshot.commits[0].subject, "pieces");
   assert.equal(out.snapshot.commits[0].sha.length, 7);
   assert.equal(out.pieces.length, 6);
@@ -102,6 +104,7 @@ test("outline lists the snapshot pieces, exact anchors and a lintable starting s
   assert.deepEqual((await lintReview(out.skeleton, { top: dir, base })).filter(i => i.level === "error"), []);
   const human = cli(dir, "--base", base);
   assert.equal(human.status, 0, human.stderr);
+  assert.match(human.stdout, /Risks named in the spec can also require a team/);
   assert.match(human.stdout, /regroup by meaning: a chapter is an idea, not a directory/);
   for (const p of out.pieces) assert.ok(human.stdout.includes(p.id + " "));
   assert.match(human.stdout, /--json/);
@@ -189,7 +192,7 @@ test("text caps excerpts while listing every piece", () => {
     newStart: 1, newLines: 1, oldStart: 0, oldLines: 0, added: 1, removed: 0,
     excerpt: [{ at: `file${i}.mjs:1`, side: "new", text: "excerpt-sentinel" }],
   }));
-  const text = outlineText({ snapshot: { baseRef: "main", headRef: "HEAD", base: "a".repeat(40),
+  const text = outlineText({ reviewers: { required: false, reason: "no risk named", roles: [] }, snapshot: { baseRef: "main", headRef: "HEAD", base: "a".repeat(40),
     head: "b".repeat(40), stats: { files: 105, added: 105, removed: 0 }, commits: [] },
     pieces, skeleton: { title: "", summary: "", chapters: [] } });
   assert.equal((text.match(/excerpt-sentinel/g) || []).length, 100);

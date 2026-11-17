@@ -22,8 +22,9 @@ import path from "node:path";
 import test from "node:test";
 import { checkPath, checkRef, checkSnapshotPath, fileAt, resolveCommit } from "../lib/git.mjs";
 import { assign, isTestFile, piecesOf, refMatcher } from "../lib/review/chapters.mjs";
-import { formatReviewResult, reviewResult } from "../lib/review/digest.mjs";
+import { formatReviewResult, reviewDigest, reviewResult } from "../lib/review/digest.mjs";
 import { parsePatch, patchStats, unquote } from "../lib/review/patch.mjs";
+import { reviewerIssues } from "../lib/review/reviewers.mjs";
 import { buildReview, groupPieces, lineOf, loadSnapshot, reviewIndex, saveSnapshot, takeSnapshot } from "../lib/review/snapshot.mjs";
 import { checkState, normalizeReview } from "../lib/review/spec.mjs";
 import { uncollected } from "../lib/store/scan.mjs";
@@ -399,6 +400,19 @@ test("the spec the skill shows passes its own lint", () => {
 
 // ---------- the digest ----------
 
+for (const { name, requirement, reviewers, expected } of [
+  { name: "the snapshot did not require a team", requirement: { required: false, reason: "9 changed lines; no risk named" }, expected: "Reviewers: not required (9 changed lines; no risk named)" },
+  { name: "the round predates the reviewer team" },
+  { name: "the team was required but unavailable", requirement: { required: true, reason: "risks[] names a risk" }, reviewers: { none: "Sub-agents are unavailable." }, expected: "Reviewers: none (Sub-agents are unavailable.)" },
+]) test(`the digest reports the reviewer team when ${name}`, () => {
+  const { spec } = normalizeReview({ ...SPEC, ...(reviewers && { reviewers }) });
+  const result = reviewResult({ base: {}, spec, meta: requirement ? { reviewers: requirement } : {}, placed: { where: {}, sorted: 0, total: 0 }, review: { read: {}, comments: [] }, dialog: [] });
+  const teamLine = (digest) => digest.split("\n").find(line => line.startsWith("Reviewers:"));
+  assert.equal(teamLine(result.digest), expected);
+  // Delivery may rebuild the digest from the stored result when the branch head moves.
+  assert.equal(teamLine(reviewDigest(spec, JSON.parse(JSON.stringify(result)))), expected);
+});
+
 test("the digest marks a commented line by what it is in the diff, not by its side", () => {
   const { spec } = normalizeReview(SPEC);
   const built = buildReview(spec, PATCH);
@@ -536,6 +550,7 @@ async function reviewRepo(context) {
 }
 
 const REPO_SPEC = {
+  reviewers: { none: "This fixture opens without agents." },
   title: "The fixture change",
   summary: "Two lines of a.mjs are rewritten and a module is renamed.",
   risks: [{ level: "high", what: "line three is read by a parser", chapter: "top" }],
@@ -832,6 +847,11 @@ test("a review survives a server restart: the snapshot, the comments, the read m
   const stored = await (await fetch(`${at(first.port)}/api/rounds/${id}`)).json();
   const specFile = path.join(stored.dataDir, "rounds", id, "spec.json");
   const previous = JSON.parse(readFileSync(specFile, "utf8"));
+  delete previous.reviewers;
+  const metaFile = path.join(path.dirname(specFile), "review", "snapshot.json");
+  const previousMeta = JSON.parse(readFileSync(metaFile, "utf8"));
+  delete previousMeta.reviewers;
+  writeFileSync(metaFile, JSON.stringify(previousMeta));
   previous.chapters[0].focus = [{ at: "lib/a.mjs:9999", note: "A place dropped by the previous version." }];
   writeFileSync(specFile, JSON.stringify(previous));
   first.child.kill();
@@ -843,6 +863,8 @@ test("a review survives a server restart: the snapshot, the comments, the read m
   const second = await spawnServer(context, home);
   const back = await (await fetch(`${at(second.port)}/api/rounds/${id}`)).json();
   assert.deepEqual([back.mode, back.status, back.review.total, back.review.snapshot.head], ["review", "pending", 7, repo.head]);
+  assert.deepEqual(back.review.reviewers.findings, []);
+  assert.equal(back.review.reviewers.requirement, null);
   // "Newer exists": the branch has a commit the snapshot does not.
   assert.deepEqual(back.review.newer, { head: repo.git("rev-parse", "HEAD") });
   // Every group names its pieces, so a comment is counted for its chapter before the chapter's lines are loaded.
@@ -923,13 +945,22 @@ test("review result addresses retain both verdicts; wait checks branch movement 
 
 test("lint refuses lost focus and unexplained mechanical shares; owner pins remain lint: ok", { skip: !hasGit }, async (context) => {
   const repo = await reviewRepo(context);
-  const lint = (await import('../lib/commands/lint.mjs')).default;
-  const run = (spec) => lint.run({ spec }, { project: { top: repo.dir } });
+  const specPath = path.join(repo.dir, "lint.json");
+  const run = (spec) => {
+    writeFileSync(specPath, JSON.stringify(spec));
+    const { status, stdout } = spawnSync(process.execPath, [path.join(pluginDir, "decide.mjs"), "lint", specPath], {
+      cwd: repo.dir, env: envOf(repo.dir), encoding: "utf8",
+    });
+    return { exit: status, text: stdout.trim() };
+  };
   const one = { acceptance: { changed: 'Nothing changes from outside.' }, title: 'All changes', summary: 'The fixture change.', checks: [{ command: 'node --test', exit: 0 }], chapters: [{ id: 'all', title: 'Everything', summary: 'The fixture change.', hunks: ['**'] }] };
   // Owner decision of 2026-11-17: one chapter and all-risk key places are both valid choices.
   for (const focus of [[], [{ at: 'lib/a.mjs:3', note: 'The parser.', kind: 'risk', checkedBy: 'Nothing covers this yet.' }, { at: 'lib/a.mjs:50', note: 'The tail.', kind: 'risk', checkedBy: 'Nothing covers this yet.' }]]) {
-    const result = await run({ ...one, chapters: [{ ...one.chapters[0], focus }] });
-    assert.deepEqual(result, { text: focus.length ? "decide lint: warn  focus: " + missingTextWarning + "\n" + "decide lint: ok" : 'decide lint: ok', exit: 0 });
+    const result = run({ ...one, chapters: [{ ...one.chapters[0], focus }], ...(focus.length ? { reviewers: REPO_SPEC.reviewers } : {}) });
+    assert.equal(result.exit, 0);
+    assert.match(result.text, /decide lint: ok$/);
+    assert.match(result.text, focus.length ? /Reviewers: required.*risk key place/ : /Reviewers: not required/);
+    assert.equal(result.text.includes(missingTextWarning), Boolean(focus.length));
   }
   for (const [at, message] of [['lib/a.mjs:50', /chapter "tail"; move the place or the hunk/], ['lib/a.mjs:9999', /this chapter has new-file lines 1-6/]]) {
     const spec = { ...REPO_SPEC, chapters: [{ ...REPO_SPEC.chapters[0], focus: [{ at, note: 'Check.' }] }, REPO_SPEC.chapters[1]] };
@@ -984,4 +1015,167 @@ test('decision action persists across server restart, overwrites and clears, and
   const saved = JSON.parse(readFileSync(path.join(back.dataDir, 'rounds', id, 'answers.json'), 'utf8'));
   assert.deepEqual(saved.decisions, result.decisions);
   assert.equal((await post(second.port, answer)).status, 409);
+});
+
+const TEAM = {
+  ran: [{ role: "correctness", model: "sonnet", summary: "Three places to check.", verdict: "concerns" }],
+  skipped: [{ role: "safety", model: "gpt-9", why: "model not available" }],
+  findings: [
+    { id: "f1", role: "correctness", severity: "blocking", at: "lib/a.mjs:3", line: "line three", text: "Keep the digit." },
+    { role: "correctness", severity: "major", at: "lib/a.mjs:50", line: "line three", text: "Check the other line." },
+    { id: "f2", role: "correctness", severity: "minor", at: "lib/a.mjs:29", text: "Check the untouched code." },
+  ],
+};
+
+for (const { name, reviewers, errors, warnings } of [
+  { name: "the gate refused the round", reviewers: { ran: [] }, errors: 1, warnings: [] },
+  { name: "the spec says none ran", reviewers: { none: "Sub-agents are unavailable." }, errors: 0, warnings: [] },
+  { name: "part of the team ran", reviewers: TEAM, errors: 0, warnings: ['reviewers: role "tests" is missing from ran and skipped'] },
+]) test(`lint handles missing reviewer roles when ${name}`, () => {
+  const requirement = {
+    required: true, reason: "risks[] names a risk",
+    roles: ["correctness", "safety", "tests"].map(id => ({ id, brief: `Review ${id}.` })),
+  };
+  const issues = reviewerIssues({ reviewers }, requirement);
+  assert.equal(errorsOf(issues).length, errors);
+  assert.deepEqual(warnsOf(issues), warnings);
+});
+
+test("reviewer requirement uses changed lines, named risks, both paths of renames and project settings", async () => {
+  const { changedPaths, reviewerRequirement } = await import("../lib/review/reviewers.mjs");
+  const { effective } = await import("../lib/settings.mjs");
+  const defaults = effective().reviewers.value;
+  const stats = { added: 100, removed: 99 };
+  const check = (over = {}) => reviewerRequirement({ stats, paths: [], settings: defaults, ...over });
+  assert.equal(check().required, false);
+  assert.match(check({ stats: { ...stats, removed: 100 } }).reason, /200 changed lines, the threshold is 200/);
+  for (const [spec, rule] of [
+    [{ risks: [{}] }, /risks\[\]/],
+    [{ chapters: [{ id: "a", risk: "high" }] }, /high risk/],
+    [{ chapters: [{ id: "a", focus: [{ kind: "risk" }] }] }, /key place/],
+  ]) {
+    assert.equal(check({ spec }).required, true);
+    assert.match(check({ spec }).reason, rule);
+  }
+  for (const [file, rule] of [["server/payments.js", "money"], ["lib/oauth/token.js", "auth"], ["db/migrations/1.sql", "migrations"], ["src/security.ts", "security"]]) {
+    const result = check({ paths: ["lib/utils.js", file] });
+    assert.equal(result.required, true, file);
+    assert.ok(result.reason.includes(file) && result.reason.includes(rule), result.reason);
+  }
+  assert.match(check({ paths: changedPaths([{ path: "lib/util.mjs", oldPath: "lib/Auth.mjs" }]) }).reason, /auth path rule matched "lib\/Auth.mjs"/);
+  assert.equal(check({ paths: ["docs/author.md", "lib/paymentory.js", "lib/not-securityish.js"] }).required, false);
+  assert.equal(check({ settings: { ...defaults, mode: "always" } }).required, true);
+  assert.equal(check({ settings: { ...defaults, mode: "request" }, paths: ["auth.js"], spec: { risks: [{}] } }).required, false);
+  const selected = effective({ reviewers: { ...defaults, mode: "request" } }, { reviewers: { ...defaults, lines: 199 } }).reviewers;
+  assert.equal(selected.from, "project");
+  assert.match(check({ settings: selected.value }).reason, /199 changed lines, the threshold is 199/);
+});
+
+test("reviewer spec lint keeps off-diff findings and points out a moved anchor", () => {
+  const { spec, issues } = normalizeReview({ ...REPO_SPEC, reviewers: TEAM });
+  assert.deepEqual(errorsOf(issues), []);
+  assert.deepEqual(spec.reviewers?.findings.map(f => f.id), ["f1", "f3", "f2"]);
+  const built = buildReview(spec, PATCH);
+  assert.deepEqual(built.findings[0].anchor, { hunk: "h1", line: 3 });
+  assert.ok(built.findings[2].outside);
+  assert.match(warnsOf(built.issues).join("\n"), /about lib\/a.mjs:29, not in this diff/);
+  const anchored = normalizeReview({ ...REPO_SPEC, reviewers: { ...TEAM, findings: [{ ...TEAM.findings[0], at: "lib/a.mjs:3", line: "line two" }] } }).spec;
+  const moved = buildReview(anchored, PATCH);
+  assert.match(warnsOf(moved.issues).join("\n"), /line 2/);
+  assert.deepEqual(moved.findings[0].anchorMismatch, { movedTo: 2 });
+  assert.equal(moved.findings[0].anchor.line, 3);
+  const fileOnly = normalizeReview({ ...REPO_SPEC, reviewers: { findings: [{ ...TEAM.findings[0], at: "lib/untouched.mjs", line: undefined }] } }).spec;
+  assert.equal(buildReview(fileOnly, PATCH).findings[0].outside, true);
+
+  for (const reviewers of [
+    [], { ran: {} }, { skipped: [null] }, { none: 42 }, { findings: [{ ...TEAM.findings[0], extra: true }] },
+    { ...TEAM, none: "Agents unavailable." }, { ran: [{ ...TEAM.ran[0], verdict: "maybe" }] },
+    { findings: [{ ...TEAM.findings[0], severity: "low" }] },
+    { findings: [{ ...TEAM.findings[0], at: "lib/a.mjs:7-3" }] },
+    { findings: [TEAM.findings[0], TEAM.findings[0]] },
+  ]) assert.ok(errorsOf(normalizeReview({ ...REPO_SPEC, reviewers }).issues).some(s => s.includes("reviewers")), JSON.stringify(reviewers));
+  const clean = normalizeReview({ ...REPO_SPEC, reviewers: { ...TEAM, ran: [{ ...TEAM.ran[0], verdict: "clean" }] } });
+  assert.match(warnsOf(clean.issues).join("\n"), /clean.*blocking/);
+});
+
+test("the reviewer gate agrees in lint and review; decisions survive a restart and reach the digest", { skip: !hasGit }, async (context) => {
+  const repo = await reviewRepo(context);
+  const home = homeOf(repo.dir);
+  const first = await spawnServer(context, home);
+  const call = async (port, route, body, agent = false) => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/${route}`, {
+      ...(body !== undefined ? { method: "POST", body: JSON.stringify(body) } : {}),
+      headers: agent ? asAgent(port) : asPage(port),
+    });
+    return { status: res.status, data: await res.json() };
+  };
+  const open = (spec) => call(first.port, "rounds", { project: repo.dir, mode: "review", spec, open: false }, true);
+  const { reviewers, ...risky } = REPO_SPEC;
+  const small = { ...risky, risks: [], chapters: risky.chapters.map(c => ({ ...c, risk: "low" })) };
+  const specPath = path.join(repo.dir, "review.json");
+  const lint = (spec) => {
+    writeFileSync(specPath, JSON.stringify(spec));
+    return spawnSync(process.execPath, [path.join(pluginDir, "decide.mjs"), "lint", specPath], { cwd: repo.dir, env: envOf(repo.dir), encoding: "utf8" });
+  };
+  const refused = await open({ ...risky, reviewers: { ran: [], skipped: TEAM.skipped } });
+  assert.equal(refused.status, 422);
+  const refusal = refused.data.issues.map(i => i.message).join("\n");
+  for (const pattern of [/risks\[\]/, /9 changed lines/, /correctness/, /agent default/, /Logic errors/, /skills\/review\/SKILL.md/, /reviewers.none/]) assert.match(refusal, pattern);
+  const badLint = lint(risky);
+  assert.equal(badLint.status, 1);
+  assert.match(badLint.stdout, /Reviewers: required.*risks\[\]/);
+  const none = { ...risky, reviewers: { none: "This agent cannot start sub-agents." } };
+  assert.equal((await open(none)).status, 200);
+  assert.equal(lint(none).status, 0);
+  const noTeam = await open(small);
+  assert.equal(noTeam.status, 200);
+  assert.match(lint(small).stdout, /Reviewers: not required.*9 changed lines/);
+
+  const { effective, writeSettings } = await import("../lib/settings.mjs");
+  const { openProject } = await import("../lib/project.mjs");
+  const { dataDir } = openProject(repo.dir, home);
+  const defaults = effective().reviewers.value;
+  writeSettings(home, { set: { reviewers: { ...defaults, mode: "request" } } });
+  assert.equal((await open(risky)).status, 200);
+  writeSettings(dataDir, { set: { reviewers: { ...defaults, lines: 9 } } });
+  assert.equal((await open(small)).status, 422);
+  assert.match(lint(small).stdout, /Reviewers: required.*9 changed lines, the threshold is 9/);
+  const outline = spawnSync(process.execPath, [path.join(pluginDir, "decide.mjs"), "outline", "--json"], {
+    cwd: repo.dir, env: envOf(repo.dir), encoding: "utf8",
+  });
+  assert.equal(outline.status, 0, outline.stderr);
+  assert.match(JSON.parse(outline.stdout).reviewers.reason, /9 changed lines, the threshold is 9/);
+
+  const withTeam = { ...risky, reviewers: TEAM };
+  const started = await open(withTeam);
+  assert.equal(started.status, 200);
+  assert.match(started.data.issues.map(i => i.message).join("\n"), /role "tests" is missing/);
+  assert.equal(lint(withTeam).status, 0);
+  const route = `rounds/${started.data.id}`;
+  const decide = (id, decision, reason) => call(first.port, `${route}/finding`, { id, decision, reason });
+  assert.equal((await decide("unknown", "fix")).status, 404);
+  assert.equal((await decide("f1", "ignored")).status, 400);
+  assert.equal((await decide("f2", "fix")).status, 200);
+  assert.equal((await decide("f2", null)).status, 200);
+  assert.equal((await decide("f1", "fix")).status, 200);
+  assert.equal((await decide("f3", "dismissed", "Covered elsewhere.")).status, 200);
+
+  first.child.kill();
+  await exitOf(first.child);
+  const second = await spawnServer(context, home);
+  const round = await call(second.port, route);
+  assert.deepEqual(round.data.review.findingDecisions, { f1: { decision: "fix" }, f3: { decision: "dismissed", reason: "Covered elsewhere." } });
+  const sent = await call(second.port, `${route}/submit`, { verdict: "approve" });
+  assert.equal(sent.status, 200);
+  const final = await call(second.port, `${route}/next?timeout=500`, undefined, true);
+  assert.equal(final.status, 200, JSON.stringify(final.data));
+  const data = final.data.payload;
+  const saved = JSON.parse(readFileSync(path.join(round.data.dataDir, "rounds", started.data.id, "answers.json"), "utf8"));
+  assert.deepEqual(saved.reviewers, data.reviewers);
+  assert.match(formatReviewResult(data, "answers.json"), /Use your judgment on open findings.*Leave dismissed findings alone/);
+  assert.deepEqual(data.reviewers.findings.map(f => [f.id, f.decision, f.reason]), [
+    ["f1", "fix", undefined], ["f3", "dismissed", "Covered elsewhere."], ["f2", null, undefined],
+  ]);
+  assert.match(data.digest, /Verdict:.*\nReviewers: correctness \(concerns\); skipped: safety \(model not available\)/);
+  assert.match(data.digest, /To fix \(1\):[\s\S]*\[f1\][\s\S]*Reviewer findings left open[\s\S]*\[f2\][\s\S]*Dismissed by the owner[\s\S]*\[f3\][\s\S]*Covered elsewhere/);
 });

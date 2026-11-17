@@ -999,9 +999,9 @@ test("the schema takes every shape the strict engine takes without an error", as
   assert.match(validate(specSchema(), q({ titel: "x" }), specSchema()).join("\n"), /unknown field "titel"/);
 });
 
-test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tune, rules, evidence), swipe's 7,000, review's 2,700, tools/list pinned near its size", async () => {
+test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tune, rules, evidence), swipe's 7,000, review's 3,800, tools/list pinned near its size", async () => {
   const { specSchema, deckSchema, reviewSchema } = await docs();
-  assert.ok(JSON.stringify(reviewSchema()).length <= 2700, `reviewSchema ${JSON.stringify(reviewSchema()).length} bytes`);
+  assert.ok(JSON.stringify(reviewSchema()).length <= 3800, `reviewSchema ${JSON.stringify(reviewSchema()).length} bytes`);
   const size = (v) => JSON.stringify(v).length;
   assert.ok(size(specSchema()) <= 12000, `specSchema ${size(specSchema())} bytes`);
   assert.ok(size(deckSchema()) <= 7000, `deckSchema ${size(deckSchema())} bytes`);
@@ -1014,7 +1014,8 @@ test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tun
   const whole = size({ result: { tools } });
   // Outline adds about 1,400 bytes for preparation parameters and description.
   // 37,000 before the review tool; review (its schema, its description, the chapter lines) and lint's base/head add about 4,200; a chapter's focus and skim about 400 more.
-  assert.ok(whole <= 46_000, `tools/list ${whole} bytes: pinned near the size after Task 13's deck lines plus the review tool, far under 2.1.1's 11,281 plus the 2.1 ask schema growth`);
+  // The reviewer schema and its field descriptions add about 2,000 bytes.
+  assert.ok(whole <= 48_000, `tools/list ${whole} bytes: pinned near the size after Task 13's deck lines plus the review tool, far under 2.1.1's 11,281 plus the 2.1 ask schema growth`);
 });
 
 test("a description sits only where the name does not say it, never on a spelling or a union arm", async () => {
@@ -1301,7 +1302,7 @@ test('review overview orders owner decisions before risks, acceptance, summary a
   const { spec } = normalizeReview({ title: 'Cap', summary: 'A silent discount cap.', acceptance: { changed: 'Discounts stop at 50%.', steps: ['Apply a discount', 'Check total'], expect: 'Half price' }, risks: [{ what: 'Wrong total', checkedBy: 'Totals test' }], checks: [{ command: 'node --test', exit: 0 }], chapters: [{ id: 'cap', title: 'Cap', summary: 'A cap.', hunks: ['cap.js'], focus: [{ at: 'cap.js:1', kind: 'decision', note: 'The cap', question: 'Is a silent cap acceptable?' }, { at: 'cap.js:2', kind: 'risk', note: 'Hidden limit' }] }] });
   const s = { spec, rv: { chapters: [{ id: 'cap', focus: [{ file: 'cap.js', from: 2, to: 2, kind: 'risk', note: 'Hidden limit' }] }], decisions: {}, sorted: 1, total: 1 }, verdict() {} };
   const tree = walkEl(renderOverview(s));
-  assert.deepEqual(tree.filter((e) => e.dataset?.section).map((e) => e.dataset.section), ['decisions', 'risks', 'acceptance', 'summary', 'checks']);
+  assert.deepEqual(tree.filter((e) => e.dataset?.section).map((e) => e.dataset.section), ['decisions', 'risks', 'reviewers', 'acceptance', 'summary', 'checks']);
   const text = (e) => e.text ?? (e.children ?? []).map(text).join('');
   assert.ok(tree.some((e) => text(e).includes('Checked by: Totals test')));
   await context.test('section headings have no attribution bar; header and risk badges remain', () => {
@@ -1332,5 +1333,18 @@ test('review overview orders owner decisions before risks, acceptance, summary a
   const acceptance = walkEl(emptySteps).find((e) => e.dataset?.section === 'acceptance');
   assert.equal(text(acceptance).includes('0'), false, 'an empty step list displays no count');
   const minimal = { ...s, spec: { ...spec, chapters: [{ ...spec.chapters[0], focus: [] }], acceptance: undefined } };
-  assert.deepEqual(walkEl(renderOverview(minimal)).filter((e) => e.dataset?.section).map((e) => e.dataset.section), ['risks', 'summary', 'checks']);
+  assert.deepEqual(walkEl(renderOverview(minimal)).filter((e) => e.dataset?.section).map((e) => e.dataset.section), ['risks', 'reviewers', 'summary', 'checks']);
+});
+
+test("reviewer fields in the skill and MCP schema come from the registry", async () => {
+  const { injectReviewers, reviewSchema, reviewLines } = await docs();
+  const skill = readFileSync(path.join(pluginDir, "skills/review/SKILL.md"), "utf8");
+  assert.equal(injectReviewers(skill), skill);
+  const fields = reviewSchema().properties.reviewers;
+  assert.equal(fields.additionalProperties, false);
+  assert.deepEqual(fields.properties.ran.items.required, ["role", "model", "summary", "verdict"]);
+  assert.deepEqual(fields.properties.ran.items.properties.verdict.enum, ["clean", "concerns", "blocking", null]);
+  assert.deepEqual(fields.properties.findings.items.properties.severity.enum, ["blocking", "major", "minor", null]);
+  assert.ok(fields.properties.findings.items.properties.line);
+  assert.match(reviewLines(), /Finding fields:[\s\S]*line: Trimmed text/);
 });

@@ -16,6 +16,7 @@ import { trackCoverage, showFiles, coverageWarning } from "./coverage.js";
 import { composer } from "./hunk.js";
 import { checkState, renderBar, renderOverview, renderRail, renderTitle } from "./overview.js";
 
+import { decisionOf, findingsOf, openCounts, ownerOf, reviewerWarnings, saveFinding, sortedFindings } from "./reviewers.js";
 import { answerOf, decisionsOf, paintDecisions, saveDecision } from "./decisions.js";
 
 const KEYS = [
@@ -43,7 +44,28 @@ export function mountReview(round, env) {
     full: false, // the whole diff: nothing folded
   };
 
+  const saving = new Map();
+  s.isFindingSaving = (id) => saving.has(id);
   s.openFiles = () => showFiles(s);
+  const FINDINGS = "decide.review.hideFindings";
+  try { s.showFindings = sessionStorage.getItem(FINDINGS) !== "1"; }
+  catch { s.showFindings = true; }
+  const byHunk = new Map();
+  for (const f of sortedFindings(s)) {
+    if (!f.anchor) continue;
+    const { hunk } = f.anchor;
+    if (!byHunk.has(hunk)) byHunk.set(hunk, []);
+    byHunk.get(hunk).push(f);
+  }
+  s.findingsOf = (id) => s.showFindings ? byHunk.get(id) ?? [] : [];
+  s.openCounts = () => openCounts(s);
+  s.setFindings = (show) => {
+    s.showFindings = show;
+    try { sessionStorage.setItem(FINDINGS, show ? "0" : "1"); } catch {}
+    for (const { el } of s.loaded.values()) el.update();
+    chapters.openFindingGroups();
+    s.paint();
+  };
 
   // ---- key places: piece id → the places of its chapter that fall on it
   const places = new Map();
@@ -82,7 +104,7 @@ export function mountReview(round, env) {
   s.counts = () => {
     const all = s.notes();
     const of = (kind) => all.filter((c) => c.kind === kind).length;
-    return { fix: of("fix"), nit: of("nit"), question: of("question"), open: all.filter((c) => c.kind === "question" && !c.reply).length };
+    return { fix: of("fix") + findingsOf(s).filter(f => decisionOf(s, f)?.decision === "fix").length, nit: of("nit"), question: of("question"), open: all.filter((c) => c.kind === "question" && !c.reply).length };
   };
   s.checks = () => ({ failed: s.spec.checks.filter((c) => checkState(c) === "failed").length, missing: s.spec.checks.filter((c) => checkState(c) === "missing").length, total: s.spec.checks.length });
   // Chapter id → how many notes sit on its pieces.
@@ -151,6 +173,12 @@ export function mountReview(round, env) {
     bar.paint();
     chapters.paint();
     paintDecisions(s);
+    overview.querySelectorAll(".cr-finding").forEach(el => el.paint());
+    const toggle = overview.querySelector(".cr-finding-toggle");
+    if (toggle) {
+      toggle.textContent = t(s.showFindings ? "cr.reviewers.hide" : "cr.reviewers.show");
+      toggle.setAttribute("aria-pressed", String(s.showFindings));
+    }
   };
 
   // ---- moving around
@@ -177,6 +205,30 @@ export function mountReview(round, env) {
     el.scrollIntoView({ behavior: "instant", block: "start" });
     el.focus({ preventScroll: true });
     s.paint();
+  };
+  s.goReviewers = () => {
+    ++jump;
+    const el = overview.querySelector(".cr-reviewers");
+    s.current = "overview";
+    el.setAttribute("tabindex", "-1");
+    el.scrollIntoView({ behavior: "instant", block: "start" });
+    el.focus({ preventScroll: true });
+    rail.paint();
+  };
+  s.goFinding = async (f) => {
+    const ticket = ++jump;
+    if (!s.showFindings) s.setFindings(true);
+    const { hunk, line } = f.anchor;
+    const key = ownerOf(s, hunk);
+    const el = await chapters.piece(hunk, key, { unfold: false });
+    if (!el || ticket !== jump) return;
+    const row = [...el.querySelectorAll(`tr.cr-note[data-key="new:${line}"] .cr-finding`)].find(node => node.dataset.finding === f.id);
+    if (!row) return;
+    s.current = key.startsWith("mech:") ? "mech" : key;
+    row.setAttribute("tabindex", "-1");
+    row.scrollIntoView({ behavior: "instant", block: "center" });
+    row.focus({ preventScroll: true });
+    rail.paint();
   };
   s.goPlace = async (chapter, k) => {
     const ticket = ++jump;
@@ -249,7 +301,7 @@ export function mountReview(round, env) {
     s.seq = Math.max(s.seq, seq);
     const coverage = { ...s.rv.coverage };
     for (const [id, value] of Object.entries(review.coverage ?? {})) if (coverage[id] !== "opened") coverage[id] = value;
-    s.rv = { ...s.rv, decisions: review.decisions ?? s.rv.decisions, comments: review.comments ?? s.rv.comments, read: review.read ?? s.rv.read, coverage, ...(review.newer !== undefined ? { newer: review.newer } : {}) };
+    s.rv = { ...s.rv, decisions: review.decisions ?? s.rv.decisions, findingDecisions: review.findingDecisions ?? s.rv.findingDecisions, comments: review.comments ?? s.rv.comments, read: review.read ?? s.rv.read, coverage, ...(review.newer !== undefined ? { newer: review.newer } : {}) };
     s.paint();
   }
   const failed = (e) => {
@@ -265,6 +317,17 @@ export function mountReview(round, env) {
       setReview(d.review, d.seq);
     } catch {}
   }
+
+  s.saveFinding = (id, decision, reason) => {
+    if (saving.has(id)) return false;
+    const pending = saveFinding(s.id, { id, decision, reason })
+      .then(async () => { await refresh(); return true; })
+      .catch((e) => { failed(e); return false; })
+      .finally(() => { saving.delete(id); s.paint(); });
+    saving.set(id, pending);
+    s.paint();
+    return pending;
+  };
 
   // ---- the box
   function closeBox() {
@@ -376,6 +439,7 @@ export function mountReview(round, env) {
         ...[
           approving && decisionWarning("decisions", decisionsOf(s).filter((d) => answerOf(s, d) === null)),
           v === "approve" && decisionWarning("decisionNo", decisionsOf(s).filter((d) => answerOf(s, d) === "no")),
+          ...(approving ? reviewerWarnings(s, close) : []),
           approving && coverageWarning(s, () => { close(); s.openFiles(); }),
           approving && s.rv.newer && h("div.cr-alert", { dataset: { alert: "newer" } }, t("cr.alert.newer", s.rv.snapshot.head.slice(0, 7), s.rv.newer.head.slice(0, 7))),
           approving && red && h("div.cr-alert", { dataset: { alert: "checks" } }, h("b", {}, t("cr.alert.checks")), " ", t("cr.alert.checksText", red)),
@@ -391,6 +455,7 @@ export function mountReview(round, env) {
       if (busy) return;
       busy = true;
       try {
+        if ((await Promise.all(saving.values())).includes(false)) { busy = false; return; }
         await coverage.flush();
         const res = await submitRound(round.id, { verdict, ...(s.note.trim() ? { note: s.note.trim() } : {}) });
         s.note = "";

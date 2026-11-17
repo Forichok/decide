@@ -10,6 +10,7 @@
 // A piece with no key place is shown whole when it is short, by its first lines when it is long, and
 // folded when its chapter has key places elsewhere. A long test file lists the names of its tests.
 
+import { renderFinding } from "./reviewers.js";
 import { renderDecision } from "./decisions.js";
 import { h } from "../dom.js";
 import { t } from "../i18n.js";
@@ -143,7 +144,7 @@ export function renderPiece(s, piece, { folded = false } = {}) {
     if (s.full || st.all || st.above === Infinity) return null;
     const set = new Set([...base, ...st.more]);
     // What was said on a line is never folded away, nor the line being written on.
-    const said = s.notesOf(piece.id).map(keyOf);
+    const said = [...s.notesOf(piece.id).map(keyOf), ...s.findingsOf(piece.id).map(f => keyOf(f.anchor))];
     if (s.draft?.hunk === piece.id) said.push(keyOf(s.draft));
     for (const key of said) if (index.has(key)) fill(set, index.get(key) - NOTE_CONTEXT, index.get(key) + NOTE_CONTEXT, n);
     return set.size >= n ? null : set;
@@ -444,6 +445,10 @@ export function paintNotes(s, el, piece) {
   if (d) group(address(d.hunk, keyOf(d))).box = true;
 
   const rows = new Map([...(tbody?.querySelectorAll("tr.cr-line") ?? [])].map((r) => [address(r.dataset.owner, r.dataset.key), r]));
+  for (const id of owners) for (const f of s.findingsOf(id)) {
+    const key = address(id, keyOf(f.anchor));
+    if (rows.has(key)) (group(key).findings ??= []).push(f);
+  }
   // A comment whose line is not on screen falls back to the piece's own notes.
   for (const [key, g] of [...groups]) {
     if (!key || rows.has(key)) continue;
@@ -455,13 +460,19 @@ export function paintNotes(s, el, piece) {
 
   const lay = (cell, g) => {
     cell.querySelector(".cr-list").replaceChildren(...g.list.map((c) => saved({ ...s, compose: (d) => s.compose({ ...d, view: piece.id }) }, c)));
+    const thread = cell.querySelector(".cr-findings");
+    const ids = (g.findings ?? []).map(f => f.id);
+    if (ids.length !== thread.children.length || ids.some((id, i) => thread.children[i]?.dataset.finding !== id)) {
+      thread.replaceChildren(...(g.findings ?? []).map(f => renderFinding(s, f)));
+    }
+    for (const finding of thread.children) finding.paint();
     const slot = cell.querySelector(".cr-slot");
     if (g.box) {
       if (s.box.parentNode !== slot) slot.replaceChildren(s.box);
     } else if (slot.firstChild) slot.replaceChildren();
   };
   const cellOf = (host) => {
-    if (!host.querySelector(".cr-list")) host.append(h("div.cr-list"), h("div.cr-slot"));
+    if (!host.querySelector(".cr-list")) host.append(h("div.cr-list"), h("div.cr-findings"), h("div.cr-slot"));
     return host;
   };
 

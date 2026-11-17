@@ -207,7 +207,7 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 .cr-diff tr.cr-note td { padding: 8px 12px 10px 54px; background: var(--surface-solid); font-family: var(--font); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 @media (max-width: 620px) { .cr-diff tr.cr-note td { padding-left: 12px; } .cr-diff col.n { width: 34px; } }
 .cr-list { display: grid; gap: 8px; }
-.cr-list:not(:empty) + .cr-slot:not(:empty) { margin-top: 8px; }
+.cr-list:not(:empty) + .cr-findings:empty + .cr-slot:not(:empty) { margin-top: 8px; }
 
 /* a comment on a line: fix, question, nit */
 .cr-cm { border-radius: 12px; padding: 10px 12px; background: var(--surface-2); font-size: 14px; line-height: 1.5; border-left: 3px solid var(--line-strong); }
@@ -327,4 +327,33 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 @media (min-width: 1180px) {
   body.review-mode.review-inbox .layout { grid-template-columns: 220px minmax(0, 1fr); gap: 24px; }
   body.review-mode.review-inbox .wrap { max-width: none; }
+}
+
+/* Reviewer findings share a line's thread with owner comments. */
+.cr-reviewer-list { display: grid; gap: 8px; padding: 0; margin: 8px 0; list-style: none; }
+.cr-reviewer, .cr-finding { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; overflow-wrap: anywhere; }
+.cr-reviewer.warn { color: var(--warn); background: var(--warn-soft); }
+.cr-reviewer-head, .cr-finding-acts, .cr-finding-form, .cr-finding-jumps { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.cr-reviewer-head { margin-bottom: 4px; }
+.cr-reviewer-mark.clean { color: var(--ok); }
+.cr-reviewer-mark.concerns, .cr-open-findings { color: var(--warn); }
+.cr-reviewer-mark.blocking { color: var(--danger); }
+.cr-finding { background: var(--surface-2); font: 14px/1.5 var(--font); }
+.cr-finding-severity { color: var(--info); }
+.cr-finding.major .cr-finding-severity { color: var(--warn); }
+.cr-finding.blocking .cr-finding-severity { color: var(--danger); }
+.cr-finding-state { color: var(--tx-mut); }
+.cr-finding-anchor { display: block; color: var(--warn); }
+.cr-reviewers { scroll-margin-top: 16px; }
+.cr-finding-jump { font-family: var(--mono); text-align: left; }
+.cr-finding-acts, .cr-finding-form { margin-top: 6px; }
+.cr-finding-form[hidden] { display: none; }
+.cr-finding-form input { flex: 1 1 12em; min-width: 0; padding: 5px 8px; color: var(--tx); background: var(--surface-3); border: 1px solid var(--line); border-radius: 6px; }
+.cr-findings:not(:empty) { display: grid; gap: 8px; }
+.cr-list:not(:empty) + .cr-findings:not(:empty), .cr-findings:not(:empty) + .cr-slot:not(:empty) { margin-top: 8px; }
+.cr-finding-toggle { margin-top: 4px; }
+.cr-open-findings { font-size: 12px; }
+.cr-rail-item .cr-open-findings {
+  min-width: 1.5em; padding: 0 4px; border-radius: 999px; background: var(--warn-soft);
+  font: 600 11px/1.6 var(--mono); text-align: center;
 }
