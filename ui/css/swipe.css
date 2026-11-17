@@ -360,3 +360,48 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
   .sw-key:not(.left, .right) kbd { display: none; }
   .sw-key:not(.left, .right) .sw-key-ic { display: grid; }
 }
+
+/* ---- fewer scrolls. A card that scrolls inside itself is the last resort, so the page gives the deck
+   all the room it has, media shrinks with the height of the window, and a card has one scroller at
+   most: itself, never a box inside it, and never sideways. */
+.sw {
+  --sw-w: 720px;
+  /* what is left of the window once the bars, the title, the answers and the keys took their share */
+  --sw-media: clamp(120px, calc(100vh - 660px), 280px);
+  --sw-media: clamp(120px, calc(100dvh - 660px), 280px);
+  --sw-side-img: clamp(84px, calc(100vh - 660px), 150px);
+  --sw-side-img: clamp(84px, calc(100dvh - 660px), 150px);
+}
+.sw-top, .sw-stack, .sw-banner { width: min(var(--sw-w), 100%); }
+.sw-stage { gap: var(--space-3, 12px); padding: var(--space-3, 12px) 0; }
+.sw-stage > .eyebrow { margin-bottom: 0; }
+/* the title and the counters share a line, the confidence bar runs under both */
+.sw-top { grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-3, 12px); }
+.sw-conf { grid-column: 1 / -1; grid-row: 2; }
+.sw-meta { grid-column: 2; grid-row: 1; margin: 0; justify-content: flex-end; }
+.sw-foot .sw-stop { min-height: 32px; padding-block: 4px; }
+
+.sw-card-body { overflow-x: hidden; overflow-wrap: anywhere; }
+.sw-sides { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sw-side, .sw-side-pick { grid-template-columns: minmax(0, 1fr); }
+.sw-card .media .preview iframe { max-height: calc(var(--sw-media) + 60px); }
+.sw-card .media .gallery img, .sw-card .media .video .shot-btn img { max-height: min(240px, var(--sw-media)); }
+.sw-card-body > .media .cmp-img, .sw-card-body > .media .video video { max-height: var(--sw-media); }
+.sw-side-img { max-height: var(--sw-side-img); }
+.sw-card-body > .media .chart svg { width: 100%; max-height: calc(var(--sw-media) + 40px); }
+.sw-card-body { gap: var(--space-3, 12px); }
+/* with a keyboard the strip under the deck already says "own answer": the card does not repeat it */
+@media (min-width: 901px) and (hover: hover) {
+  .sw-card .sw-own { display: none; }
+}
+/* code, diffs and tables open to their full height and wrap their lines: the card scrolls, they don't */
+.sw-card :is(.code pre, .table-wrap, .diff-scroll, .md-table, .diagram) { max-height: none; overflow: clip; }
+.sw-card .code .ln { white-space: pre-wrap; overflow-wrap: anywhere; }
+.sw-card :is(table.data, .md-table table) :is(th, td) { position: static; white-space: normal; overflow-wrap: anywhere; }
+
+@media (max-width: 900px) {
+  .sw-top { grid-template-columns: minmax(0, 1fr); }
+  .sw-foot .sw-stop { min-height: 44px; }
+}
+.sw-card .diff-grid thead th { position: static; }
+.sw-brief { overflow-x: hidden; overflow-wrap: anywhere; }
