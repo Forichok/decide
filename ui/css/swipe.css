@@ -368,9 +368,14 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
   --sw-w: 720px;
   /* what is left of the window once the bars, the title, the answers and the keys took their share */
   --sw-media: clamp(120px, calc(100vh - 660px), 280px);
-  --sw-media: clamp(120px, calc(100dvh - 660px), 280px);
   --sw-side-img: clamp(84px, calc(100vh - 660px), 150px);
-  --sw-side-img: clamp(84px, calc(100dvh - 660px), 150px);
+}
+/* a custom property takes any value, so a second line is no fallback: the dvh pair needs its own test */
+@supports (height: 100dvh) {
+  .sw {
+    --sw-media: clamp(120px, calc(100dvh - 660px), 280px);
+    --sw-side-img: clamp(84px, calc(100dvh - 660px), 150px);
+  }
 }
 .sw-top, .sw-stack, .sw-banner { width: min(var(--sw-w), 100%); }
 .sw-stage { gap: var(--space-3, 12px); padding: var(--space-3, 12px) 0; }
@@ -395,13 +400,23 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
   .sw-card .sw-own { display: none; }
 }
 /* code, diffs and tables open to their full height and wrap their lines: the card scrolls, they don't */
-.sw-card :is(.code pre, .table-wrap, .diff-scroll, .md-table, .diagram) { max-height: none; overflow: clip; }
+.sw-card :is(.code pre, .diff-scroll, .diagram) { max-height: none; overflow: clip; }
+.sw-card .media.compact :is(.code pre, .table-wrap, .diff-scroll) { max-height: none; }
 .sw-card .code .ln { white-space: pre-wrap; overflow-wrap: anywhere; }
-.sw-card :is(table.data, .md-table table) :is(th, td) { position: static; white-space: normal; overflow-wrap: anywhere; }
+/* a table squeezes its columns and breaks a long token, but never a short word: a column keeps 5 characters.
+   Only a table too wide even so scrolls sideways, inside its own box. */
+.sw-card :is(.table-wrap, .md-table) { max-height: none; overflow-x: auto; overflow-y: hidden; }
+.sw-card :is(table.data, .md-table table) :is(th, td) { position: static; white-space: normal; overflow-wrap: anywhere; min-width: 5ch; padding: 6px 8px; }
+.sw-card-body :is(kbd, .badge, .chip, .sw-side-key) { white-space: nowrap; overflow-wrap: normal; }
 
 @media (max-width: 900px) {
   .sw-top { grid-template-columns: minmax(0, 1fr); }
   .sw-foot .sw-stop { min-height: 44px; }
+  .sw-card :is(table.data, .md-table table) :is(th, td) { padding: 5px 4px; }
 }
 .sw-card .diff-grid thead th { position: static; }
-.sw-brief { overflow-x: hidden; overflow-wrap: anywhere; }
+.sw-brief { overflow-wrap: anywhere; }
+/* only the panel beside the deck: the folded bar on a phone lets its list hang below it */
+@media (min-width: 901px) {
+  .sw-brief { overflow-x: hidden; }
+}

@@ -272,6 +272,6 @@ table.data tbody tr:hover td { background: var(--surface-2); }
   .pv-mark, .preview-open { display: inline-flex; align-items: center; }
   /* the small corner buttons keep their look and get a thumb-sized hit area */
   .media-zoom::after { content: ""; position: absolute; inset: -8px; }
-  .code.has-zoom > .media-zoom::after, .table-wrap.has-zoom > .media-zoom::after, .media.compact .media-zoom::after { inset: -11px -4px -11px -16px; } /* grows inward: past the right edge it would make the box scroll sideways */
+  .code.has-zoom > .media-zoom::after, .table-wrap.has-zoom > .media-zoom::after, .media.compact .media-zoom::after { inset-block: -11px; inset-inline: -16px -4px; } /* grows inward: past the right edge it would make the box scroll sideways */
   .pv-w { min-height: 44px; min-width: 44px; }
 }

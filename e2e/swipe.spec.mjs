@@ -168,7 +168,7 @@ const wideCard = {
   title: `Ship ${"Unbreakable_identifier_".repeat(4)}?`,
   body: `| Plan | Price | Seats | Storage | History | Support |\n|---|---|---|---|---|---|\n| Free | $0 | 3 | 1 GB | 7 days | community |\n\n${LONG}`,
   code: { lang: "sql", text: `CREATE INDEX CONCURRENTLY reminders_fire_at_tz_idx ON reminders USING btree (fire_at, tz) INCLUDE (user_id, board_id, task_id) WHERE fire_at IS NOT NULL;\n${Array.from({ length: 40 }, (_, i) => `-- line ${i}`).join("\n")}` },
-  left: { label: "Generous", table: { columns: ["Limit", "Free", "Pro", "Team", "Enterprise"], rows: [["Boards per workspace", "5", "unlimited", "unlimited", "unlimited_with_a_long_token"]] } },
+  left: { label: "Generous", table: { columns: ["Limit", "Free", "Pro", "Team", "Enterprise"], rows: [["Boards per workspace", "5", "unlimited", "unlimited", "unlimited_with_a_long_token"], ...Array.from({ length: 12 }, (_, i) => [`Limit ${i}`, "1", "2", "3", "4"])] } },
   right: { label: "An_answer_label_without_any_spaces_that_goes_on_and_on", detail: LONG },
 };
 
@@ -183,7 +183,8 @@ const scrollers = (page) =>
       const cs = getComputedStyle(el);
       const name = `${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0]}`;
       if (cs.overflowX !== "visible" && el.scrollWidth - el.clientWidth > 1) out.push(`${name} sideways +${el.scrollWidth - el.clientWidth}`);
-      if (el !== body && /auto|scroll/.test(cs.overflowY) && el.scrollHeight - el.clientHeight > 1) out.push(`${name} down +${el.scrollHeight - el.clientHeight}`);
+      // a box that hides what is below its edge counts too: that content cannot be reached at all
+      if (el !== body && cs.overflowY !== "visible" && el.scrollHeight - el.clientHeight > 1) out.push(`${name} down +${el.scrollHeight - el.clientHeight}`);
     }
     return out;
   });
@@ -205,4 +206,18 @@ test("a card with code, two answers and a reason fits a laptop window without sc
   await expect(front(page).locator(".code")).toBeVisible();
   const over = await front(page).locator(".sw-card-body").evaluate((b) => b.scrollHeight - b.clientHeight);
   expect(over).toBeLessThanOrEqual(1);
+});
+
+test("on a phone the folded brief opens below its bar and can be read", async ({ page }) => {
+  await page.setViewportSize(MOBILE);
+  await open(page);
+  await page.locator(".sw-brief-toggle").click();
+  const item = page.locator(".sw-brief-body .sw-item").first();
+  await expect(item).toBeVisible();
+  // visible to the eye, not only in the tree: the point in the middle of the line belongs to the line
+  const onTop = await item.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+  });
+  expect(onTop).toBe(true);
 });
