@@ -6,8 +6,8 @@ description: Show the user a code review of a branch on a local page: your overv
 # decide:review — a code review by chapters
 
 You open a page with the change you made (or any branch against its base).
-The user reads your overview first: what changed and why, what can go wrong,
-which checks you ran and how they went. Then they walk the diff, which you
+The user reads your overview first: decisions for them, risks and what checks
+cover them, how to check the change, what changed, and the checks you ran. Then they walk the diff, which you
 have cut into chapters by meaning, not by file. On any line they can leave a
 comment of two kinds (fix, nit) or ask you a question. At the end they give
 one of three verdicts: approve, approve with nits, return.
@@ -17,8 +17,8 @@ the words and say which hunks belong to which chapter. The snapshot is taken
 once, when the review opens, and holds commits only. Uncommitted work is not
 in it, so commit before you call `review`.
 
-Use plain `/decide` when the user has to choose between options. A review
-decides one thing: does this change go in.
+Use plain `/decide` to explore alternatives before implementation. In a review,
+ask yes/no questions about behaviour already present in the change.
 
 ## Arguments
 
@@ -70,8 +70,14 @@ the user to message you when they are done, and on that message call
 {
   "title": "Sign-in by magic link",
   "summary": "Guests can sign in from a link in the mail instead of a password. The link holds a one-time token that lives 15 minutes. Passwords still work.",
+  "acceptance": {
+    "changed": "Guests can sign in without a password.",
+    "where": "The sign-in screen",
+    "steps": ["Request a magic link", "Open it from the mail", "Open the same link again"],
+    "expect": "The first visit signs you in. The second refuses the used link."
+  },
   "risks": [
-    { "level": "high", "what": "A leaked link signs anyone in", "why": "The token is single-use and expires, but it is the only factor.", "chapter": "token" }
+    { "level": "high", "what": "A leaked link signs anyone in", "why": "The token is single-use and expires, but it is the only factor.", "chapter": "token", "checkedBy": "Nothing checks whether a leaked link reaches the wrong person." }
   ],
   "checks": [
     { "command": "npm test", "exit": 0, "seconds": 41 },
@@ -87,7 +93,8 @@ the user to message you when they are done, and on that message call
       "risk": "high",
       "focus": [
         { "at": "lib/auth/token.mjs:41-58", "note": "`consume()`: the read and the delete are two statements.", "kind": "check" },
-        { "at": "db/migrations/0042_tokens.sql:3-9", "note": "The unique index that makes a second use fail." }
+        { "at": "db/migrations/0042_tokens.sql:3-9", "note": "The unique index that makes a second use fail." },
+        { "at": "lib/auth/token.mjs:12-20", "note": "The expiry is fixed at 15 minutes.", "kind": "decision", "question": "Is a 15-minute sign-in window acceptable?", "options": ["Keep 15 minutes", "Change the window"] }
       ],
       "hunks": ["lib/auth/token.mjs", "db/migrations/0042_tokens.sql", "test/token.test.mjs"]
     },
@@ -108,15 +115,19 @@ the user to message you when they are done, and on that message call
 | Field                  | Meaning                                                                                                   |
 | ---------------------- | --------------------------------------------------------------------------------------------------------- |
 | `title`                | What the change is, as you would name the pull request.                                                    |
-| `summary`              | What changed and why. The first thing the user reads. Markdown.                                            |
-| `risks[]`              | `{level, what, why, chapter}`. `level` is `high`, `medium` or `low`. `chapter` is a chapter id: the risk on the page jumps there. |
+| `summary`              | What changed and why, under "What changed". Markdown.                                            |
+| `risks[]`              | `{level, what, why, chapter, checkedBy}`. `checkedBy` names the check that covers the risk, or says nothing does. `level` is `high`, `medium` or `low`. `chapter` is a chapter id: the risk on the page jumps there. |
+| `acceptance` | `{changed, where, steps, expect}`. All optional; `steps` is a list of strings. Say what changed for the user and how to check it. |
 | `checks[]`             | `{command, exit, seconds, note}`. Leave `exit` out for a check you did not run; the page shows it as not run. |
 | `chapters[].id`        | Short, unique, a word (`token`, not `h3`: those are the hunks' own ids).                                   |
 | `chapters[].summary`   | What this part does and why. Two or three sentences.                                                       |
 | `chapters[].watch`     | The line or the decision you are least sure of. The user reads it before the diff.                         |
 | `chapters[].risk`      | `high`, `medium` or `low` (default). A high chapter wants a risk in the overview that points to it.        |
 | `chapters[].hunks`     | References to the hunks of this chapter.                                                                   |
-| `chapters[].focus`     | `[{at, note, kind}]`: the places to read, up to five. `at` is `"path:from-to"` in lines of the new file, inside this chapter's hunks. `kind` is optional: `risk`, `decision` or `check`. |
+| `chapters[].focus`     | `[{at, note, kind, checkedBy, question, options}]`: the places to read, up to five. `at` is `"path:from-to"` in lines of the new file, inside this chapter's hunks. `kind` is optional: `risk`, `decision` or `check`. |
+| `chapters[].focus[].checkedBy` | For `risk`: what check covers it, or say nothing does. |
+| `chapters[].focus[].question` | For `decision`: one yes/no question about behaviour the owner can judge. Without it the place stays a blue mark. |
+| `chapters[].focus[].options` | For `decision`: two short labels, yes then no. Leave out for localised Yes / No. |
 | `chapters[].skim`      | One sentence on why the chapter needs no reading line by line. Not for a high-risk chapter.                |
 | `mechanicalWhy`        | Why mechanical groups hold more than one third of all added and removed lines. One or two sentences; required above that share. |
 | `mechanical[]`         | `{title, hunks}`: one folded line on the page with a count.                                                |
@@ -225,22 +236,40 @@ not opened, and the verdict includes those counts and files.
 
 ## Writing the overview
 
-The user decides from the overview how carefully to read the rest. It is
-marked on the page as your words, not as fact.
+The owner wants to know whether a bad decision slipped in and whether the
+change will break. Write for that reader, even when they are an engineer.
+The page marks your claims as "in the agent’s words".
 
-- **Summary**: what the change does for the user or the system, then why it
-  was needed. Then what you left out on purpose. No list of files: the
-  chapters are that.
-- **Risks**: what can break and for whom, worst first, each pointing to the
-  chapter where it lives. Say what you did about it and what you did not
-  check. A change with nothing risky has no risks; don't invent one.
-- **Checks**: every command as you ran it, with its real exit code. A failed
-  check stays in the list with a note on why it fails. A check you skipped
-  stays too, without `exit`. The user sees a warning when they approve with a
-  red or missing check, and that is how it should be.
+Start with decisions for the owner. Give each `decision` place one yes/no
+`question` about behaviour they can judge: "Is a silent 50% cap on a discount
+acceptable?" Ask about the effect on a person, not whether a function or an
+index is correct. Keep its `note` as the explanation beside the code. Use
+`options` for two short answer labels, yes first; leave them out for Yes / No.
+The same answer appears in the overview and over the place. A second click
+clears it. Without `question`, the place keeps its blue mark but no buttons.
 
-Never report a check you did not run, and never round a failure up. The
-review is worth exactly as much as this table is true.
+List risks next, worst first, pointing to their chapters. Red key places also
+appear here. Give every risk a `checkedBy`: name the check and the behaviour
+it covers, such as "Three refusals are covered by test/git.test.mjs". Name
+only coverage you checked. A green command alone does not prove the risk is
+closed. Say when nothing covers it; do not imply a test ran when it did not.
+Without this field the page says the risk was not checked, by your account.
+
+Write `acceptance` so the owner can check the change without reading code.
+`changed` says what changed for the user in one or two sentences; `where`
+names a URL, screen or command; `steps` lists what to do; `expect` says what
+should happen. Every part is optional, but write `changed`. For a refactoring,
+write `{ "changed": "Nothing changes from outside." }`. The page displays
+these instructions; it does not run or verify them.
+
+Your `summary` appears under "What changed": say what the change does and
+why it was needed. Leave the list of files to the chapters. In `checks`, keep
+every command as you ran it, with its real exit code. A failed check stays
+with a note. A skipped check stays without `exit`. Never report a check you
+did not run or round a failure up.
+
+A comment about the whole change belongs in the verdict's note. The overview
+links to that dialog with the note focused.
 
 ## After the verdict
 
@@ -248,7 +277,15 @@ review is worth exactly as much as this table is true.
 | ------------------- | ----------------------------------------------------------------------------------------------------- |
 | Returned            | Fix what is under "To fix". Decide on each nit. Answer the open questions in chat. Tell the user for every comment what you did: fixed, answered, or declined and why. Then commit and call `review` again on the new head. |
 | Approved with nits  | Fix the nits or say why not. No new review is needed.                                                  |
-| Approved            | Nothing to fix.                                                                                        |
+| Approved            | Follow the decision answers below.                                                                                        |
+
+Read the result's `decisions` before acting on any verdict. Each entry gives
+`chapter`, `at` (file:lines), `question`, `answer` (`yes`, `no` or `null`), and
+`label` (the chosen label, or `null`). The digest puts these before "To fix".
+Treat every "no" as something to fix, even with an approval. A "no" does not
+create a comment. Do not count an unanswered decision as consent: the digest
+says "NOT answered". Both approvals warn about unanswered decisions but allow
+them; Approve also warns about a "no" as it does an open Fix.
 
 An approval is the user's opinion of the code. It merges nothing and pushes
 nothing: that stays under the repository's own rules, and you ask as you

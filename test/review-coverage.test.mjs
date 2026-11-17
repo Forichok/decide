@@ -65,7 +65,7 @@ test('coverage grows through part and opened, replays, and reaches the result an
 
 test('one chapter for the branch and every focus kind risk remain lint: ok', () => {
   // Owner decision, 2026-11-17: neither chapter concentration nor all-risk places merits a warning.
-  const input = { ...raw, chapters: [{ ...raw.chapters[0], hunks: ['*.mjs'], focus: [{ at: 'a.mjs:11', note: 'Check A.', kind: 'risk' }, { at: 'b.mjs:20', note: 'Check B.', kind: 'risk' }] }] };
+  const input = { ...raw, acceptance: { changed: 'Nothing changes from outside.' }, chapters: [{ ...raw.chapters[0], hunks: ['*.mjs'], focus: [{ at: 'a.mjs:11', note: 'Check A.', kind: 'risk', checkedBy: 'npm test' }, { at: 'b.mjs:20', note: 'Check B.', kind: 'risk', checkedBy: 'npm test' }] }] };
   const normalized = normalizeReview(input);
   assert.deepEqual(normalized.issues, []);
   assert.deepEqual(buildReview(normalized.spec, patch).issues, []);

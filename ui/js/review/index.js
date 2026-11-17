@@ -16,6 +16,8 @@ import { trackCoverage, showFiles, coverageWarning } from "./coverage.js";
 import { composer } from "./hunk.js";
 import { checkState, renderBar, renderOverview, renderRail, renderTitle } from "./overview.js";
 
+import { answerOf, decisionsOf, paintDecisions, saveDecision } from "./decisions.js";
+
 const KEYS = [
   ["J  K", "cr.key.step"],
   ["R", "cr.key.read"],
@@ -144,6 +146,7 @@ export function mountReview(round, env) {
     rail.paint();
     bar.paint();
     chapters.paint();
+    paintDecisions(s);
   };
 
   // ---- moving around
@@ -242,7 +245,7 @@ export function mountReview(round, env) {
     s.seq = Math.max(s.seq, seq);
     const coverage = { ...s.rv.coverage };
     for (const [id, value] of Object.entries(review.coverage ?? {})) if (coverage[id] !== "opened") coverage[id] = value;
-    s.rv = { ...s.rv, comments: review.comments ?? s.rv.comments, read: review.read ?? s.rv.read, coverage, ...(review.newer !== undefined ? { newer: review.newer } : {}) };
+    s.rv = { ...s.rv, decisions: review.decisions ?? s.rv.decisions, comments: review.comments ?? s.rv.comments, read: review.read ?? s.rv.read, coverage, ...(review.newer !== undefined ? { newer: review.newer } : {}) };
     s.paint();
   }
   const failed = (e) => {
@@ -307,6 +310,15 @@ export function mountReview(round, env) {
       failed(e);
     }
   };
+  s.answerDecision = async (d, value) => {
+    if (s.decisionSaving) return;
+    s.decisionSaving = true;
+    try {
+      await saveDecision(round.id, { chapter: d.chapter, at: d.at, answer: answerOf(s, d) === value ? null : value });
+      await refresh();
+    } catch (e) { failed(e); }
+    finally { s.decisionSaving = false; }
+  };
   s.toggleRead = async (chapter) => {
     const read = !isRead(chapter);
     try {
@@ -321,7 +333,7 @@ export function mountReview(round, env) {
   };
 
   // ---- the verdict
-  s.verdict = (first) => {
+  s.verdict = (first, focusNote = false) => {
     if ((s.draft?.text || "").trim()) {
       toast(t("cr.unsent"));
       s.box?.scrollIntoView({ behavior: reduced.matches ? "auto" : "smooth", block: "center" });
@@ -333,8 +345,8 @@ export function mountReview(round, env) {
     const unread = s.spec.chapters.filter((c) => !isRead(c.id));
     const text = h("p");
     const alerts = h("div");
-    const confirm = h("button.btn.primary", { type: "button", "data-autofocus": true, onclick: () => submit() });
-    const note = h("textarea", { rows: 3, "aria-label": t("cr.noteLabel"), placeholder: t("cr.notePh") });
+    const confirm = h("button.btn.primary", { type: "button", "data-autofocus": focusNote ? null : true, onclick: () => submit() });
+    const note = h("textarea", { rows: 3, "data-autofocus": focusNote ? true : null, "aria-label": t("cr.noteLabel"), placeholder: t("cr.notePh") });
     note.value = s.note;
     note.addEventListener("input", () => {
       s.note = note.value;
@@ -345,6 +357,10 @@ export function mountReview(round, env) {
       { role: "group", "aria-label": t("cr.verdictLabel") },
       ["return", "nits", "approve"].map((v) => h("button", { type: "button", dataset: { verdict: v }, onclick: () => pick(v) }, t(`cr.v.${v}`))),
     );
+    function decisionWarning(kind, places) {
+      if (!places.length) return null;
+      return h("div.cr-alert", { dataset: { alert: kind } }, t(`cr.alert.${kind}`, places.length), " ", h("button.link-btn", { type: "button", onclick: () => { close(); s.goPlace(places[0].chapter, places[0].index); } }, t("cr.goPlace")));
+    }
     function pick(v) {
       verdict = v;
       for (const b of seg.children) b.setAttribute("aria-pressed", String(b.dataset.verdict === v));
@@ -354,6 +370,8 @@ export function mountReview(round, env) {
       const red = [checks.failed && t("cr.n.failed", checks.failed), checks.missing && t("cr.n.missing", checks.missing)].filter(Boolean).join(", ");
       alerts.replaceChildren(
         ...[
+          approving && decisionWarning("decisions", decisionsOf(s).filter((d) => answerOf(s, d) === null)),
+          v === "approve" && decisionWarning("decisionNo", decisionsOf(s).filter((d) => answerOf(s, d) === "no")),
           approving && coverageWarning(s, () => { close(); s.openFiles(); }),
           approving && s.rv.newer && h("div.cr-alert", { dataset: { alert: "newer" } }, t("cr.alert.newer", s.rv.snapshot.head.slice(0, 7), s.rv.newer.head.slice(0, 7))),
           approving && red && h("div.cr-alert", { dataset: { alert: "checks" } }, h("b", {}, t("cr.alert.checks")), " ", t("cr.alert.checksText", red)),

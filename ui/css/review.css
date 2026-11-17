@@ -308,3 +308,13 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 
 .cr-progress { margin: 12px 10px; }
 .cr-progress > span { display: block; }
+
+.cr-overview-section { margin-block: 1.5rem; }
+.cr-risk-check { margin: .25rem 0 .8rem; padding-inline: .7rem; font-size: .85rem; }
+.cr-decision { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.cr-decision-question { flex: 1 1 18rem; font-weight: 600; }
+.cr-decision-buttons { display: inline-flex; gap: .4rem; }
+.cr-decision-buttons [aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.cr-overview-decision { margin-block: .8rem; }
+.cr-place-in > .cr-decision { flex-basis: 100%; }
+.cr-whole-note { margin-top: 1.5rem; font-size: .9rem; }

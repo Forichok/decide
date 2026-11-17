@@ -10,6 +10,7 @@
 // A piece with no key place is shown whole when it is short, by its first lines when it is long, and
 // folded when its chapter has key places elsewhere. A long test file lists the names of its tests.
 
+import { renderDecision } from "./decisions.js";
 import { h } from "../dom.js";
 import { t } from "../i18n.js";
 import { md, mdInline } from "../md.js";
@@ -208,6 +209,7 @@ export function renderPiece(s, piece, { folded = false } = {}) {
         h(
           "div.cr-place-in",
           {},
+          sp.place.kind === "decision" && sp.place.question && renderDecision(s, { ...sp.place, chapter: sp.place.key.slice(0, sp.place.key.lastIndexOf(":")) }),
           sp.place.kind && h("span.cr-kind", {}, t(`cr.placeKind.${sp.place.kind}`)),
           h("span.cr-place-note", { html: mdInline(sp.place.note || t("cr.placeNoNote")) }),
           h("span.cr-place-acts", {}, tool(t("cr.askHunk"), onPlace(sp, "question")), tool(t("cr.commentHunk"), onPlace(sp, "fix"))),

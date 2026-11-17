@@ -603,3 +603,48 @@ test('approval coverage warnings bound groups and file names in both languages',
     await expect(files).toHaveCount(0);
   }
 });
+
+test('owner overview: decisions, risk checks, acceptance and persisted answers', async ({ page }) => {
+  const spec = structuredClone(SPEC);
+  spec.chapters[0].focus = [{ at: 'lib/a.mjs:3', note: 'A word replaces the digit.', kind: 'decision', question: 'Is a word acceptable?', options: ['Keep word', 'Use digit'] }, { at: 'lib/a.mjs:4', note: 'Parser may refuse it.', kind: 'risk' }];
+  spec.risks[0].checkedBy = 'Parser test covers the word.';
+  spec.acceptance = { changed: 'The `parser` receives a word. <img>', where: '`Parser` screen <img>', steps: ['Open `parser` <img>', 'Read `line three` <img>'], expect: 'A `word` appears. <img>' };
+  const opened = await d.must('POST', '/api/rounds', { project: d.project, spec, mode: 'review', open: false });
+  await page.goto(`${d.origin}/?lang=en#r=${opened.id}`);
+  const overview = page.locator('#cr-overview');
+  await expect(overview.locator('h3')).toHaveText(['Decisions for you', 'Risks', 'How to check it yourself', 'What changed', 'Checks']);
+  await expect(overview).toContainText('Checked by: Parser test covers the word.');
+  await expect(overview.locator('.cr-overview-section > .cr-said')).toHaveCount(0);
+  await expect(overview.locator('.cr-ch-head > .cr-said')).toHaveCount(1);
+  await expect(overview.locator('.cr-risk-check .cr-said')).toHaveCount(2);
+  await expect(overview.locator('.cr-risk-check.warn')).toHaveText("Not checked in the agent's words");
+  const acceptance = overview.locator('[data-section="acceptance"]');
+  await expect(acceptance.locator('code')).toHaveText(['parser', 'Parser', 'parser', 'line three', 'word']);
+  await expect(acceptance.locator('ol li')).toHaveText(['Open parser <img>', 'Read line three <img>']);
+  await expect(acceptance).not.toContainText('`');
+  await expect(acceptance.locator('img')).toHaveCount(0);
+  await expect(acceptance).toContainText('The parser receives a word. <img>');
+  await expect(acceptance).toContainText('Where to look: Parser screen <img>');
+  await expect(acceptance).toContainText('What to expect: A word appears. <img>');
+  await expect(overview).toContainText('The page does not run or verify these steps.');
+  await page.locator('.cr-bar [data-verdict="approve"]').click();
+  await expect(page.locator('[data-alert="decisions"]')).toContainText('1 decision not answered');
+  await page.locator('.cr-verdict .cr-seg [data-verdict="nits"]').click();
+  await expect(page.locator('[data-alert="decisions"]')).toContainText('1 decision not answered');
+  await expect(page.locator('.cr-verdict .modal-actions .primary')).toBeEnabled();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await overview.getByRole('button', { name: 'Use digit', exact: true }).click();
+  await expect(overview.getByRole('button', { name: 'Use digit', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await overview.getByRole('button', { name: 'Go to place', exact: true }).click();
+  await expect(page.locator('tr.cr-place').getByRole('button', { name: 'Use digit', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.reload();
+  await expect(overview.getByRole('button', { name: 'Use digit', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('.cr-bar [data-verdict="approve"]').click();
+  await expect(page.locator('[data-alert="decisionNo"]')).toContainText('1 decision answered no');
+  await expect(page.locator('.cr-verdict .modal-actions .primary')).toBeEnabled();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await overview.getByRole('button', { name: 'Use digit', exact: true }).click();
+  await expect(overview.getByRole('button', { name: 'Use digit', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  await overview.getByRole('button', { name: 'Verdict', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'A note to the agent' })).toBeFocused();
+});

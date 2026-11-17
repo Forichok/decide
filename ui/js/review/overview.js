@@ -6,6 +6,7 @@ import { h } from "../dom.js";
 import { t } from "../i18n.js";
 import { md, mdInline } from "../md.js";
 import { coverageCounts } from "./coverage.js";
+import { decisionsOf, renderDecision } from "./decisions.js";
 import { collectRisks } from "./risks.js";
 
 export const checkState = (c) => (Number.isInteger(c.exit) ? (c.exit === 0 ? "ok" : "failed") : "missing");
@@ -52,7 +53,7 @@ export function renderOverview(s) {
   const risks = collectRisks(spec, rv.chapters).map((r) => {
     const n = number(r.chapter);
     const inner = [h(`span.badge.cr-${r.level}`, {}, t(`cr.risk.${r.level}`)), h("span.what", {}, h("span", { html: mdInline(r.what) }), r.why && h("span.why", { html: mdInline(r.why) })), n > 0 && h("span.go", {}, t("cr.goChapter", n))];
-    return h("li", {}, n > 0 ? h("button.cr-risk", { type: "button", onclick: () => Number.isInteger(r.place) ? s.goPlace(r.chapter, r.place) : s.go(`ch:${r.chapter}`) }, inner) : h("div.cr-risk", {}, inner));
+    return h("li", {}, n > 0 ? h("button.cr-risk", { type: "button", onclick: () => Number.isInteger(r.place) ? s.goPlace(r.chapter, r.place) : s.go(`ch:${r.chapter}`) }, inner) : h("div.cr-risk", {}, inner), h(`p.cr-risk-check${r.checkedBy ? "" : ".warn"}`, {}, r.checkedBy ? t("cr.checkedBy", r.checkedBy) : t("cr.notChecked"), " ", h("small.cr-said", {}, t("cr.said"))));
   });
   const checks = spec.checks.map((c) => {
     const st = checkState(c);
@@ -65,24 +66,34 @@ export function renderOverview(s) {
       h("td.dur", {}, seconds(c.seconds)),
     );
   });
-  return h(
-    "section.cr-card.cr-overview.glass",
-    { id: "cr-overview", tabindex: "-1", dataset: { stop: "overview" } },
+  const section = (key, title, body) => h("section.cr-overview-section", { dataset: { section: key } }, h("h3.cr-sub", {}, title), body);
+  const decisions = decisionsOf(s);
+  const acceptance = spec.acceptance;
+  // Wave 5 can fill conclusion without moving the surrounding sections.
+  const sections = [
+    decisions.length && section("decisions", t("cr.decisions"), decisions.map((d) => h("div.cr-overview-decision", {}, renderDecision(s, d), h("button.link-btn", { type: "button", onclick: () => s.goPlace(d.chapter, d.index) }, t("cr.goPlace"))))),
+    section("risks", t("cr.risks"), risks.length ? h("ul.cr-risks", {}, risks) : h("p.cr-none", {}, t("cr.noRisks"))),
+    null, // reviewers' conclusion
+    acceptance && section("acceptance", t("cr.acceptance"), [
+      acceptance.changed && h("p", { html: mdInline(acceptance.changed) }),
+      acceptance.where && h("p", {}, t("cr.acceptance.where"), " ", h("span", { html: mdInline(acceptance.where) })),
+      acceptance.steps?.length > 0 && h("ol", {}, acceptance.steps.map((step) => h("li", { html: mdInline(step) }))),
+      acceptance.expect && h("p", {}, t("cr.acceptance.expect"), " ", h("span", { html: mdInline(acceptance.expect) })),
+      h("small.cr-hint", {}, t("cr.acceptance.note")),
+    ]),
+    section("summary", t("cr.whatChanged"), h("div.cr-lead.cr-md", { html: md(spec.summary) })),
+    section("checks", t("cr.checks"), [h("small.cr-hint", {}, t("cr.checksNote")), checks.length ? h("div.cr-checks-wrap", {}, h("table.cr-checks", {}, h("tbody", {}, checks))) : h("p.cr-none.warn", {}, t("cr.noChecks"))]),
+    h("p.cr-mechanical-account", {}, mechanicalLine(s)),
+  ];
+  return h("section.cr-card.cr-overview.glass", { id: "cr-overview", tabindex: "-1", dataset: { stop: "overview" } },
     h("div.cr-ch-head", {}, h("div.cr-ch-titles", {}, h("h2", {}, t("cr.overview"))), h("span.cr-said", {}, t("cr.said"))),
-    spec.mechanical.length > 0 && h("p.cr-mechanical-account", {}, mechanicalLine(s)),
-    h("div.cr-lead.cr-md", { html: md(spec.summary) }),
+    sections.filter(Boolean),
     s.guided && h("p.cr-how", {}, t("cr.how", rv.chapters.reduce((n, c) => n + c.focus.length, 0))),
-    h("h3.cr-sub", {}, t("cr.risks")),
-    risks.length ? h("ul.cr-risks", {}, risks) : h("p.cr-none", {}, t("cr.noRisks")),
-    h("h3.cr-sub", {}, t("cr.checks"), h("small", {}, t("cr.checksNote"))),
-    checks.length ? h("div.cr-checks-wrap", {}, h("table.cr-checks", {}, h("tbody", {}, checks))) : h("p.cr-none.warn", {}, t("cr.noChecks")),
-    h(
-      "div.cr-tally",
-      {},
+    h("div.cr-tally", {},
       h("span", {}, h("b", {}, spec.chapters.length), " ", t("cr.tally.chapters", spec.chapters.length)),
       spec.mechanical.length > 0 && h("span", {}, h("b", {}, spec.mechanical.length), " ", t("cr.tally.mechanical", spec.mechanical.length)),
-      h("span", {}, t("cr.tally.sorted"), " ", h("b", {}, t("cr.of", rv.sorted, rv.total))),
-    ),
+      h("span", {}, t("cr.tally.sorted"), " ", h("b", {}, t("cr.of", rv.sorted, rv.total)))),
+    h("p.cr-whole-note", {}, t("cr.wholeNote"), " ", h("button.link-btn", { type: "button", onclick: () => s.verdict("approve", true) }, t("cr.verdictLink"))),
   );
 }
 

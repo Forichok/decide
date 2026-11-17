@@ -263,6 +263,7 @@ test("a mode change on a file that also has hunks is carried by its pieces", () 
 // ---------- the spec ----------
 
 const SPEC = {
+  acceptance: { changed: "Nothing changes from outside." },
   title: "Review mode: the core",
   summary: "The server reads the diff from git and the page shows it by chapters.",
   risks: [{ level: "high", what: "git runs on a ref the page names", why: "an option would run", chapter: "top" }],
@@ -280,7 +281,7 @@ const SPEC = {
 
 test("the spec: shaped with defaults, checks told apart by exit code", () => {
   const { spec, issues } = normalizeReview(SPEC);
-  assert.deepEqual(issues, []);
+  assert.deepEqual(warnsOf(issues), ["risks[0]: say which check covers it, or write that nothing does"]);
   assert.deepEqual([spec.mode, spec.lang, spec.title], ["review", "en", "Review mode: the core"]);
   assert.deepEqual(spec.chapters.map((c) => [c.id, c.risk, c.watch !== ""]), [["top", "high", true], ["tail", "low", false]]);
   assert.deepEqual(spec.checks.map(checkState), ["ok", "failed", "missing"]);
@@ -326,7 +327,7 @@ test("the verdict digest: a chapter nobody marked is not read, whatever its id",
 
 test("the spec lint: key places and skim", () => {
   const chapter = (extra) => ({ id: "a", title: "T", summary: "S", hunks: ["a"], ...extra });
-  const lint = (extra) => normalizeReview({ summary: "s", checks: [{ command: "x", exit: 0 }], chapters: [chapter(extra)] });
+  const lint = (extra) => normalizeReview({ acceptance: { changed: "Nothing changes from outside." }, summary: "s", checks: [{ command: "x", exit: 0 }], chapters: [chapter(extra)] });
   const ok = lint({ focus: [{ at: "lib/a.mjs:10-30", note: "the guard" }, { at: " lib/b.mjs:7 ", note: "one line" }], skim: " generated " });
   assert.deepEqual(ok.issues, []);
   assert.deepEqual([ok.spec.chapters[0].focus, ok.spec.chapters[0].skim], [[{ at: "lib/a.mjs:10-30", note: "the guard" }, { at: "lib/b.mjs:7", note: "one line" }], "generated"]);
@@ -336,7 +337,7 @@ test("the spec lint: key places and skim", () => {
   // What the place is: one of three words, any case; another word is dropped with a warning.
   const kinds = lint({ focus: [{ at: "lib/a.mjs:1-3", note: "n", kind: "Risk" }, { at: "lib/a.mjs:5", note: "n", kind: "decision" }, { at: "lib/a.mjs:7", note: "n", kind: "scary" }] });
   assert.deepEqual(kinds.spec.chapters[0].focus.map((f) => f.kind), ["risk", "decision", undefined]);
-  assert.deepEqual(warnsOf(kinds.issues), ['chapters[0].focus[2]: kind is one of risk, decision, check, or left out; got "scary"']);
+  assert.deepEqual(warnsOf(kinds.issues), ['chapters[0].focus[0]: say which check covers it, or write that nothing does', 'chapters[0].focus[1]: a decision place asks the owner a yes/no question: add `question`', 'chapters[0].focus[2]: kind is one of risk, decision, check, or left out; got "scary"']);
 
   const bad = lint({ focus: ["lib/a.mjs:1-3", { at: "lib/a.mjs" }, { at: "lib/a.mjs:9-3" }, { at: "lib/a.mjs:0" }, { at: "lib/a.mjs:1-2", note: "n", why: "x" }] });
   assert.deepEqual(errorsOf(bad.issues).slice(0, 4), [
@@ -356,7 +357,7 @@ test("the spec lint: key places and skim", () => {
     'chapters[0]: "a" is high risk and marked skim: a risky chapter is read, name its key places in focus',
     'risks: chapter "a" marked high risk but no risk in the overview points there',
   ]);
-  const three = normalizeReview({ summary: "s", checks: [{ command: "x", exit: 0 }], chapters: ["a", "b", "c"].map((id) => chapter({ id })) });
+  const three = normalizeReview({ acceptance: { changed: "Nothing changes from outside." }, summary: "s", checks: [{ command: "x", exit: 0 }], chapters: ["a", "b", "c"].map((id) => chapter({ id })) });
   assert.deepEqual(warnsOf(three.issues), ["chapters: no chapter names key places (focus) or is marked skim: the reviewer gets every line of every hunk"]);
 });
 
@@ -373,10 +374,12 @@ test("the spec lint: what only warns", () => {
     'chapters[0]: risk is one of high, medium, low, got "critical"',
     "mechanical[0]: no title: say what the edit is (a rename, formatting, a lock file)",
     'risks[0]: level is one of high, medium, low, got "severe"',
+    'risks[0]: say which check covers it, or write that nothing does',
     'risks[0]: no chapter "nope": the risk will not jump anywhere',
     'checks[0]: exit is the command\'s exit code, a whole number; got "0": shown as not run',
     "summary: no summary: the overview opens with what changed and why",
     'risks: chapter "auth" marked high risk but no risk in the overview points there',
+    'acceptance: say what changed for the user and how to check it; for a refactoring: nothing changes from outside',
   ]);
   assert.deepEqual(spec.chapters[0].hunks, ["lib/"], "one reference may come without the list");
   assert.deepEqual([spec.chapters[0].risk, spec.risks[0].level, spec.risks[0].chapter, spec.checks[0].exit], ["low", "medium", "", null]);
@@ -703,7 +706,7 @@ test("MCP: review → comments, a question, read marks → the verdict with ever
   assert.equal(opened.isError, undefined, text(opened));
   const [, round, url] = text(opened).match(/Review (\S+) «The fixture change» is open for the user: (http:\/\/127\.0\.0\.1:\d+\/)/);
   assert.match(text(opened), new RegExp(`Snapshot: main \\(${repo.base.slice(0, 7)}\\) → HEAD \\(${repo.head.slice(0, 7)}\\); 6 files, \\+6 −3; 5 of 7 hunks sorted`));
-  assert.match(text(opened), /Lint warnings:\n.*2 hunks in no chapter/);
+  assert.match(text(opened), /Lint warnings:[\s\S]*2 hunks in no chapter/);
 
   const port = Number(new URL(url).port);
   const post = async (route, body) => {
@@ -920,9 +923,9 @@ test("lint refuses lost focus and unexplained mechanical shares; owner pins rema
   const repo = await reviewRepo(context);
   const lint = (await import('../lib/commands/lint.mjs')).default;
   const run = (spec) => lint.run({ spec }, { project: { top: repo.dir } });
-  const one = { title: 'All changes', summary: 'The fixture change.', checks: [{ command: 'node --test', exit: 0 }], chapters: [{ id: 'all', title: 'Everything', summary: 'The fixture change.', hunks: ['**'] }] };
+  const one = { acceptance: { changed: 'Nothing changes from outside.' }, title: 'All changes', summary: 'The fixture change.', checks: [{ command: 'node --test', exit: 0 }], chapters: [{ id: 'all', title: 'Everything', summary: 'The fixture change.', hunks: ['**'] }] };
   // Owner decision of 2026-11-17: one chapter and all-risk key places are both valid choices.
-  for (const focus of [[], [{ at: 'lib/a.mjs:3', note: 'The parser.', kind: 'risk' }, { at: 'lib/a.mjs:50', note: 'The tail.', kind: 'risk' }]]) {
+  for (const focus of [[], [{ at: 'lib/a.mjs:3', note: 'The parser.', kind: 'risk', checkedBy: 'Nothing covers this yet.' }, { at: 'lib/a.mjs:50', note: 'The tail.', kind: 'risk', checkedBy: 'Nothing covers this yet.' }]]) {
     const result = await run({ ...one, chapters: [{ ...one.chapters[0], focus }] });
     assert.deepEqual(result, { text: 'decide lint: ok', exit: 0 });
   }
@@ -945,4 +948,38 @@ test("lint refuses lost focus and unexplained mechanical shares; owner pins rema
   assert.equal(reason.exit, 0);
   assert.match(reason.text, /warn +mechanical: mechanical groups hold/);
   assert.match(reason.text, /decide lint: ok$/);
+});
+
+test('decision action persists across server restart, overwrites and clears, and exports the owner answer', { skip: !hasGit }, async (context) => {
+  const repo = await reviewRepo(context);
+  const home = homeOf(repo.dir);
+  const first = await spawnServer(context, home);
+  const spec = structuredClone(REPO_SPEC);
+  spec.chapters[0].focus = [{ at: 'lib/a.mjs:3', note: 'The parser sees a word.', kind: 'decision', question: 'Is a word acceptable?', options: ['Keep word', 'Use digit'] }];
+  const opened = await fetch(`http://127.0.0.1:${first.port}/api/rounds`, { method: 'POST', headers: asAgent(first.port), body: JSON.stringify({ project: repo.dir, spec, mode: 'review', open: false }) });
+  assert.equal(opened.status, 200);
+  const { id } = await opened.json();
+  const post = (port, body) => fetch(`http://127.0.0.1:${port}/api/rounds/${id}/decision`, { method: 'POST', headers: asPage(port), body: JSON.stringify(body) });
+  const answer = { chapter: 'top', at: 'lib/a.mjs:3', answer: 'yes' };
+  for (const bad of [{ ...answer, chapter: 'tail' }, { ...answer, at: 'lib/a.mjs:99' }, { ...answer, answer: 'other' }, { ...answer, chapter: '__proto__' }]) assert.equal((await post(first.port, bad)).status, 400);
+  for (const value of ['yes', 'no', null, 'yes']) {
+    assert.equal((await post(first.port, { ...answer, answer: value })).status, 200);
+    const round = await (await fetch(`http://127.0.0.1:${first.port}/api/rounds/${id}`)).json();
+    assert.equal(round.review.decisions.top?.['lib/a.mjs:3'] ?? null, value);
+    assert.equal(round.review.comments.length, 0, 'a decision is not a comment');
+  }
+  first.child.kill(); await exitOf(first.child);
+  const second = await spawnServer(context, home);
+  const back = await (await fetch(`http://127.0.0.1:${second.port}/api/rounds/${id}`)).json();
+  assert.equal(back.review.decisions.top['lib/a.mjs:3'], 'yes');
+  assert.equal(back.review.chapters[0].focus[0].question, 'Is a word acceptable?');
+  await post(second.port, { ...answer, answer: 'no' });
+  const sent = await fetch(`http://127.0.0.1:${second.port}/api/rounds/${id}/submit`, { method: 'POST', headers: asPage(second.port), body: JSON.stringify({ verdict: 'approve' }) });
+  assert.equal(sent.status, 200);
+  const { result } = await sent.json();
+  assert.deepEqual(result.decisions, [{ chapter: 'top', at: 'lib/a.mjs:3', question: 'Is a word acceptable?', answer: 'no', label: 'Use digit' }]);
+  assert.match(result.digest, /Decisions \(1\):\n1\. lib\/a.mjs:3\n   Is a word acceptable\? — Use digit/);
+  const saved = JSON.parse(readFileSync(path.join(back.dataDir, 'rounds', id, 'answers.json'), 'utf8'));
+  assert.deepEqual(saved.decisions, result.decisions);
+  assert.equal((await post(second.port, answer)).status, 409);
 });
