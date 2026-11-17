@@ -999,9 +999,9 @@ test("the schema takes every shape the strict engine takes without an error", as
   assert.match(validate(specSchema(), q({ titel: "x" }), specSchema()).join("\n"), /unknown field "titel"/);
 });
 
-test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tune, rules, evidence), swipe's 7,000, review's 2,100, tools/list pinned near its size", async () => {
+test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tune, rules, evidence), swipe's 7,000, review's 2,200, tools/list pinned near its size", async () => {
   const { specSchema, deckSchema, reviewSchema } = await docs();
-  assert.ok(JSON.stringify(reviewSchema()).length <= 2100, `reviewSchema ${JSON.stringify(reviewSchema()).length} bytes`);
+  assert.ok(JSON.stringify(reviewSchema()).length <= 2200, `reviewSchema ${JSON.stringify(reviewSchema()).length} bytes`);
   const size = (v) => JSON.stringify(v).length;
   assert.ok(size(specSchema()) <= 12000, `specSchema ${size(specSchema())} bytes`);
   assert.ok(size(deckSchema()) <= 7000, `deckSchema ${size(deckSchema())} bytes`);

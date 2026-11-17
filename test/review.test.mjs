@@ -333,10 +333,14 @@ test("the spec lint: key places and skim", () => {
   assert.deepEqual(normalizeReview(ok.spec, { fields: "lenient" }).spec.chapters, ok.spec.chapters, "a spec read back from disk keeps its key places");
   assert.deepEqual(lint({ focus: { at: "lib/a.mjs:1-3", note: "one place, not in a list" } }).spec.chapters[0].focus.length, 1);
   assert.deepEqual(lint({}).spec.chapters[0].focus, []);
+  // What the place is: one of three words, any case; another word is dropped with a warning.
+  const kinds = lint({ focus: [{ at: "lib/a.mjs:1-3", note: "n", kind: "Risk" }, { at: "lib/a.mjs:5", note: "n", kind: "decision" }, { at: "lib/a.mjs:7", note: "n", kind: "scary" }] });
+  assert.deepEqual(kinds.spec.chapters[0].focus.map((f) => f.kind), ["risk", "decision", undefined]);
+  assert.deepEqual(warnsOf(kinds.issues), ['chapters[0].focus[2]: kind is one of risk, decision, check, or left out; got "scary"']);
 
   const bad = lint({ focus: ["lib/a.mjs:1-3", { at: "lib/a.mjs" }, { at: "lib/a.mjs:9-3" }, { at: "lib/a.mjs:0" }, { at: "lib/a.mjs:1-2", note: "n", why: "x" }] });
   assert.deepEqual(errorsOf(bad.issues).slice(0, 4), [
-    'chapters[0].focus[0]: a key place is an object: {at: "path:from-to", note}',
+    'chapters[0].focus[0]: a key place is an object: {at: "path:from-to", note, kind}',
     'chapters[0].focus[1]: at is "path:from-to" or "path:line", lines of the new file; got "lib/a.mjs"',
     'chapters[0].focus[2]: at is "path:from-to" or "path:line", lines of the new file; got "lib/a.mjs:9-3"',
     'chapters[0].focus[3]: at is "path:from-to" or "path:line", lines of the new file; got "lib/a.mjs:0"',
@@ -595,13 +599,13 @@ test("the snapshot is the branch against its base, and is read back from the rou
   const focused = normalizeReview({
     ...REPO_SPEC,
     chapters: [
-      { ...REPO_SPEC.chapters[0], focus: [{ at: "lib/a.mjs:3", note: "the parser reads this" }, { at: "lib/a.mjs:50", note: "in the other chapter" }, { at: "lib/a.mjs:20-22", note: "not changed" }] },
+      { ...REPO_SPEC.chapters[0], focus: [{ at: "lib/a.mjs:3", note: "the parser reads this", kind: "risk" }, { at: "lib/a.mjs:50", note: "in the other chapter" }, { at: "lib/a.mjs:20-22", note: "not changed" }] },
       { ...REPO_SPEC.chapters[1], skim: "the same edit again" },
     ],
   });
   assert.deepEqual(errorsOf(focused.issues), []);
   const laid = buildReview(focused.spec, back.patch);
-  assert.deepEqual(reviewIndex(focused.spec, back.meta, laid).chapters.map((c) => c.focus), [[{ file: "lib/a.mjs", from: 3, to: 3, note: "the parser reads this", pieces: ["h1"] }], []]);
+  assert.deepEqual(reviewIndex(focused.spec, back.meta, laid).chapters.map((c) => c.focus), [[{ file: "lib/a.mjs", from: 3, to: 3, note: "the parser reads this", kind: "risk", pieces: ["h1"] }], []]);
   assert.deepEqual(warnsOf(laid.issues).filter((w) => w.includes("focus")), [
     'chapters[0] (top).focus[1]: "lib/a.mjs:50" is not in this chapter: those lines are in chapter "tail"; the place is not shown',
     'chapters[0] (top).focus[2]: "lib/a.mjs:20-22" names no changed lines of this diff (lines of the new file, inside a hunk); the place is not shown',

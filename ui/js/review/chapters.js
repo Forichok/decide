@@ -94,7 +94,7 @@ export function createChapters(s) {
           "div.cr-places",
           {},
           h("b", {}, t("cr.places", stat.focus.length)),
-          h("ol", {}, stat.focus.map((f, k) => h("li", {}, h("button", { type: "button", onclick: () => s.goPlace(c.id, k) }, h("code", {}, `${f.file}:${f.from === f.to ? f.from : `${f.from}–${f.to}`}`), f.note && h("span", { html: mdInline(f.note) }))))),
+          h("ol", {}, stat.focus.map((f, k) => h("li", {}, h(`button${f.kind ? `.kind-${f.kind}` : ""}`, { type: "button", onclick: () => s.goPlace(c.id, k) }, f.kind && h("span.cr-kind", {}, t(`cr.placeKind.${f.kind}`)), h("code", {}, `${f.file}:${f.from === f.to ? f.from : `${f.from}–${f.to}`}`), f.note && h("span", { html: mdInline(f.note) }))))),
         ),
       body,
       h("div.cr-ch-foot", {}, read, h("span.cr-hint", {}, t("cr.readHint"))),

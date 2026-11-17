@@ -86,7 +86,7 @@ the user to message you when they are done, and on that message call
       "watch": "`consume()` reads and deletes in two statements. I think the unique index makes a double use fail, but look at it.",
       "risk": "high",
       "focus": [
-        { "at": "lib/auth/token.mjs:41-58", "note": "`consume()`: the read and the delete are two statements." },
+        { "at": "lib/auth/token.mjs:41-58", "note": "`consume()`: the read and the delete are two statements.", "kind": "check" },
         { "at": "db/migrations/0042_tokens.sql:3-9", "note": "The unique index that makes a second use fail." }
       ],
       "hunks": ["lib/auth/token.mjs", "db/migrations/0042_tokens.sql", "test/token.test.mjs"]
@@ -116,7 +116,7 @@ the user to message you when they are done, and on that message call
 | `chapters[].watch`     | The line or the decision you are least sure of. The user reads it before the diff.                         |
 | `chapters[].risk`      | `high`, `medium` or `low` (default). A high chapter wants a risk in the overview that points to it.        |
 | `chapters[].hunks`     | References to the hunks of this chapter.                                                                   |
-| `chapters[].focus`     | `[{at, note}]`: the places to read, up to five. `at` is `"path:from-to"` in lines of the new file, inside this chapter's hunks. |
+| `chapters[].focus`     | `[{at, note, kind}]`: the places to read, up to five. `at` is `"path:from-to"` in lines of the new file, inside this chapter's hunks. `kind` is optional: `risk`, `decision` or `check`. |
 | `chapters[].skim`      | One sentence on why the chapter needs no reading line by line. Not for a high-risk chapter.                |
 | `mechanical[]`         | `{title, hunks}`: one folded line on the page with a count.                                                |
 
@@ -169,6 +169,13 @@ read every line, and you know which twenty carry the decision. Name them.
   where input is checked, where data is written, the condition that changed.
   Up to five per chapter, 10–30 lines each. The `note` says what to check
   there: "the token is compared in constant time", not "important code".
+- `kind` says what the place is, and the page colours it: `risk` (red) can
+  break or leak; `decision` (blue) is a choice that could have gone another
+  way, for the user to agree with; `check` (amber) is a spot you are not sure
+  of. Leave it out for a place that is simply where the change happens. Most
+  places have no kind: a page where everything is a risk says nothing.
+- The row over a place has "Ask the agent" and "Comment"; both land on the
+  place's first line.
 - The page opens such a chapter on those places, with three lines around
   each. Hunks of the chapter with no key place go under one fold, "The rest
   of the chapter", and a test file longer than 30 lines shows as the list of

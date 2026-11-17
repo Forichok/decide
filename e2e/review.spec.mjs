@@ -44,7 +44,7 @@ function fixtureRepo(dir) {
   git("add", "-A");
   git("commit", "-q", "-m", "the change");
   git("checkout", "-q", "-b", "guide", "main");
-  write("lib/big.mjs", lines(90));
+  write("lib/big.mjs", lines(90, { 41: 'const total = count("x"); // why' }));
   write("lib/a.mjs", lines(60, { 30: "line thirty" }));
   write("test/big.test.mjs", testFile(["opens", "folds", "keeps a comment"]));
   git("add", "-A");
@@ -201,7 +201,7 @@ const GUIDE = {
   title: "The guided change",
   summary: "A new module and one line of a.mjs.",
   chapters: [
-    { id: "core", title: "The module", summary: "Ninety lines, six of them matter.", hunks: ["lib/"], focus: [{ at: "lib/big.mjs:40-45", note: "The loop." }] },
+    { id: "core", title: "The module", summary: "Ninety lines, six of them matter.", hunks: ["lib/"], focus: [{ at: "lib/big.mjs:40-45", note: "The loop.", kind: "risk" }] },
     { id: "checks", title: "The tests", summary: "Three tests.", hunks: ["test/"], skim: "Names only." },
   ],
 };
@@ -221,6 +221,20 @@ test("a review with key places: the rest is folded and opens by the gap, the hun
   await expect(big.locator("tr.cr-line.focus")).toHaveCount(6);
   await expect(big.locator("tr.cr-gap")).toHaveCount(2);
   await expect(big.locator("tr.cr-place")).toContainText("The loop.");
+  // The place says what it is, on its row, on its lines and in the chapter's list.
+  await expect(big.locator("tr.cr-place.kind-risk .cr-kind")).toHaveText("Risk");
+  await expect(big.locator("tr.cr-line.focus.kind-risk")).toHaveCount(6);
+  // the bar beside the lines takes the kind's colour, the same as the row above them
+  const bar = (sel) => big.locator(sel).first().evaluate((el) => getComputedStyle(el).boxShadow.match(/rgba?\([^)]*\)/)?.[0]);
+  expect(await bar("tr.cr-line.focus.kind-risk td.n")).toBe(await bar("tr.cr-place.kind-risk td"));
+  await expect(core.locator(".cr-places button.kind-risk .cr-kind")).toHaveText("Risk");
+  // Code is coloured by what it is; the text of the line stays the line.
+  const coded = big.locator('tr.cr-line[data-key="new:41"] td.t');
+  await expect(coded).toHaveText('const total = count("x"); // why');
+  await expect(coded.locator(".tk-k")).toHaveText("const");
+  await expect(coded.locator(".tk-f")).toHaveText("count");
+  await expect(coded.locator(".tk-s")).toHaveText('"x"');
+  await expect(coded.locator(".tk-c")).toHaveText("// why");
   await expect(core.locator(".cr-places button")).toHaveCount(1);
   await core.locator(".cr-places button").click();
   await expect(big.locator("tr.cr-place")).toBeInViewport();

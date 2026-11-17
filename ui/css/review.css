@@ -158,6 +158,13 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 .cr-diff tr.del td.s { color: var(--danger); }
 .cr-diff tr.ctx td, .cr-diff tr.far td { color: var(--tx-mut); }
 .cr-diff tr.far td.t { opacity: 0.75; }
+/* the colours of code (syntax.js) */
+.cr-diff .tk-c { color: var(--tx-dim); font-style: italic; }
+.cr-diff .tk-s { color: var(--syn-s); }
+.cr-diff .tk-k { color: var(--syn-k); }
+.cr-diff .tk-n { color: var(--syn-n); }
+.cr-diff .tk-f { color: var(--syn-f); }
+.cr-diff .tk-p { color: var(--syn-f); }
 .cr-diff tr.cr-line { cursor: pointer; }
 .cr-diff tr.cr-line:hover td { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--accent) 7%, transparent); }
 .cr-diff tr.cr-line:hover td.n:first-child::before {
@@ -167,13 +174,19 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 .cr-diff tr.far.add td.s { color: var(--ok); }
 .cr-diff tr.far.del td.s { color: var(--danger); }
 /* a key place: the lines the agent asks to read, and the row that says why */
-.cr-diff tr.cr-line.focus td.n:first-child { box-shadow: inset 3px 0 0 var(--accent); }
-.cr-diff tr.cr-place td { padding: 5px 8px 5px 14px; font: 13.5px/1.45 var(--font); color: var(--tx); background: var(--accent-soft, var(--surface-2)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); box-shadow: inset 3px 0 0 var(--accent); }
-.cr-place-in { display: flex; align-items: center; gap: 2px 14px; flex-wrap: wrap; }
+/* its colour says what the place is: plain (the accent), a risk, a decision, a spot to check */
+.cr-diff tr.cr-place, .cr-diff tr.focus, .cr-places button { --place: var(--accent); --place-soft: var(--accent-soft); --place-tx: var(--accent-tx); }
+.cr-diff tr.kind-risk, .cr-places .kind-risk { --place: var(--danger); --place-soft: var(--danger-soft); --place-tx: var(--danger); }
+.cr-diff tr.kind-decision, .cr-places .kind-decision { --place: var(--info); --place-soft: var(--info-soft); --place-tx: var(--info); }
+.cr-diff tr.kind-check, .cr-places .kind-check { --place: var(--warn); --place-soft: var(--warn-soft); --place-tx: var(--warn); }
+.cr-kind { flex: none; padding: 1px 8px; border-radius: 999px; font: 650 11.5px/1.6 var(--font); letter-spacing: 0.02em; color: var(--place-tx); background: var(--place-soft); border: 1px solid color-mix(in srgb, var(--place) 45%, transparent); }
+.cr-diff tr.cr-line.focus td.n:first-child { box-shadow: inset 3px 0 0 var(--place); }
+.cr-diff tr.cr-place td { padding: 5px 8px 5px 14px; font: 13.5px/1.45 var(--font); color: var(--tx); background: var(--place-soft); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); box-shadow: inset 3px 0 0 var(--place); }
+.cr-place-in { display: flex; align-items: center; gap: 2px 10px; flex-wrap: wrap; }
 .cr-place-note { flex: 1 1 320px; font-weight: 600; }
 .cr-place-acts { display: flex; gap: 2px; margin-left: auto; }
-.cr-place-acts .cr-tool { color: var(--accent-tx); }
-.cr-place-acts .cr-tool:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent-tx); }
+.cr-place-acts .cr-tool { color: var(--place-tx); }
+.cr-place-acts .cr-tool:hover { background: color-mix(in srgb, var(--place) 16%, transparent); color: var(--place-tx); }
 .cr-diff tr.cr-place.flash td { animation: cr-flash 1.2s ease-out; }
 @keyframes cr-flash { from { background: color-mix(in srgb, var(--accent) 30%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .cr-diff tr.cr-place.flash td { animation: none; } }

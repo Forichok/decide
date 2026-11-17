@@ -29,6 +29,11 @@
   --danger-soft: rgba(210, 59, 59, 0.1);
   --info: #1f58c0;
   --info-soft: rgba(47, 111, 228, 0.1);
+  /* code in a diff: keyword, called name, string, number */
+  --syn-k: #7a2bb8;
+  --syn-f: #0a6677;
+  --syn-s: #8a4a00;
+  --syn-n: #1f58c0;
   --c-what: #2f6fe4;
   --c-how: #0f9a6e;
   --c-why: #c07a0c;
@@ -113,6 +118,10 @@
     --danger-soft: rgba(255, 107, 107, 0.12);
     --info: #6aa2ff;
     --info-soft: rgba(106, 162, 255, 0.12);
+    --syn-k: #c9a0ff;
+    --syn-f: #6fd3e6;
+    --syn-s: #f0b46a;
+    --syn-n: #7fb0ff;
     --chart-1: #3987e5;
     --chart-2: #d95926;
     --chart-3: #199e70;
@@ -168,6 +177,10 @@
   --danger-soft: rgba(255, 107, 107, 0.12);
   --info: #6aa2ff;
   --info-soft: rgba(106, 162, 255, 0.12);
+  --syn-k: #c9a0ff;
+  --syn-f: #6fd3e6;
+  --syn-s: #f0b46a;
+  --syn-n: #7fb0ff;
   --chart-1: #3987e5;
   --chart-2: #d95926;
   --chart-3: #199e70;

@@ -15,6 +15,7 @@ import { t } from "../i18n.js";
 import { md, mdInline } from "../md.js";
 import { reviewFile } from "../net.js";
 import { toast } from "../overlays.js";
+import { lexer } from "./syntax.js";
 
 const KINDS = ["fix", "question", "nit"];
 const keyOf = (x) => (Number.isInteger(x.line) ? `${x.side === "old" ? "old" : "new"}:${x.line}` : "");
@@ -30,12 +31,15 @@ const TEST_NAME = /^\s*(?:test|it|describe)(?:\.\w+)*\(\s*(["'`])(.+?)\1/;
 // ---- the lines
 const lineKey = (l) => (l.t === "del" ? `old:${l.o}` : `new:${l.n}`);
 const sign = (kind) => (kind === "add" ? "+" : kind === "del" ? "−" : "");
-function lineRow(l, focus) {
-  return h(`tr.cr-line.${l.t}${focus ? ".focus" : ""}`, { dataset: { key: lineKey(l) } }, h("td.n", {}, l.o ?? ""), h("td.n", {}, l.n ?? ""), h("td.s", {}, sign(l.t)), h("td.t", {}, l.text));
+// The text of a line in its colours: what syntax.js made of it, each coloured run in a span.
+const code = (pairs) => pairs.map(([cls, text]) => (cls ? h(`span.tk-${cls}`, {}, text) : text));
+// place: undefined off a key place, else the place's kind ("" for a plain one).
+function lineRow(l, place, pairs) {
+  return h(`tr.cr-line.${l.t}${place === undefined ? "" : `.focus${place ? `.kind-${place}` : ""}`}`, { dataset: { key: lineKey(l) } }, h("td.n", {}, l.o ?? ""), h("td.n", {}, l.n ?? ""), h("td.s", {}, sign(l.t)), h("td.t", {}, pairs ? code(pairs) : l.text));
 }
 const eolRow = () => h("tr.eol", {}, h("td.n"), h("td.n"), h("td.s"), h("td.t", {}, t("cr.noeol")));
 // A line of the file outside the piece: read only, it takes no comment. Another hunk's line keeps its mark.
-const farRow = (l) => h(`tr.far${l.t === "ctx" ? "" : `.${l.t}`}`, {}, h("td.n", {}, l.o ?? ""), h("td.n", {}, l.n ?? ""), h("td.s", {}, sign(l.t)), h("td.t", {}, l.text));
+const farRow = (l) => h(`tr.far${l.t === "ctx" ? "" : `.${l.t}`}`, {}, h("td.n", {}, l.o ?? ""), h("td.n", {}, l.n ?? ""), h("td.s", {}, sign(l.t)), h("td.t", {}, l.code ? code(l.code) : l.text));
 
 const fill = (set, from, to, n) => {
   for (let i = Math.max(0, from); i <= Math.min(n - 1, to); i++) set.add(i);
@@ -65,7 +69,7 @@ function layFile(file, piece) {
   if (file.side === "old") {
     const first = piece.oldLines ? piece.oldStart : piece.oldStart + 1;
     text.forEach((line, i) => (i + 1 < first ? before : i + 1 >= first + piece.oldLines ? after : []).push({ t: "ctx", text: line, o: i + 1 }));
-    return { before, after };
+    return coloured(piece, before, after);
   }
   const hunks = (file.hunks ?? []).some((x) => x.id === piece.id) ? [...file.hunks].sort((a, b) => a.newStart - b.newStart) : [{ id: piece.id, newStart: piece.newStart, newLines: piece.newLines, lines: [] }];
   let into = before;
@@ -82,7 +86,17 @@ function layFile(file, piece) {
     at = first + hunk.newLines;
   }
   plain(text.length + 1);
-  return { before, after };
+  return coloured(piece, before, after);
+}
+
+// The file read from its first line, so that what a line ends inside (a comment, a long string) is
+// known all the way down, through the piece's own lines.
+function coloured(piece, before, after) {
+  const read = lexer(piece.file);
+  const paint = (list) => list.map((l) => ({ ...l, code: read(l.text, l.t) }));
+  const above = paint(before);
+  for (const l of piece.lines ?? []) read(l.text, l.t);
+  return { before: above, after: paint(after) };
 }
 
 function where(piece) {
@@ -98,11 +112,13 @@ const PLAIN = { binary: "cr.plain.binary", rename: "cr.plain.rename", mode: "cr.
 export function renderPiece(s, piece, { folded = false } = {}) {
   const isHunk = piece.kind === "hunk";
   const lines = isHunk ? piece.lines : [];
+  const read = lexer(piece.file);
+  const painted = lines.map((l) => read(l.text, l.t));
   const n = lines.length;
   const index = new Map(lines.map((l, i) => [lineKey(l), i]));
   const spans = isHunk ? s.focusOf(piece.id).map((place) => spanOf(lines, place)).filter(Boolean) : [];
-  const inPlace = new Set();
-  for (const sp of spans) fill(inPlace, sp.first, sp.last, n);
+  const inPlace = new Map(); // a line of a key place → the place's kind
+  for (const sp of spans) for (let i = sp.first; i <= sp.last; i++) inPlace.set(i, sp.place.kind || "");
   const names = piece.test && !spans.length && n > TEST_LIST ? testNames(lines) : [];
   const listed = names.length > 0;
 
@@ -184,7 +200,7 @@ export function renderPiece(s, piece, { folded = false } = {}) {
   const onPlace = (sp, kind) => () => s.compose({ hunk: piece.id, line: lines[sp.at].n, side: "new", kind });
   const placeRow = (sp) =>
     h(
-      "tr.cr-place",
+      `tr.cr-place${sp.place.kind ? `.kind-${sp.place.kind}` : ""}`,
       { dataset: { focus: sp.place.key } },
       h(
         "td",
@@ -192,6 +208,7 @@ export function renderPiece(s, piece, { folded = false } = {}) {
         h(
           "div.cr-place-in",
           {},
+          sp.place.kind && h("span.cr-kind", {}, t(`cr.placeKind.${sp.place.kind}`)),
           h("span.cr-place-note", { html: mdInline(sp.place.note || t("cr.placeNoNote")) }),
           h("span.cr-place-acts", {}, tool(t("cr.askHunk"), onPlace(sp, "question")), tool(t("cr.commentHunk"), onPlace(sp, "fix"))),
         ),
@@ -210,7 +227,7 @@ export function renderPiece(s, piece, { folded = false } = {}) {
         continue;
       }
       for (const sp of spans) if (sp.first === i) out.push(placeRow(sp));
-      out.push(lineRow(lines[i], inPlace.has(i)));
+      out.push(lineRow(lines[i], inPlace.get(i), painted[i]));
       if (lines[i].noeol) out.push(eolRow());
       i++;
     }
