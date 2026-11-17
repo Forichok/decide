@@ -21,6 +21,9 @@ test("JavaScript: keywords, strings, numbers, calls, comments, a regular express
   // A quote or a backtick inside a regular expression opens nothing.
   assert.equal(show(read("const re = /[\"'`]\\//g;")), "k(const) re = s(/[\"'`]\\//g);");
   assert.equal(show(read("next();")), "f(next)();");
+  // A member or an object key spelled like a keyword is a name; `default:` in a switch stays a keyword.
+  assert.equal(show(read('h("b", { type: "button" }, sides.new.open, x.delete(1));')), 'f(h)(s("b"), { type: s("button") }, sides.new.open, x.f(delete)(n(1)));');
+  assert.equal(show(read("default: return new Map();")), "k(default): k(return) k(new) f(Map)();");
 });
 
 test("what a line ended inside goes on in the next one, on each side of the diff by itself", () => {

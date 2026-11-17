@@ -214,7 +214,9 @@ function lineOf(lang, state) {
       if (word) {
         const w = lang.fold ? word.toLowerCase() : word;
         const called = /^\s*\(/.test(text.slice(i + word.length));
-        const cls = lang.words?.has(w) ? "k" : lang.lits?.has(w) ? "n" : called ? "f" : "";
+        // `x.new`, `{ type: 1 }`: a member or an object key that happens to be spelled like a keyword.
+        const name = text[i - 1] === "." || (lang.regex && w !== "default" && /^\s*:/.test(text.slice(i + word.length)));
+        const cls = !name && lang.words?.has(w) ? "k" : !name && lang.lits?.has(w) ? "n" : called ? "f" : "";
         push(cls, word);
         i += word.length;
         value = cls !== "k";
