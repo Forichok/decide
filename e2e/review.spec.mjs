@@ -54,9 +54,11 @@ function fixtureRepo(dir) {
   git("add", "-A");
   git("commit", "-q", "-m", "tall fixture");
   git("checkout", "-q", "feature");
+  return { git, write };
 }
 
 const SPEC = {
+  previous: false,
   reviewers: { none: "This fixture opens without agents." },
   title: "The fixture change",
   summary: "Two lines of a.mjs are rewritten and a module is renamed.",
@@ -69,10 +71,10 @@ const SPEC = {
   mechanical: [{ title: "A rename and a redrawn logo", hunks: ["lib/new-name.mjs", "*.png"] }],
 };
 
-let d;
+let d, repo;
 test.beforeAll(async () => {
   d = await startDecide({ name: "review" });
-  if (hasGit) fixtureRepo(d.project);
+  if (hasGit) repo = fixtureRepo(d.project);
 });
 test.afterAll(async () => d?.stop());
 
@@ -204,6 +206,7 @@ test("a review: overview, a chapter, a comment of each kind, a question, the ver
 // A change too long to read by line: the agent names the place to read, the page folds the rest, and
 // every folded line is one click away: by the gap, by the hunk, around it, the whole file, the whole diff.
 const GUIDE = {
+  previous: false,
   reviewers: { none: "This fixture opens without agents." },
   title: "The guided change",
   summary: "A new module and one line of a.mjs.",
@@ -324,6 +327,7 @@ test("a review with key places: the rest is folded and opens by the gap, the hun
 
 
 const TALL = {
+  previous: false,
   reviewers: { none: "This fixture opens without agents." },
   title: "Tall review", summary: "Many chapters.",
   chapters: Array.from({ length: 9 }, (_, i) => ({ id: `c${i}`, title: `Chapter ${i}`, hunks: [`chapter-${i}/`], focus: [{ at: `chapter-${i}/file-0.mjs:30`, kind: "risk", note: `Risk ${i}` }] })),
@@ -766,4 +770,88 @@ test("the overview explains why a team did not run", async ({ page }) => {
   const small = await d.must("POST", "/api/rounds", { project: d.project, spec: { ...spec, risks: [], chapters: spec.chapters.map(c => ({ ...c, risk: "low" })) }, mode: "review", open: false });
   await page.goto(`${d.origin}/?lang=en#r=${small.id}`);
   await expect(page.locator(".cr-reviewers")).toContainText("No independent reviewers ran: not required for this change");
+});
+
+test("a returned Fix comes back at its change, with the same owner mark in both places", async ({ page }, info) => {
+  test.skip(!hasGit, "git is not installed");
+  const first = structuredClone(SPEC);
+  first.chapters[1].focus = [{ at: "lib/a.mjs:50", note: "A word replaces the number.", kind: "decision", question: "Keep the word on line fifty?", options: ["Keep word", "Use number"] }];
+  const { id } = await d.must("POST", "/api/rounds", {
+    project: d.project, mode: "review", open: false, spec: first,
+  });
+  await page.goto(`${d.origin}/?lang=en#r=${id}`);
+  const a = page.locator('#cr-ch-top .cr-hunk:has(.cr-path:text-is("lib/a.mjs"))');
+  await a.locator('tr.cr-line[data-key="new:3"] td.t').click();
+  const box = a.locator(".cr-compose");
+  await box.locator("textarea").fill("Keep the digit for the parser.");
+  await box.locator(".btn.primary").click();
+  await expect(a.locator(".cr-cm")).toContainText("Keep the digit for the parser.");
+  const answer = page.locator("#cr-overview").getByRole("button", { name: "Use number", exact: true });
+  await answer.click();
+  await expect(answer).toHaveAttribute("aria-pressed", "true");
+  await page.locator('.cr-bar [data-verdict="return"]').click();
+  await page.locator(".cr-verdict .btn.primary").click();
+  await expect.poll(async () => (await d.round(id)).result?.verdict).toBe("return");
+
+  const { comments: [{ id: ref }], decisions: [{ id: decision }] } = (await d.round(id)).result;
+  repo.write("lib/a.mjs", lines(60));
+  repo.git("commit", "-qam", "keep the digit");
+  const follow = await d.must("POST", "/api/rounds", {
+    project: d.project, mode: "review", open: false,
+    spec: {
+      ...SPEC, previous: id, title: "Keep the digit", summary: "The parser gets the original input.",
+      chapters: [{ id: "parser", title: "Parser", summary: "Put the digit back.", hunks: ["lib/a.mjs"] }],
+      mechanical: [], resolved: [
+        { ref, how: "fixed", at: "lib/a.mjs:3", note: "Restored the digit." },
+        { ref: decision, how: "fixed", at: "lib/a.mjs:50", note: "Restored the number." },
+      ],
+    },
+  });
+  await page.goto(`${d.origin}/?lang=en#r=${follow.id}`);
+  await expect(page.locator(".cr-meta")).toContainText("Round 2");
+  await expect(page.locator(".cr-meta")).toContainText(`since round ${id}`);
+  await expect(page.locator(".cr-meta")).toContainText("the whole branch");
+  const overview = page.getByRole("region", { name: "What happened to your comments" });
+  const row = overview.locator(`[data-resolution="${ref}"]`);
+  await expect(row).toContainText("Keep the digit for the parser.");
+  await expect(row).toContainText("Restored the digit.");
+  await expect(row).toContainText("lib/a.mjs");
+  const decisionRow = overview.locator(`[data-resolution="${decision}"]`);
+  await expect.soft(decisionRow.getByText("You answered: Use number", { exact: true })).toBeVisible();
+  await decisionRow.getByRole("button", { name: "Go to change" }).click();
+  const decisionMark = page.locator(`tr.cr-place [data-resolution="${decision}"]`);
+  await expect.soft(decisionMark.locator(".cr-place-note")).toHaveText("Acts on your answer «Use number»: «Keep the word on line fifty?»");
+  await decisionRow.getByRole("button", { name: "Accepted" }).click();
+  await expect(decisionRow.getByRole("button", { name: "Accepted" })).toHaveAttribute("aria-pressed", "true");
+
+  await page.locator('.cr-bar [data-verdict="approve"]').click();
+  await expect(page.locator('[data-alert="resolution"]')).toContainText("1 reply not marked");
+  await page.keyboard.press("Escape");
+  await page.screenshot({ path: info.outputPath("follow-up-overview.png") });
+
+  await row.getByRole("button", { name: "Go to change" }).click();
+  const mark = page.locator(`tr.cr-place [data-resolution="${ref}"]`);
+  await expect(mark).toBeInViewport();
+  await expect(mark).toContainText("Fixes your comment");
+  await expect(mark.locator("xpath=ancestor::tr/following-sibling::tr[1]")).toHaveAttribute("data-key", "new:3");
+  await mark.getByRole("button", { name: "Not fixed" }).click();
+  await expect(row.getByRole("button", { name: "Not fixed" })).toHaveAttribute("aria-pressed", "true");
+  await page.reload();
+  await expect(row.getByRole("button", { name: "Not fixed" })).toHaveAttribute("aria-pressed", "true");
+  await page.locator('.cr-bar [data-verdict="approve"]').click();
+  await expect(page.locator('[data-alert="fix"]')).toContainText("1");
+  await expect(page.locator('[data-alert="resolution"]')).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  await row.getByRole("button", { name: "Accepted" }).click();
+  await row.getByRole("button", { name: "Go to change" }).click();
+  await expect(mark.getByRole("button", { name: "Accepted" })).toHaveAttribute("aria-pressed", "true");
+  await page.screenshot({ path: info.outputPath("follow-up-line.png") });
+  await page.reload();
+  await expect(row.getByRole("button", { name: "Accepted" })).toHaveAttribute("aria-pressed", "true");
+  await page.locator('.cr-bar [data-verdict="approve"]').click();
+  await expect(page.locator('[data-alert="resolution"]')).toHaveCount(0);
+  await page.locator(".cr-verdict .btn.primary").click();
+  await expect.poll(async () => (await d.round(follow.id)).result?.verdict).toBe("approve");
+  await expect(page.getByText(`Follow-up to round ${id}.`, { exact: true })).toBeVisible();
 });

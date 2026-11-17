@@ -48,7 +48,7 @@ test("outline is registered for CLI and MCP with its schema", () => {
   const tool = toolList().find(t => t.name === "outline");
   assert.equal(tool.inputSchema.properties.place.type, "string");
   assert.equal(tool.inputSchema.properties.force.type, "boolean");
-  assert.equal(tool.inputSchema.properties.previous, undefined);
+  assert.deepEqual(tool.inputSchema.properties.previous.anyOf, [{ type: "string" }, { const: false }]);
 });
 test("outline JSON reaches a delayed pipe reader with every piece", { timeout: 20_000 }, async t => {
   const { dir, base } = await repo(t);

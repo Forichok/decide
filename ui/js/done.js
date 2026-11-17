@@ -64,6 +64,7 @@ function reviewCard(result, env) {
     {},
     h("h3.sum-h", {}, t("cr.done.title")),
     result.range?.head && h("p.cr-sum-commit", {}, t("cr.commit", result.range.head.slice(0, 7), result.range.headRef || "HEAD")),
+    result.previous && h("p.cr-sum-commit.cr-followup-done", {}, t("cr.followup.done", result.previous.round)),
     result.verdict && h(`span.cr-sum-verdict.${result.verdict}`, {}, t(`cr.done.${result.verdict}`)),
     h("p.cr-sum-line", {}, t("cr.done.read", result.read?.length ?? 0, (result.read?.length ?? 0) + (result.unread?.length ?? 0))),
     result.note && h("div.sum-comment", {}, h("div.sum-label", {}, t("cr.done.note")), h("p", {}, result.note)),

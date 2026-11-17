@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { test, expect } from '@playwright/test';
 import { startDecide, writeFile, spec } from './helpers.mjs';
 let d;
-const review = { title: 'Comfort', summary: 'Two places.', chapters: [{ id: 'all', title: 'Code', summary: 'Read it.', hunks: ['a.mjs'] }] };
+const review = { previous: false, title: 'Comfort', summary: 'Two places.', chapters: [{ id: 'all', title: 'Code', summary: 'Read it.', hunks: ['a.mjs'] }] };
 test.beforeAll(async () => {
   d = await startDecide({name: 'comfort'});
   const git = (...args) => {

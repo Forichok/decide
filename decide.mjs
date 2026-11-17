@@ -22,8 +22,9 @@
 //   node decide.mjs --demo [--lang en|ru]             the feature tour
 //   node decide.mjs notice                            answers the user sent that no agent has collected
 //   node decide.mjs --lint <x.questions.json> | --stop
-//   node decide.mjs outline [--base ref] [--head ref] [--json] [--place path:from-to] [--out spec.json] [--force] [--outside]
-//   node decide.mjs review <x.review.json> [--base ref] [--head ref] [--no-open]   a code review of a branch
+//   node decide.mjs lint <x.review.json> [--previous round | --no-previous]
+//   node decide.mjs outline [--base ref] [--head ref] [--previous round | --no-previous] [--json] [--place path:from-to] [--out spec.json] [--force] [--outside]
+//   node decide.mjs review <x.review.json> [--base ref] [--head ref] [--previous round | --no-previous] [--no-open]   a code review of a branch
 //   node decide.mjs serve [--port n]                  run the home's server (started on demand)
 //   wait <round> [--live] [--timeout-sec n]: stop after n seconds; without it, keep waiting.
 //   Exit codes: 0 result; 1 lint/stop refused; 2 error; 3 live item; 4 wait timed out.

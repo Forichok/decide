@@ -11,6 +11,7 @@
 // folded when its chapter has key places elsewhere. A long test file lists the names of its tests.
 
 import { renderFinding } from "./reviewers.js";
+import { resolutionMark } from "./resolved.js";
 import { renderDecision } from "./decisions.js";
 import { h } from "../dom.js";
 import { t } from "../i18n.js";
@@ -144,7 +145,9 @@ export function renderPiece(s, piece, { folded = false } = {}) {
     if (s.full || st.all || st.above === Infinity) return null;
     const set = new Set([...base, ...st.more]);
     // What was said on a line is never folded away, nor the line being written on.
-    const said = [...s.notesOf(piece.id).map(keyOf), ...s.findingsOf(piece.id).map(f => keyOf(f.anchor))];
+    const said = [...s.notesOf(piece.id).map(keyOf),
+      ...s.findingsOf(piece.id).map(f => keyOf(f.anchor)),
+      ...s.resolutionsOf(piece.id).map(row => keyOf(row.anchor))];
     if (s.draft?.hunk === piece.id) said.push(keyOf(s.draft));
     for (const key of said) if (index.has(key)) fill(set, index.get(key) - NOTE_CONTEXT, index.get(key) + NOTE_CONTEXT, n);
     return set.size >= n ? null : set;
@@ -227,6 +230,9 @@ export function renderPiece(s, piece, { folded = false } = {}) {
       ),
     );
 
+  const resolutionRows = (owner, line) => s.resolutionsOf(owner)
+    .filter(row => row.anchor.line === line).map(row => resolutionMark(s, row));
+
   function rows() {
     const vis = visible();
     const out = [];
@@ -239,6 +245,7 @@ export function renderPiece(s, piece, { folded = false } = {}) {
         continue;
       }
       for (const sp of spans) if (sp.first === i) out.push(placeRow(sp));
+      if (lines[i].n !== null) out.push(...resolutionRows(piece.id, lines[i].n));
       out.push(lineRow(lines[i], inPlace.get(i), painted[i], piece.id, marks.get(i)));
       if (lines[i].noeol) out.push(eolRow());
       i++;
@@ -261,7 +268,7 @@ export function renderPiece(s, piece, { folded = false } = {}) {
       row.classList.add("far");
       const focus = places.find(sp => i >= sp.first && i <= sp.last);
       if (focus) { row.classList.add("focus"); if (focus.place.kind) row.classList.add(`kind-${focus.place.kind}`); }
-      return [...places.filter(sp => sp.first === i).map(sp => placeRow(sp, l.owner, source)), row, ...(l.noeol ? [eolRow()] : [])];
+      return [...places.filter(sp => sp.first === i).map(sp => placeRow(sp, l.owner, source)), ...resolutionRows(l.owner, l.n), row, ...(l.noeol ? [eolRow()] : [])];
     });
     return [...neighbours(above), ...out, ...neighbours(below)];
   }

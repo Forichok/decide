@@ -999,9 +999,9 @@ test("the schema takes every shape the strict engine takes without an error", as
   assert.match(validate(specSchema(), q({ titel: "x" }), specSchema()).join("\n"), /unknown field "titel"/);
 });
 
-test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tune, rules, evidence), swipe's 7,000, review's 3,800, tools/list pinned near its size", async () => {
+test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tune, rules, evidence), swipe's 7,000, review's 4,250, tools/list pinned near its size", async () => {
   const { specSchema, deckSchema, reviewSchema } = await docs();
-  assert.ok(JSON.stringify(reviewSchema()).length <= 3800, `reviewSchema ${JSON.stringify(reviewSchema()).length} bytes`);
+  assert.ok(JSON.stringify(reviewSchema()).length <= 4250, `reviewSchema ${JSON.stringify(reviewSchema()).length} bytes`);
   const size = (v) => JSON.stringify(v).length;
   assert.ok(size(specSchema()) <= 12000, `specSchema ${size(specSchema())} bytes`);
   assert.ok(size(deckSchema()) <= 7000, `deckSchema ${size(deckSchema())} bytes`);
@@ -1015,7 +1015,8 @@ test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tun
   // Outline adds about 1,400 bytes for preparation parameters and description.
   // 37,000 before the review tool; review (its schema, its description, the chapter lines) and lint's base/head add about 4,200; a chapter's focus and skim about 400 more.
   // The reviewer schema and its field descriptions add about 2,000 bytes.
-  assert.ok(whole <= 48_000, `tools/list ${whole} bytes: pinned near the size after Task 13's deck lines plus the review tool, far under 2.1.1's 11,281 plus the 2.1 ask schema growth`);
+  // Follow-up adds a previous round argument and the schema for replies.
+  assert.ok(whole <= 50_000, `tools/list ${whole} bytes`);
 });
 
 test("a description sits only where the name does not say it, never on a spelling or a union arm", async () => {

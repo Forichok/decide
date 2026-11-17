@@ -31,7 +31,7 @@ test('answers and digest include decisions before fixes, without changing risk c
   const { spec } = normalizeReview(raw());
   const input = { base: {}, spec, meta: {}, placed: { where: {}, sorted: 0, total: 0 }, review: { comments: [{ id: 'c', kind: 'fix', hunk: 'h1', text: 'Fix it' }], read: {}, decisions: { cap: { 'a.js:1-2': 'no' } } }, dialog: [] };
   const result = reviewResult(input);
-  assert.deepEqual(result.decisions, [{ chapter: 'cap', at: 'a.js:1-2', question: 'Is a silent cap acceptable?', answer: 'no', label: 'Change' }]);
+  assert.deepEqual(result.decisions, [{ id: 'd1', chapter: 'cap', at: 'a.js:1-2', question: 'Is a silent cap acceptable?', answer: 'no', label: 'Change' }]);
   assert.ok(result.digest.indexOf('Decisions') < result.digest.indexOf('To fix'));
   assert.match(result.digest, /a.js:1-2.*\n.*Is a silent cap acceptable\?.*Change/);
   assert.match(result.digest, /answered "no".*fix/);

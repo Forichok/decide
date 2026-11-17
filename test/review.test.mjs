@@ -458,9 +458,9 @@ test("the verdict digest: every comment by kind, with its file, line and code", 
     [
       "Verdict: RETURNED at aaaaaaa (HEAD). Comments: 1 to fix, 2 nits, 2 questions (1 not answered). Chapters viewed: 1 of 2 (not viewed: «The tail and the rename»). Opened 0 of 8 pieces; in part 0; not opened 8 (lib/a.mjs, lib/new-name.mjs, logo.png, notes.txt, run.sh and 2 more). 3 of 8 hunks were in no chapter.",
       "The reviewer's note:\n> Close, but not yet.",
-      "To fix (1):\n1. lib/a.mjs:3 · chapter «The top of a.mjs»\n   + line two and a half\n   Drop this line.\n   It repeats the one above.",
-      "Nits (2):\n1. lib/a.mjs:41 (old side) · chapter «The tail and the rename»\n   - line 41\n   Say why in the commit.\n2. logo.png\n   The old one was sharper.",
-      "Questions (2):\n1. lib/a.mjs:2 · chapter «The top of a.mjs»\n   + line two\n   Why two lines?\n   (you answered on the page)\n2. notes.txt\n   Is the newline lost on purpose?\n   NOT answered yet: answer it in chat",
+      "To fix (1):\n1. [c1] lib/a.mjs:3 · chapter «The top of a.mjs»\n   + line two and a half\n   Drop this line.\n   It repeats the one above.",
+      "Nits (2):\n1. [c2] lib/a.mjs:41 (old side) · chapter «The tail and the rename»\n   - line 41\n   Say why in the commit.\n2. [c3] logo.png\n   The old one was sharper.",
+      "Questions (2):\n1. [a1] lib/a.mjs:2 · chapter «The top of a.mjs»\n   + line two\n   Why two lines?\n   (you answered on the page)\n2. [a2] notes.txt\n   Is the newline lost on purpose?\n   NOT answered yet: answer it in chat",
     ].join("\n\n"),
   );
   const text = formatReviewResult(result, "/tmp/x.answers.json");
@@ -705,7 +705,7 @@ test("MCP: review → comments, a question, read marks → the verdict with ever
 
   const tools = (await rpc("tools/list", {})).result.tools;
   const tool = tools.find((t) => t.name === "review");
-  assert.deepEqual(Object.keys(tool.inputSchema.properties), ["project", "spec", "specPath", "base", "head", "open"]);
+  assert.deepEqual(Object.keys(tool.inputSchema.properties), ["project", "spec", "specPath", "base", "head", "previous", "open"]);
   assert.match(tool.description, /Open a code review for the user/);
 
   const bad = await call("review", { project: dir, spec: { title: "t", chapters: [{ id: "a", summary: "s" }] }, open: false });
@@ -796,9 +796,9 @@ test("MCP: review → comments, a question, read marks → the verdict with ever
   assert.match(verdict, /^Verdict: RETURNED at /);
   assert.match(verdict, /Verdict: RETURNED at [0-9a-f]{7} \(HEAD\)\. Comments: 1 to fix, 1 nit, 1 question\. Chapters viewed: 1 of 2 \(not viewed: «Line fifty»\)\. Opened 0 of 7 pieces; in part 0; not opened 7 \(lib\/a\.mjs, lib\/new-name\.mjs, logo\.png, notes\.txt, run\.sh and 1 more\)\. 2 of 7 hunks were in no chapter\./);
   assert.match(verdict, /The reviewer's note:\n> Line three first\./);
-  assert.match(verdict, /To fix \(1\):\n1\. lib\/a\.mjs:3 · chapter «Line three»\n   \+ line three\n   Keep the digit: the parser reads it\./);
-  assert.match(verdict, /Nits \(1\):\n1\. lib\/a\.mjs:50 \(old side\) · chapter «Line fifty»\n   - line 50\n   Say why in the commit message\./);
-  assert.match(verdict, /Questions \(1\):\n1\. lib\/a\.mjs:3 · chapter «Line three»\n   \+ line three\n   Why the word\?\n   \(you answered on the page\)/);
+  assert.match(verdict, /To fix \(1\):\n1\. \[[^\]]+\] lib\/a\.mjs:3 · chapter «Line three»\n   \+ line three\n   Keep the digit: the parser reads it\./);
+  assert.match(verdict, /Nits \(1\):\n1\. \[[^\]]+\] lib\/a\.mjs:50 \(old side\) · chapter «Line fifty»\n   - line 50\n   Say why in the commit message\./);
+  assert.match(verdict, /Questions \(1\):\n1\. \[[^\]]+\] lib\/a\.mjs:3 · chapter «Line three»\n   \+ line three\n   Why the word\?\n   \(you answered on the page\)/);
   assert.match(verdict, /The change was returned\./);
 
   const [, answersPath] = verdict.match(/Full JSON: (.+)/);
@@ -920,7 +920,7 @@ test("review result addresses retain both verdicts; wait checks branch movement 
     return response.json();
   };
   const finish = async (verdict) => {
-    const { id } = await post("rounds", { project: repo.dir, spec: REPO_SPEC, mode: "review", open: false, outPath: copy, specFile: path.join(repo.dir, "same.json") }, true);
+    const { id } = await post("rounds", { project: repo.dir, spec: { ...REPO_SPEC, previous: false }, mode: "review", open: false, outPath: copy, specFile: path.join(repo.dir, "same.json") }, true);
     await post(`rounds/${id}/submit`, { verdict, note: `note for ${verdict}` });
     const response = await fetch(`${origin}/api/rounds/${id}/next?timeout=1000`, { headers: asAgent(server.port) });
     const item = await response.json();
@@ -1010,8 +1010,8 @@ test('decision action persists across server restart, overwrites and clears, and
   const sent = await fetch(`http://127.0.0.1:${second.port}/api/rounds/${id}/submit`, { method: 'POST', headers: asPage(second.port), body: JSON.stringify({ verdict: 'approve' }) });
   assert.equal(sent.status, 200);
   const { result } = await sent.json();
-  assert.deepEqual(result.decisions, [{ chapter: 'top', at: 'lib/a.mjs:3', question: 'Is a word acceptable?', answer: 'no', label: 'Use digit' }]);
-  assert.match(result.digest, /Decisions \(1\):\n1\. lib\/a.mjs:3\n   Is a word acceptable\? — Use digit/);
+  assert.deepEqual(result.decisions, [{ id: 'd1', chapter: 'top', at: 'lib/a.mjs:3', question: 'Is a word acceptable?', answer: 'no', label: 'Use digit' }]);
+  assert.match(result.digest, /Decisions \(1\):\n1\. \[d1\] lib\/a.mjs:3\n   Is a word acceptable\? — Use digit/);
   const saved = JSON.parse(readFileSync(path.join(back.dataDir, 'rounds', id, 'answers.json'), 'utf8'));
   assert.deepEqual(saved.decisions, result.decisions);
   assert.equal((await post(second.port, answer)).status, 409);

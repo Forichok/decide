@@ -17,6 +17,7 @@ import { composer } from "./hunk.js";
 import { checkState, renderBar, renderOverview, renderRail, renderTitle } from "./overview.js";
 
 import { decisionOf, findingsOf, openCounts, ownerOf, reviewerWarnings, saveFinding, sortedFindings } from "./reviewers.js";
+import { markOf, paintResolutions, resolutionsOf, saveResolution } from "./resolved.js";
 import { answerOf, decisionsOf, paintDecisions, saveDecision } from "./decisions.js";
 
 const KEYS = [
@@ -45,6 +46,16 @@ export function mountReview(round, env) {
   };
 
   const saving = new Map();
+  const resolving = new Map();
+  s.isResolutionSaving = (ref) => resolving.has(ref);
+  const resolutionsByHunk = new Map();
+  for (const row of resolutionsOf(s)) {
+    if (!row.anchor) continue;
+    const { hunk } = row.anchor;
+    if (!resolutionsByHunk.has(hunk)) resolutionsByHunk.set(hunk, []);
+    resolutionsByHunk.get(hunk).push(row);
+  }
+  s.resolutionsOf = (id) => resolutionsByHunk.get(id) ?? [];
   s.isFindingSaving = (id) => saving.has(id);
   s.openFiles = () => showFiles(s);
   const FINDINGS = "decide.review.hideFindings";
@@ -104,7 +115,9 @@ export function mountReview(round, env) {
   s.counts = () => {
     const all = s.notes();
     const of = (kind) => all.filter((c) => c.kind === kind).length;
-    return { fix: of("fix") + findingsOf(s).filter(f => decisionOf(s, f)?.decision === "fix").length, nit: of("nit"), question: of("question"), open: all.filter((c) => c.kind === "question" && !c.reply).length };
+    const rejected = resolutionsOf(s).filter(row => markOf(s, row.ref) === "notFixed").length;
+    const findings = findingsOf(s).filter(f => decisionOf(s, f)?.decision === "fix").length;
+    return { fix: of("fix") + rejected + findings, nit: of("nit"), question: of("question"), open: all.filter((c) => c.kind === "question" && !c.reply).length };
   };
   s.checks = () => ({ failed: s.spec.checks.filter((c) => checkState(c) === "failed").length, missing: s.spec.checks.filter((c) => checkState(c) === "missing").length, total: s.spec.checks.length });
   // Chapter id → how many notes sit on its pieces.
@@ -173,6 +186,7 @@ export function mountReview(round, env) {
     bar.paint();
     chapters.paint();
     paintDecisions(s);
+    paintResolutions(s);
     overview.querySelectorAll(".cr-finding").forEach(el => el.paint());
     const toggle = overview.querySelector(".cr-finding-toggle");
     if (toggle) {
@@ -228,6 +242,20 @@ export function mountReview(round, env) {
     row.setAttribute("tabindex", "-1");
     row.scrollIntoView({ behavior: "instant", block: "center" });
     row.focus({ preventScroll: true });
+    rail.paint();
+  };
+  s.goResolution = async (resolution) => {
+    const ticket = ++jump;
+    const { hunk } = resolution.anchor;
+    const key = ownerOf(s, hunk);
+    const el = await chapters.piece(hunk, key, { unfold: false });
+    if (!el || ticket !== jump) return;
+    const mark = [...el.querySelectorAll(".cr-resolution-mark [data-resolution]")].find(node => node.dataset.resolution === resolution.ref);
+    if (!mark) return;
+    s.current = key.startsWith("mech:") ? "mech" : key;
+    mark.setAttribute("tabindex", "-1");
+    mark.scrollIntoView({ behavior: "instant", block: "center" });
+    mark.focus({ preventScroll: true });
     rail.paint();
   };
   s.goPlace = async (chapter, k) => {
@@ -301,7 +329,7 @@ export function mountReview(round, env) {
     s.seq = Math.max(s.seq, seq);
     const coverage = { ...s.rv.coverage };
     for (const [id, value] of Object.entries(review.coverage ?? {})) if (coverage[id] !== "opened") coverage[id] = value;
-    s.rv = { ...s.rv, decisions: review.decisions ?? s.rv.decisions, findingDecisions: review.findingDecisions ?? s.rv.findingDecisions, comments: review.comments ?? s.rv.comments, read: review.read ?? s.rv.read, coverage, ...(review.newer !== undefined ? { newer: review.newer } : {}) };
+    s.rv = { ...s.rv, decisions: review.decisions ?? s.rv.decisions, findingDecisions: review.findingDecisions ?? s.rv.findingDecisions, resolutionOwners: review.resolutionOwners ?? s.rv.resolutionOwners, comments: review.comments ?? s.rv.comments, read: review.read ?? s.rv.read, coverage, ...(review.newer !== undefined ? { newer: review.newer } : {}) };
     s.paint();
   }
   const failed = (e) => {
@@ -327,6 +355,17 @@ export function mountReview(round, env) {
     saving.set(id, pending);
     s.paint();
     return pending;
+  };
+
+  s.saveResolution = (ref, value) => {
+    if (resolving.has(ref)) return;
+    const owner = markOf(s, ref) === value ? null : value;
+    const pending = saveResolution(s.id, { ref, owner })
+      .then(async () => { await refresh(); return true; })
+      .catch(e => { failed(e); return false; })
+      .finally(() => { resolving.delete(ref); paintResolutions(s); });
+    resolving.set(ref, pending);
+    paintResolutions(s);
   };
 
   // ---- the box
@@ -434,9 +473,12 @@ export function mountReview(round, env) {
       text.textContent = t(`cr.vText.${v}`);
       confirm.textContent = t(`cr.vDo.${v}`);
       const approving = v !== "return";
+      const unmarked = resolutionsOf(s).filter(row => markOf(s, row.ref) === null).length;
       const red = [checks.failed && t("cr.n.failed", checks.failed), checks.missing && t("cr.n.missing", checks.missing)].filter(Boolean).join(", ");
       alerts.replaceChildren(
         ...[
+          approving && unmarked > 0 && h("div.cr-alert", { dataset: { alert: "resolution" } }, t("cr.followup.unmarked", unmarked), " ",
+            h("button.link-btn", { type: "button", onclick: () => { close(); overview.querySelector("#cr-resolutions").focus(); } }, t("cr.followup.seeReplies"))),
           approving && decisionWarning("decisions", decisionsOf(s).filter((d) => answerOf(s, d) === null)),
           v === "approve" && decisionWarning("decisionNo", decisionsOf(s).filter((d) => answerOf(s, d) === "no")),
           ...(approving ? reviewerWarnings(s, close) : []),
@@ -455,7 +497,7 @@ export function mountReview(round, env) {
       if (busy) return;
       busy = true;
       try {
-        if ((await Promise.all(saving.values())).includes(false)) { busy = false; return; }
+        if ((await Promise.all([...saving.values(), ...resolving.values()])).includes(false)) { busy = false; return; }
         await coverage.flush();
         const res = await submitRound(round.id, { verdict, ...(s.note.trim() ? { note: s.note.trim() } : {}) });
         s.note = "";

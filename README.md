@@ -122,6 +122,10 @@ line comments and give a verdict. On large or risky changes, independent
 reviewers run before the page opens. Change when they run and who reviews
 in [Settings](#settings).
 
+When the agent comes back after a return, you see only what changed since
+and its reply to each of your comments. Mark each reply Accepted or Not fixed
+in the overview or at the changed line.
+
 ## Settings
 
 Open the gear next to the theme button on any page. Back returns to the round

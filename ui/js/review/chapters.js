@@ -66,7 +66,7 @@ export function createChapters(s) {
     }
   }
   // The fold opens by itself for the whole diff and for a piece somebody wrote on; the reader closes it.
-  const hasNotes = (id) => s.notesOf(id).length || s.draft?.hunk === id || s.findingsOf(id).length;
+  const hasNotes = (id) => s.notesOf(id).length || s.draft?.hunk === id || s.findingsOf(id).length || s.resolutionsOf(id).length;
   function openOthers(key) {
     const o = others.get(key);
     if (!o) return;

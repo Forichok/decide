@@ -7,6 +7,7 @@ import { t } from "../i18n.js";
 import { md, mdInline } from "../md.js";
 import { coverageCounts } from "./coverage.js";
 import { decisionsOf, renderDecision } from "./decisions.js";
+import { renderResolutions } from "./resolved.js";
 import { renderReviewers } from "./reviewers.js";
 import { collectRisks } from "./risks.js";
 
@@ -23,14 +24,22 @@ export function renderTitle(s) {
   const presence = h("span.chip.static.cr-presence");
   // "Newer exists": the branch got a commit after the snapshot was taken.
   const newer = h("span.chip.static.warn.cr-newer", { hidden: true, title: t("cr.newerTitle") });
+  const counts = ({ files, added, removed }) =>
+    [t("cr.files", files), ", ", h("span.cr-add", {}, `+${added}`), " ", h("span.cr-del", {}, `−${removed}`)];
   const el = [
     h("h1.cr-title", { html: mdInline(s.spec.title) }),
     h(
       "div.cr-meta",
       {},
-      h("span.chip.static", {}, h("code", {}, snap.headRef || snap.branch || "HEAD"), " → ", h("code", {}, snap.baseRef)),
-      h("span.chip.static", {}, h("code", {}, `${short(snap.base)}..${short(snap.head)}`)),
-      h("span.chip.static", {}, t("cr.files", snap.stats.files), " ", h("span.cr-add", {}, `+${snap.stats.added}`), " ", h("span.cr-del", {}, `−${snap.stats.removed}`)),
+      ...(snap.previous ? [
+        h("span.chip.static.cr-round-number", {}, t("cr.followup.round", snap.roundNumber)),
+        h("span.cr-followup-range", {}, t("cr.followup.since", snap.previous.round, short(snap.previous.head)), " ",
+          counts(snap.stats), "; ", t("cr.followup.whole"), " ", counts(snap.wholeStats)),
+      ] : [
+        h("span.chip.static", {}, h("code", {}, snap.headRef || snap.branch || "HEAD"), " → ", h("code", {}, snap.baseRef)),
+        h("span.chip.static", {}, h("code", {}, `${short(snap.base)}..${short(snap.head)}`)),
+        h("span.chip.static", {}, t("cr.files", snap.stats.files), " ", h("span.cr-add", {}, `+${snap.stats.added}`), " ", h("span.cr-del", {}, `−${snap.stats.removed}`)),
+      ]),
       clock(snap.at) && h("span.chip.static", {}, t("cr.snapshotAt", clock(snap.at))),
       snap.dirty && h("span.chip.static.warn", { title: t("cr.dirtyTitle") }, t("cr.dirty")),
       newer,
@@ -71,6 +80,7 @@ export function renderOverview(s) {
   const decisions = decisionsOf(s);
   const acceptance = spec.acceptance;
   const sections = [
+    rv.snapshot?.previous && renderResolutions(s),
     decisions.length && section("decisions", t("cr.decisions"), decisions.map((d) => h("div.cr-overview-decision", {}, renderDecision(s, d), h("button.link-btn", { type: "button", onclick: () => s.goPlace(d.chapter, d.index) }, t("cr.goPlace"))))),
     section("risks", t("cr.risks"), risks.length ? h("ul.cr-risks", {}, risks) : h("p.cr-none", {}, t("cr.noRisks"))),
     section("reviewers", t("cr.reviewers.title"), renderReviewers(s)),

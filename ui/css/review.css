@@ -357,3 +357,18 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
   min-width: 1.5em; padding: 0 4px; border-radius: 999px; background: var(--warn-soft);
   font: 600 11px/1.6 var(--mono); text-align: center;
 }
+
+.cr-followup-range { color: var(--tx-mut); overflow-wrap: anywhere; }
+.cr-round-number { font-weight: 650; }
+.cr-resolution-group + .cr-resolution-group { margin-top: 1rem; }
+.cr-resolution-group h4 { margin: 0 0 .45rem; font-size: .9rem; }
+.cr-resolution-list { list-style: none; padding: 0; margin: 0; display: grid; gap: .5rem; }
+.cr-resolution { padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); overflow-wrap: anywhere; }
+.cr-resolution-meta, .cr-resolution-foot, .cr-resolution-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+.cr-resolution-meta { color: var(--tx-mut); font-size: .82rem; }
+.cr-resolution-original, .cr-resolution-note { margin: .35rem 0; white-space: pre-wrap; }
+.cr-resolution-original { font-weight: 600; }
+.cr-resolution-foot { margin-top: .5rem; }
+.cr-resolution-mark .cr-place-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+.cr-resolution-actions button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-tx); border-color: var(--accent); }
+.cr-resolution-actions button[data-owner="notFixed"][aria-pressed="true"] { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }

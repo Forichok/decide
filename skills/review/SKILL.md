@@ -55,7 +55,8 @@ Exported offline pages have no conversation button.
 
 The default base is the remote's default branch, else `main` or `master`.
 The diff runs from the point where the branch left the base to the head, so
-what landed on the base since is not in the review.
+what landed on the base since is not in the review. A follow-up uses the
+previous round's head as its base. Set `previous: false` for the full branch.
 
 ## The loop
 
@@ -229,6 +230,8 @@ you listed the skipped roles.
 | `chapters[].skim`      | One sentence on why the chapter needs no reading line by line. Not for a high-risk chapter.                |
 | `mechanicalWhy`        | Why mechanical groups hold more than one third of all added and removed lines. One or two sentences; required above that share. |
 | `mechanical[]`         | `{title, hunks}`: one folded line on the page with a count.                                                |
+| `previous`             | A round id to follow up on, or `false` for the full branch. Left out, the server follows the branch's last returned round. |
+| `resolved[]`           | `{ref, how, at, note}`: your reply to each item of the previous round. See "After the verdict".            |
 
 <!-- registry:reviewers -->
 
@@ -249,7 +252,7 @@ you listed the skipped roles.
 | `findings[].role` | Role id from the settings, or another word. |
 | `findings[].severity` | How serious the finding is. |
 | `findings[].at` | A path with optional new-file lines, or omit for a finding about the whole change. |
-| `findings[].line` | Trimmed text of the first line at at. Lint warns if it moved. |
+| `findings[].line` | Trimmed text of the first line at that location. Lint warns if it moved. |
 | `findings[].text` | The finding in the reviewer's words. |
 | `findings[].why` | Why it matters, in the reviewer's words. |
 
@@ -400,25 +403,44 @@ links to that dialog with the note focused.
 
 ## After the verdict
 
-| Verdict             | Do                                                                                                    |
-| ------------------- | ----------------------------------------------------------------------------------------------------- |
-| Returned            | Fix what is under "To fix". Decide on each nit. Answer the open questions in chat. Tell the user for every comment what you did: fixed, answered, or declined and why. Then commit and call `review` again on the new head. |
-| Approved with nits  | Fix the nits or say why not. No new review is needed.                                                  |
-| Approved            | Follow the decision answers below.                                                                                        |
+Read the verdict and its bracketed item IDs. Fix the items under "To fix"
+and the decisions answered "no", even when the verdict is an approval. Use
+your judgment on open findings and tell the user what you did with each;
+leave dismissed ones alone. Answer open questions in chat. A decision
+marked "NOT answered" gives you no consent. The result records each decision
+as `yes`, `no` or `null`, with the label the owner picked.
 
-For any verdict, fix the items under "To fix", including reviewer findings
-with ids such as `[f1]`. Use your judgment on "Reviewer findings left open"
-and tell the user what you did with each. Leave the entries under "Dismissed
-by the owner" alone. The answers JSON records these choices in
-`reviewers.findings[].decision`, including a dismissal reason when given.
+If the owner returned the change, run this loop:
 
-Read the result's `decisions` before acting on any verdict. Each entry gives
-`chapter`, `at` (file:lines), `question`, `answer` (`yes`, `no` or `null`), and
-`label` (the chosen label, or `null`). The digest puts these before "To fix".
-Treat every "no" as something to fix, even with an approval. A "no" does not
-create a comment. Do not count an unanswered decision as consent: the digest
-says "NOT answered". Both approvals warn about unanswered decisions but allow
-them; Approve also warns about a "no" as it does an open Fix.
+1. Fix the code and commit. Recheck the change the way the owner will use it.
+2. Run `outline` on the new head. It lists the previous items and fills in
+   their IDs in the `resolved` skeleton. Fill in a reply for every item.
+   Use `fixed` with `at` on the new-file lines that changed. In `note`,
+   name the behavior that changed and how you checked it. Use `answered`
+   for an explanation or `declined` for a change you chose to leave out.
+   Give the answer or reason in the note. An explanation alone is
+   `answered`, even if it settles the concern.
+
+   ```json
+   "resolved": [
+     { "ref": "c3", "how": "fixed", "at": "lib/auth/token.mjs:41-47", "note": "Read and delete are one statement now; test/token.test.mjs runs two requests at once." },
+     { "ref": "f1", "how": "declined", "note": "Kept: the 15-minute window is the product rule." },
+     { "ref": "q2", "how": "answered", "note": "No: the files are only read." }
+   ]
+   ```
+
+   Lint refuses a missing reply to an item the owner marked to fix, a
+   `fixed` whose `at` is not a changed line of the new diff, and a
+   `declined` or `answered` without a note.
+3. Run the reviewer team on the new diff. Give each reviewer the previous
+   findings and your replies so they can check whether their own findings
+   were addressed. Put their findings for this round in `reviewers.findings`.
+4. Run `lint`, then `review`. The server finds the previous round for the
+   branch or spec file. Use `previous` to name a specific round. "Not fixed"
+   is a Fix comment in the next round.
+
+For an approval with nits, deal with the nits or explain why you left them.
+Open a follow-up only if the owner needs to see the result.
 
 An approval is the user's opinion of the code. It merges nothing and pushes
 nothing: that stays under the repository's own rules, and you ask as you
@@ -426,8 +448,8 @@ would have without the review.
 
 The full result is in the JSON that `wait` names: the verdict, the note, the
 snapshot head SHA and ref, the range of commits, and every comment with its
-file, line, side and the code on that line. An approval covers only that snapshot commit. If the branch has
-moved, the verdict names both commits.
+file, line, side and the code on that line. An approval covers only that
+snapshot commit. If the branch has moved, the verdict names both commits.
 
 `Full JSON:` points to the round's own `answers.json`, which later rounds do
 not replace. The file next to the spec is a convenience copy; the next round
@@ -439,9 +461,9 @@ When the tools are not available, the same runs through `decide.mjs` in the
 plugin root:
 
 ```bash
-node <plugin>/decide.mjs outline --project <project> [--base <ref>] [--head <ref>] [--json] [--place path:from-to] [--out spec.json] [--force] [--outside]
-node <plugin>/decide.mjs lint <spec.json> --project <project>
-node <plugin>/decide.mjs review <spec.json> --project <project> [--base <ref>] [--head <ref>]
+node <plugin>/decide.mjs outline --project <project> [--base <ref>] [--head <ref>] [--previous <round> | --no-previous] [--json] [--place path:from-to] [--out spec.json] [--force] [--outside]
+node <plugin>/decide.mjs lint <spec.json> --project <project> [--previous <round> | --no-previous]
+node <plugin>/decide.mjs review <spec.json> --project <project> [--base <ref>] [--head <ref>] [--previous <round> | --no-previous]
 node <plugin>/decide.mjs wait <round> --live --project <project>
 node <plugin>/decide.mjs explain <round> --question <id> --text "…" --project <project>
 ```
