@@ -26,6 +26,7 @@ import { formatReviewResult, reviewResult } from "../lib/review/digest.mjs";
 import { parsePatch, patchStats, unquote } from "../lib/review/patch.mjs";
 import { buildReview, groupPieces, lineOf, loadSnapshot, reviewIndex, saveSnapshot, takeSnapshot } from "../lib/review/snapshot.mjs";
 import { checkState, normalizeReview } from "../lib/review/spec.mjs";
+import { uncollected } from "../lib/store/scan.mjs";
 import { asAgent, asPage, envOf, exitOf, hasGit, homeOf, pluginDir, scratchDir, spawnServer } from "./helpers.mjs";
 
 const errorsOf = (issues) => issues.filter((i) => i.level === "error").map((i) => `${i.where}: ${i.message}`);
@@ -241,6 +242,24 @@ test("hunk references: a line range, a single line, a directory, a glob, a delet
   assert.match(warnsOf(none.issues).at(-1), /^chapters: 8 hunks in no chapter: .+\(lib\/a\.mjs, lib\/new-name\.mjs, logo\.png, notes\.txt and 3 more\)$/);
 });
 
+test("hunk references: ** reaches a file at the top, ? is a plain character, a deleted file answers to its old lines", () => {
+  const pieces = piecesOf(parsePatch(PATCH));
+  const ids = (ref) => pieces.filter((p) => refMatcher(ref).match(p)).map((p) => p.id);
+  assert.deepEqual(ids("**/*.txt"), ["h5", "h8"], "**/ matches no directory too");
+  assert.deepEqual(ids("**/a.mjs"), ["h1", "h2"]);
+  assert.deepEqual(ids("lib/**/*.mjs"), ["h1", "h2", "h3"]);
+  assert.deepEqual(ids("lib/ab?.mjs"), [], "? is not a wildcard and not a regex mark");
+  assert.deepEqual(ids("gone.txt:1-2"), ["h8"], "a deleted file has only old lines");
+  assert.deepEqual(ids("gone.txt:40"), []);
+});
+
+test("a mode change on a file that also has hunks is carried by its pieces", () => {
+  const patch = "diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\nindex 1111111..2222222\n--- a/run.sh\n+++ b/run.sh\n@@ -1,2 +1,2 @@\n #!/bin/sh\n-echo hi\n+echo ho\n";
+  const [piece] = piecesOf(parsePatch(patch));
+  assert.deepEqual([piece.kind, piece.modes], ["hunk", ["100644", "100755"]]);
+  assert.equal(piecesOf(parsePatch(PATCH)).find((p) => p.id === "h1").modes, undefined);
+});
+
 // ---------- the spec ----------
 
 const SPEC = {
@@ -290,6 +309,51 @@ test("the spec lint: what stops a review", () => {
     "checks[0]: a check needs command: the command as you ran it",
   ]);
   assert.equal(errorsOf(normalizeReview({ ...SPEC, map: {} }, { fields: "lenient" }).issues).length, 0, "a spec read back from disk only warns");
+});
+
+test("the spec lint: a chapter id that every object already has is refused", () => {
+  for (const id of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+    const { issues } = normalizeReview({ chapters: [{ id, title: "T", summary: "S", hunks: ["a"] }], checks: [{ command: "x", exit: 0 }], summary: "s" });
+    assert.match(errorsOf(issues).join("\n"), /chapters\[0\]: chapter id ".+" is a name every object has/, id);
+  }
+});
+
+test("the verdict digest: a chapter nobody marked is not read, whatever its id", () => {
+  const spec = { checks: [], chapters: [{ id: "valueOf", title: "V" }] };
+  const result = reviewResult({ base: {}, spec, meta: {}, placed: { where: {}, sorted: 0, total: 0 }, review: { comments: [], read: {} }, dialog: [], payload: { verdict: "approve" } });
+  assert.deepEqual([result.read, result.unread], [[], ["valueOf"]]);
+});
+
+test("the spec lint: key places and skim", () => {
+  const chapter = (extra) => ({ id: "a", title: "T", summary: "S", hunks: ["a"], ...extra });
+  const lint = (extra) => normalizeReview({ summary: "s", checks: [{ command: "x", exit: 0 }], chapters: [chapter(extra)] });
+  const ok = lint({ focus: [{ at: "lib/a.mjs:10-30", note: "the guard" }, { at: " lib/b.mjs:7 ", note: "one line" }], skim: " generated " });
+  assert.deepEqual(ok.issues, []);
+  assert.deepEqual([ok.spec.chapters[0].focus, ok.spec.chapters[0].skim], [[{ at: "lib/a.mjs:10-30", note: "the guard" }, { at: "lib/b.mjs:7", note: "one line" }], "generated"]);
+  assert.deepEqual(normalizeReview(ok.spec, { fields: "lenient" }).spec.chapters, ok.spec.chapters, "a spec read back from disk keeps its key places");
+  assert.deepEqual(lint({ focus: { at: "lib/a.mjs:1-3", note: "one place, not in a list" } }).spec.chapters[0].focus.length, 1);
+  assert.deepEqual(lint({}).spec.chapters[0].focus, []);
+
+  const bad = lint({ focus: ["lib/a.mjs:1-3", { at: "lib/a.mjs" }, { at: "lib/a.mjs:9-3" }, { at: "lib/a.mjs:0" }, { at: "lib/a.mjs:1-2", note: "n", why: "x" }] });
+  assert.deepEqual(errorsOf(bad.issues).slice(0, 4), [
+    'chapters[0].focus[0]: a key place is an object: {at: "path:from-to", note}',
+    'chapters[0].focus[1]: at is "path:from-to" or "path:line", lines of the new file; got "lib/a.mjs"',
+    'chapters[0].focus[2]: at is "path:from-to" or "path:line", lines of the new file; got "lib/a.mjs:9-3"',
+    'chapters[0].focus[3]: at is "path:from-to" or "path:line", lines of the new file; got "lib/a.mjs:0"',
+  ]);
+  assert.match(errorsOf(bad.issues)[4], /^chapters\[0\]\.focus\[4\]: .*why/);
+  assert.equal(errorsOf(bad.issues).length, 5);
+
+  const six = Array.from({ length: 6 }, (_, i) => ({ at: `lib/a.mjs:${i * 10 + 1}-${i * 10 + 5}`, note: "n" }));
+  assert.deepEqual(warnsOf(lint({ risk: "high", skim: "generated", focus: [...six.slice(0, 5), { at: "lib/a.mjs:100-200" }] }).issues), [
+    "chapters[0].focus[5]: no note: say in one phrase what the reviewer should check here",
+    "chapters[0].focus[5]: 101 lines is a file, not a key place: name the 10 to 30 lines that matter",
+    'chapters[0]: "a" names 6 key places: more than 5 and the reviewer is back to reading everything',
+    'chapters[0]: "a" is high risk and marked skim: a risky chapter is read, name its key places in focus',
+    'risks: chapter "a" marked high risk but no risk in the overview points there',
+  ]);
+  const three = normalizeReview({ summary: "s", checks: [{ command: "x", exit: 0 }], chapters: ["a", "b", "c"].map((id) => chapter({ id })) });
+  assert.deepEqual(warnsOf(three.issues), ["chapters: no chapter names key places (focus) or is marked skim: the reviewer gets every line of every hunk"]);
 });
 
 test("the spec lint: what only warns", () => {
@@ -509,11 +573,27 @@ test("the snapshot is the branch against its base, and is read back from the rou
   const index = reviewIndex(spec, back.meta, built);
   assert.deepEqual([index.total, index.sorted], [7, 5]);
   assert.deepEqual(index.chapters, [
-    { id: "top", pieces: 2, files: 2, added: 3, removed: 1, names: ["lib/a.mjs", "test/a.test.mjs"] },
-    { id: "tail", pieces: 1, files: 1, added: 1, removed: 1, names: ["lib/a.mjs"] },
+    { id: "top", ids: ["h1", "h7"], pieces: 2, files: 2, added: 3, removed: 1, names: ["lib/a.mjs", "test/a.test.mjs"], focus: [] },
+    { id: "tail", ids: ["h2"], pieces: 1, files: 1, added: 1, removed: 1, names: ["lib/a.mjs"], focus: [] },
   ]);
-  assert.deepEqual(index.mechanical, [{ pieces: 2, files: 2, added: 0, removed: 0 }]);
-  assert.deepEqual(index.rest, { pieces: 2, files: 2, added: 2, removed: 1 });
+  assert.deepEqual(index.mechanical, [{ ids: ["h3", "h4"], pieces: 2, files: 2, added: 0, removed: 0 }]);
+  assert.deepEqual(index.rest, { ids: ["h5", "h6"], pieces: 2, files: 2, added: 2, removed: 1 });
+
+  // Key places: the lines a person reads, resolved to the chapter's own hunks.
+  const focused = normalizeReview({
+    ...REPO_SPEC,
+    chapters: [
+      { ...REPO_SPEC.chapters[0], focus: [{ at: "lib/a.mjs:3", note: "the parser reads this" }, { at: "lib/a.mjs:50", note: "in the other chapter" }, { at: "lib/a.mjs:20-22", note: "not changed" }] },
+      { ...REPO_SPEC.chapters[1], skim: "the same edit again" },
+    ],
+  });
+  assert.deepEqual(errorsOf(focused.issues), []);
+  const laid = buildReview(focused.spec, back.patch);
+  assert.deepEqual(reviewIndex(focused.spec, back.meta, laid).chapters.map((c) => c.focus), [[{ file: "lib/a.mjs", from: 3, to: 3, note: "the parser reads this", pieces: ["h1"] }], []]);
+  assert.deepEqual(warnsOf(laid.issues).filter((w) => w.includes("focus")), [
+    'chapters[0] (top).focus[1]: "lib/a.mjs:50" is not in this chapter: those lines are in chapter "tail"; the place is not shown',
+    'chapters[0] (top).focus[2]: "lib/a.mjs:20-22" names no changed lines of this diff (lines of the new file, inside a hunk); the place is not shown',
+  ]);
   assert.deepEqual(warnsOf(built.issues), ['chapters: 2 hunks in no chapter: the page shows them under "The rest" (notes.txt, run.sh)']);
   const top = groupPieces(spec, built, "ch:top");
   assert.deepEqual(top.map((p) => [p.id, p.file, p.test, p.lines.length]), [["h1", "lib/a.mjs", false, 7], ["h7", "test/a.test.mjs", true, 2]]);
@@ -733,6 +813,16 @@ test("a review survives a server restart: the snapshot, the comments, the read m
   const second = await spawnServer(context, home);
   const back = await (await fetch(`${at(second.port)}/api/rounds/${id}`)).json();
   assert.deepEqual([back.mode, back.status, back.review.total, back.review.snapshot.head], ["review", "pending", 7, repo.head]);
+  // "Newer exists": the branch has a commit the snapshot does not.
+  assert.deepEqual(back.review.newer, { head: repo.git("rev-parse", "HEAD") });
+  // Every group names its pieces, so a comment is counted for its chapter before the chapter's lines are loaded.
+  assert.deepEqual([back.review.chapters.map((c) => c.ids), back.review.mechanical.map((m) => m.ids), back.review.rest.ids], [[["h1", "h7"], ["h2"]], [["h3", "h4"]], ["h5", "h6"]]);
+  // The routes of a questions round answer 409 on a review, not 500.
+  for (const [route, body] of [["fit", { minutes: 5 }], ["answer", { qid: "top", answer: "x" }], ["note", { qid: "top", text: "x" }], ["flag", { qid: "top", flag: "explain" }], ["import", { files: [{ answers: {} }] }], ["restore", { id: "top" }], ["keep", { qid: "top" }], ["words", { qid: "top", text: "x" }], ["seen", { ids: ["top"] }], ["patch", { ops: [] }]]) {
+    const r = await fetch(`${at(second.port)}/api/rounds/${id}/${route}`, { method: "POST", headers: route === "patch" || route === "import" ? asAgent(second.port) : asPage(second.port), body: JSON.stringify(body) });
+    assert.ok(r.status >= 400 && r.status < 500, `${route} on a review round: ${r.status}`);
+  }
+  assert.equal((await fetch(`${at(second.port)}/api/rounds/${id}/draft`, { method: "PUT", headers: asPage(second.port), body: JSON.stringify({ answers: {} }) })).status < 500, true);
   assert.deepEqual(back.review.comments.map((c) => [c.hunk, c.line, c.kind, c.code, c.text]), [["h1", 3, "fix", "line three", "Keep the digit."]]);
   assert.deepEqual(Object.keys(back.review.read), ["top"]);
   assert.deepEqual(back.dialog.map((d) => [d.qid, d.ask, d.file, d.line, d.code]), [["h2", "Why fifty?", "lib/a.mjs", 50, "line fifty"]]);
@@ -743,4 +833,6 @@ test("a review survives a server restart: the snapshot, the comments, the read m
   const sent = await post(second.port, "submit", { verdict: "nits" });
   assert.equal(sent.status, 200);
   assert.match((await sent.json()).result.digest, /^Verdict: APPROVED WITH NITS\. Comments: 1 to fix, 1 question \(1 not answered\)\. Chapters read: 1 of 2/);
+  // A verdict nobody collected announces itself like any answered round.
+  assert.deepEqual(uncollected(back.dataDir, { graceMs: 0 }).map((r) => [r.id, r.title]), [[id, "The fixture change"]]);
 });
