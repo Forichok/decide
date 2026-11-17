@@ -189,3 +189,12 @@ export const removeRuleFrom = (project, id) => post("/api/rules", { project, rem
 export const exportRoundFile = (id) => post(`/api/rounds/${id}/export`, {});
 export const saveRoundAdr = (id) => post(`/api/rounds/${id}/adr`, {});
 export const fitRound = (id, minutes) => post(`/api/rounds/${id}/fit`, { minutes });
+
+// A code review round (ui/js/review/): its diff a group at a time, one file whole, comments, read marks.
+export const reviewPieces = (id, group) => fetch(`/api/rounds/${id}/pieces?${new URLSearchParams({ group })}`, { cache: "no-store" }).then(json);
+export const reviewFile = (id, path, side) => fetch(`/api/rounds/${id}/file?${new URLSearchParams({ path, side })}`, { cache: "no-store" }).then(json);
+export const reviewComment = (id, body) => post(`/api/rounds/${id}/comment`, body);
+export const reviewUncomment = (id, comment) => post(`/api/rounds/${id}/uncomment`, { id: comment });
+export const reviewRead = (id, chapter, read) => post(`/api/rounds/${id}/read`, { chapter, read });
+// A question on a piece of the diff, on one of its lines when `line` is given: it goes to the agent at once.
+export const reviewAsk = (id, body) => post(`/api/rounds/${id}/ask`, body);

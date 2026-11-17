@@ -39,11 +39,12 @@ export function notifyNew(row) {
   } catch {}
 }
 
-const modeLabel = (row) => t(row.mode === "swipe" ? "inbox.swipe" : "inbox.questions");
+const modeLabel = (row) => t(row.mode === "swipe" ? "inbox.swipe" : row.mode === "review" ? "inbox.review" : "inbox.questions");
 
 function progressLine(row) {
   const { answered, total } = progressOf(row);
-  const text = answered === null ? t("inbox.total", total) : t("inbox.progress", answered, total);
+  // A review counts chapters read, not questions answered.
+  const text = row.mode === "review" ? t("inbox.chapters", answered ?? 0, total) : answered === null ? t("inbox.total", total) : t("inbox.progress", answered, total);
   const frac = answered === null || !total ? 0 : Math.min(1, answered / total);
   return h(
     "div.ib-meta",

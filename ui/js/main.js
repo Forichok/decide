@@ -9,6 +9,7 @@ import { answererName, cancelRound, download, getRound, getState, listen, offlin
 import { createStore } from "./store.js";
 import { hideBar, mountRound } from "./round.js";
 import { mountSwipe } from "./swipe/index.js";
+import { mountReview } from "./review/index.js";
 import { pasteLine, renderIdle, roundTabs, updatePresence } from "./header.js";
 import { renderDone } from "./done.js";
 import { createInbox, dismissRound, loadInbox, notifyNew } from "./inbox.js";
@@ -123,7 +124,7 @@ function showRound(data) {
   app.done = null;
   // The header draws the round's own buttons for the round being shown, before app.round names it.
   const e = { ...env(), currentId: data.id };
-  app.round = data.mode === "swipe" ? mountSwipe(data, e) : mountRound(data, e);
+  app.round = data.mode === "swipe" ? mountSwipe(data, e) : data.mode === "review" ? mountReview(data, e) : mountRound(data, e);
   syncRail();
 }
 
@@ -324,7 +325,7 @@ function onState(st) {
     const current = st.rounds.find((r) => r.id === app.round.id);
     if (!current) return openRound(app.round.id, false);
     if (current.view !== undefined) app.round.setView?.(current.view);
-    if (app.round.mode === "swipe") app.round.setListening(current.listening !== false);
+    if (app.round.setListening) app.round.setListening(current.listening !== false);
     else updatePresence(current.listening !== false);
     refreshTabs();
     return announce();
@@ -367,7 +368,8 @@ function rerenderStatic() {
 // ---- review, submit, cancel
 function review() {
   if (app.view !== "round" || app.sending) return;
-  if (app.round.mode === "swipe") return app.round.finish();
+  // A swipe deck and a code review have their own way to end.
+  if (app.round.finish) return app.round.finish();
   // An answer marked "check" must be kept or answered again before the round can go.
   const unchecked = app.round.toCheck?.() || [];
   if (unchecked.length) {
@@ -426,9 +428,11 @@ function go(qid) {
   c.classList.add("flash");
 }
 
-const swiping = () => app.round?.mode === "swipe";
+// A swipe deck and a code review draw their own screen: the question shortcuts are not theirs.
+const swiping = () => app.round?.mode === "swipe" || app.round?.mode === "review";
 
 function step(delta) {
+  if (app.round?.step) return app.round.step(delta); // a review walks its chapters
   if (swiping()) return;
   const ids = visibleIds();
   if (!ids.length) return;
@@ -453,6 +457,7 @@ function currentQuestion() {
 }
 
 function act(kind) {
+  if (kind === "rec" && app.round?.toggleRead) return app.round.toggleRead(); // R in a review: the chapter is read
   if (swiping()) return;
   const q = currentQuestion();
   if (!q) return;
@@ -542,7 +547,7 @@ async function boot() {
   $("#toc").setAttribute("aria-label", t("toc"));
   $(".boot").textContent = t("boot");
   loadTheme();
-  bindKeys({ submit: review, step: (d) => app.round && step(d), nextOpen, act, help: () => swiping() || openHelp(), pick });
+  bindKeys({ submit: review, step: (d) => app.round && step(d), nextOpen, act, help: () => (app.round?.help ? app.round.help() : swiping() || openHelp()), pick });
   bindDrop();
   bindFrameFocus();
   try {
@@ -573,6 +578,8 @@ async function boot() {
   // 3.0 rounds that react: an agent patch, a restore or a keep moves the round's view (the store keeps answers only).
   net.onEvent("round", (d) => {
     if (d?.patch?.view !== undefined && app.view === "round" && app.round?.id === d.round) app.round.setView?.(d.patch.view);
+    // A code review: a comment or a read mark saved (here or in another tab).
+    if (d?.patch?.review && app.view === "round" && app.round?.id === d.round) app.round.setReview?.(d.patch.review, d.seq);
   });
   es.addEventListener?.("inbox", refreshInbox);
   syncRail();

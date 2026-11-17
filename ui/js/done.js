@@ -27,6 +27,7 @@ function summaryCard(spec, result, env = {}) {
     return h("section.sum", {}, h("h3.sum-h", {}, t("sum.brief")), h("ul.done-brief", {}, result.brief.map((b) => h(`li.sw-item.k-${b.kind}`, {}, b.text))));
   }
   if (!result || result.cancelled) return null;
+  if (result.mode === "review") return reviewCard(result);
   const s = spec ? summarize(spec, result, words()) : { rows: [], comment: result.comment || "", leftOut: [], commentFiles: [] };
   const rows = s.rows.map((r) =>
     h(
@@ -54,6 +55,36 @@ function summaryCard(spec, result, env = {}) {
   );
 }
 
+// A code review's result: the verdict, how much was read, and every comment where it was left.
+function reviewCard(result) {
+  const where = (c) => `${c.file || c.hunk}${Number.isInteger(c.line) ? `:${c.line}` : ""}`;
+  const comments = result.comments || [];
+  return h(
+    "section.sum",
+    {},
+    h("h3.sum-h", {}, t("cr.done.title")),
+    result.verdict && h(`span.cr-sum-verdict.${result.verdict}`, {}, t(`cr.done.${result.verdict}`)),
+    h("p.cr-sum-line", {}, t("cr.done.read", result.read?.length ?? 0, (result.read?.length ?? 0) + (result.unread?.length ?? 0))),
+    result.note && h("div.sum-comment", {}, h("div.sum-label", {}, t("cr.done.note")), h("p", {}, result.note)),
+    comments.length > 0 &&
+      h(
+        "ul.cr-sum-list",
+        {},
+        comments.map((c) =>
+          h(
+            `li.cr-cm.${c.kind}`,
+            {},
+            h("div.cr-cm-top", {}, h(`span.cr-kind.${c.kind}`, {}, t(`cr.kind.${c.kind}`)), h("span.cr-sum-where", {}, where(c)), c.kind === "question" && h("span.who", {}, t(c.reply ? "cr.done.answered" : "cr.done.open"))),
+            h("p.cr-cm-text", {}, c.text),
+          ),
+        ),
+      ),
+    result.digest && h("details.sum-raw", {}, h("summary", {}, t("sum.raw")), h("pre.done-digest", {}, result.digest)),
+  );
+}
+
+const REVIEW_STATES = ["sent", "handing", "saved"];
+
 // result: the round's result; env.spec: its spec, when the page has it.
 // env.delivery: { delivered, listening }; env.nextRound: the inbox row to go to, or null;
 // env.advance: seconds until the page goes there by itself, or null.
@@ -63,6 +94,7 @@ export function renderDone(result, env) {
   const { delivered = true, listening = false } = env.delivery || {};
   const state = cancelled ? "cancelled" : env.offline ? "file" : delivered ? "sent" : listening ? "handing" : "saved";
   const ring = { cancelled: ".cancel", sent: "", handing: ".handing", saved: ".saved", file: "" }[state];
+  const reviewed = result?.mode === "review";
   const line = state === "saved" && pasteLine(env.currentId || result?.round || "");
   const action = env.offline
     ? h(
@@ -92,8 +124,8 @@ export function renderDone(result, env) {
       "div.done-card",
       {},
       h(`div.ring${ring}`, { html: icon(cancelled ? "x" : state === "sent" ? "check" : state === "saved" ? "alert" : "arrow") }),
-      h("h2", {}, t(`done.${state}`)),
-      h("p.done-sub", {}, state === "file" ? t("done.fileSub", result.file) : t(`done.${state}Sub`)),
+      h("h2", {}, t(reviewed && REVIEW_STATES.includes(state) ? `cr.done.${state}` : `done.${state}`)),
+      h("p.done-sub", {}, state === "file" ? t("done.fileSub", result.file) : t(reviewed && REVIEW_STATES.includes(state) ? `cr.done.${state}Sub` : `done.${state}Sub`)),
       line &&
         h(
           "div.paste-line.block",
@@ -104,7 +136,8 @@ export function renderDone(result, env) {
       action,
     ),
     summaryCard(env.spec, result, env),
-    !env.offline && !cancelled && env.currentId && doneActions(env.currentId),
+    // Export and ADR are for decisions: a review's verdict is neither.
+    !env.offline && !cancelled && env.currentId && result?.mode !== "review" && doneActions(env.currentId),
     !env.offline && journalPanel({ skip: env.currentId }),
     credit(),
   );
