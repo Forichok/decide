@@ -646,7 +646,6 @@ export default {
   "cr.gapUpTitle": "Continue up from the lines below",
   "cr.gapFirst": (n) => `First ${n}`,
   "cr.gapAll": (n) => `All ${n}`,
-  "cr.place": "Look here.",
   "cr.placeNoNote": "The agent did not say what to check here.",
   "cr.places": (n) => `Key places: ${n}`,
   "cr.skim": "Can be skimmed.",

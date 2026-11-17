@@ -41,14 +41,15 @@ const fill = (set, from, to, n) => {
   for (let i = Math.max(0, from); i <= Math.min(n - 1, to); i++) set.add(i);
 };
 
-// Where a key place sits in the piece's lines: { first, last }; null when none of its lines is here.
+// Where a key place sits in the piece's lines: { first, at, last }, at its first line of the new file;
+// null when none of its lines is here.
 function spanOf(lines, place) {
   const inside = lines.map((l, i) => (l.t !== "del" && l.n >= place.from && l.n <= place.to ? i : -1)).filter((i) => i >= 0);
   if (!inside.length) return null;
   let first = inside[0];
   // The lines removed just above belong to the place: they are what the new lines replaced.
   while (first > 0 && lines[first - 1].t === "del") first--;
-  return { first, last: inside.at(-1), place };
+  return { first, at: inside[0], last: inside.at(-1), place };
 }
 
 // The tests a piece adds or touches, by name: [{ i, name }].
@@ -178,7 +179,24 @@ export function renderPiece(s, piece, { folded = false } = {}) {
           ];
     return h("tr.cr-gap", { dataset: { from: a, to: b } }, h("td", { colspan: 4 }, h("div.cr-gap-in", {}, h("span.cr-gap-n", {}, t("cr.gap", count)), acts)));
   }
-  const placeRow = (sp) => h("tr.cr-place", { dataset: { focus: sp.place.key } }, h("td", { colspan: 4 }, h("b", {}, t("cr.place")), " ", h("span", { html: mdInline(sp.place.note || t("cr.placeNoNote")) })));
+  // The row over a key place: why the agent named it, and the two things to do about it. A question or
+  // a comment made here sits on the place's first line.
+  const onPlace = (sp, kind) => () => s.compose({ hunk: piece.id, line: lines[sp.at].n, side: "new", kind });
+  const placeRow = (sp) =>
+    h(
+      "tr.cr-place",
+      { dataset: { focus: sp.place.key } },
+      h(
+        "td",
+        { colspan: 4 },
+        h(
+          "div.cr-place-in",
+          {},
+          h("span.cr-place-note", { html: mdInline(sp.place.note || t("cr.placeNoNote")) }),
+          h("span.cr-place-acts", {}, tool(t("cr.askHunk"), onPlace(sp, "question")), tool(t("cr.commentHunk"), onPlace(sp, "fix"))),
+        ),
+      ),
+    );
 
   function rows() {
     const vis = visible();

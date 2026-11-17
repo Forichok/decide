@@ -225,6 +225,18 @@ test("a review with key places: the rest is folded and opens by the gap, the hun
   await core.locator(".cr-places button").click();
   await expect(big.locator("tr.cr-place")).toBeInViewport();
 
+  // The row over the place asks and comments: the box opens on the place's first line.
+  const box = page.locator(".cr-compose");
+  await big.locator("tr.cr-place").getByRole("button", { name: "Ask the agent" }).click();
+  await expect(big.locator('tr.cr-note[data-key="new:40"] .cr-compose textarea')).toBeFocused();
+  await expect(box.locator('.cr-seg [data-kind="question"]')).toHaveAttribute("aria-pressed", "true");
+  await box.locator(".btn.ghost").click();
+  await big.locator("tr.cr-place").getByRole("button", { name: "Comment", exact: true }).click();
+  await expect(box.locator('.cr-seg [data-kind="fix"]')).toHaveAttribute("aria-pressed", "true");
+  await box.locator("textarea").fill("Bound the loop.");
+  await box.locator(".btn.primary").click();
+  await expect(big.locator('tr.cr-note[data-key="new:40"] .cr-cm.fix .cr-cm-text')).toHaveText("Bound the loop.");
+
   // A gap opens by twenty lines; a new file is one hunk, so "Whole file" is the whole hunk.
   await big.locator("tr.cr-gap").first().getByRole("button", { name: "↑ 20 more" }).click();
   await expect(big.locator("tr.cr-line")).toHaveCount(32);
@@ -252,7 +264,6 @@ test("a review with key places: the rest is folded and opens by the gap, the hun
   await expect(a.locator("tr.far")).toHaveCount(0);
 
   // ---- a second click on the line being commented keeps what was typed
-  const box = page.locator(".cr-compose");
   const line = a.locator('tr.cr-line[data-key="new:30"] td.t');
   await line.click();
   await box.locator("textarea").fill("Why thirty?");
