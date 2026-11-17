@@ -14,7 +14,8 @@ Use it when the user has to choose, confirm a plan, rank, rate or explain intent
 Flow: ask {project, spec} → wait {project, round} (repeat while it says "still waiting") → if wait returns a question from the user, answer it with explain and wait again → act on the answers.
 Don't end your turn while a round is open: the answers reach you only through wait.
 screenshot captures a running page (desktop / mobile) to put real screens into a spec. history lists what was already decided in this project.
-swipe runs a thorough interview instead: a deck of two-sided cards the user answers with the arrow keys. wait returns the answers in batches; after each, push the rewritten brief and new cards, then wait again. Load the decide:swipe skill for the deck format.`;
+swipe runs a thorough interview instead: a deck of two-sided cards the user answers with the arrow keys. wait returns the answers in batches; after each, push the rewritten brief and new cards, then wait again. Load the decide:swipe skill for the deck format.
+review shows a code review of a branch: your overview, then the diff the server reads from git, cut into chapters you name. wait returns a question on a hunk at once (answer with explain) and the verdict with every comment at the end. Load the decide:review skill before you cut the chapters.`;
 
 // done (optional) runs once the line is handed to the OS.
 const send = (msg, done) => process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", ...msg })}\n`, done);

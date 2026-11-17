@@ -26,7 +26,7 @@ import { formatReviewResult, reviewResult } from "../lib/review/digest.mjs";
 import { parsePatch, patchStats, unquote } from "../lib/review/patch.mjs";
 import { buildReview, groupPieces, lineOf, loadSnapshot, reviewIndex, saveSnapshot, takeSnapshot } from "../lib/review/snapshot.mjs";
 import { checkState, normalizeReview } from "../lib/review/spec.mjs";
-import { asPage, envOf, hasGit, homeOf, pluginDir, scratchDir } from "./helpers.mjs";
+import { asAgent, asPage, envOf, exitOf, hasGit, homeOf, pluginDir, scratchDir, spawnServer } from "./helpers.mjs";
 
 const errorsOf = (issues) => issues.filter((i) => i.level === "error").map((i) => `${i.where}: ${i.message}`);
 const warnsOf = (issues) => issues.filter((i) => i.level === "warn").map((i) => `${i.where}: ${i.message}`);
@@ -703,4 +703,44 @@ test("MCP: review → comments, a question, read marks → the verdict with ever
   const snap = loadSnapshot(roundDir);
   assert.deepEqual([snap.meta.base, snap.meta.head], [repo.base, repo.head]);
   assert.ok(homeOf(dir) && roundDir.startsWith(homeOf(dir)));
+});
+
+test("a review survives a server restart: the snapshot, the comments, the read marks, the question", { skip: !hasGit }, async (context) => {
+  const repo = await reviewRepo(context);
+  const home = homeOf(repo.dir);
+  const first = await spawnServer(context, home);
+  const at = (port) => `http://127.0.0.1:${port}`;
+  const opened = await fetch(`${at(first.port)}/api/rounds`, { method: "POST", headers: asAgent(first.port), body: JSON.stringify({ project: repo.dir, spec: REPO_SPEC, mode: "review", open: false }) });
+  assert.equal(opened.status, 200);
+  const { id, review } = await opened.json();
+  assert.deepEqual([review.total, review.sorted, review.baseRef], [7, 5, "main"]);
+  const post = (port, route, body) => fetch(`${at(port)}/api/rounds/${id}/${route}`, { method: "POST", headers: asPage(port), body: JSON.stringify(body) });
+  assert.equal((await post(first.port, "comment", { hunk: "h1", line: 3, side: "new", kind: "fix", text: "Keep the digit." })).status, 200);
+  assert.equal((await post(first.port, "read", { chapter: "top", read: true })).status, 200);
+  assert.equal((await post(first.port, "ask", { question: "h2", text: "Why fifty?", line: 50, side: "new" })).status, 200);
+  // A page cannot open a review, and an agent's spec with errors opens nothing.
+  assert.equal((await fetch(`${at(first.port)}/api/rounds`, { method: "POST", headers: asPage(first.port), body: JSON.stringify({ project: repo.dir, spec: REPO_SPEC, mode: "review", open: false }) })).status, 403);
+  const refused = await fetch(`${at(first.port)}/api/rounds`, { method: "POST", headers: asAgent(first.port), body: JSON.stringify({ project: repo.dir, spec: { chapters: [{ id: "a" }] }, mode: "review", open: false }) });
+  assert.equal(refused.status, 422);
+  assert.match(JSON.stringify((await refused.json()).issues), /needs a title/);
+
+  first.child.kill();
+  await exitOf(first.child);
+  // The branch moves on after the review was opened: the review still shows what was reviewed.
+  repo.write("lib/a.mjs", "rewritten\n");
+  repo.git("commit", "-q", "-am", "after the review opened");
+
+  const second = await spawnServer(context, home);
+  const back = await (await fetch(`${at(second.port)}/api/rounds/${id}`)).json();
+  assert.deepEqual([back.mode, back.status, back.review.total, back.review.snapshot.head], ["review", "pending", 7, repo.head]);
+  assert.deepEqual(back.review.comments.map((c) => [c.hunk, c.line, c.kind, c.code, c.text]), [["h1", 3, "fix", "line three", "Keep the digit."]]);
+  assert.deepEqual(Object.keys(back.review.read), ["top"]);
+  assert.deepEqual(back.dialog.map((d) => [d.qid, d.ask, d.file, d.line, d.code]), [["h2", "Why fifty?", "lib/a.mjs", 50, "line fifty"]]);
+  const group = await (await fetch(`${at(second.port)}/api/rounds/${id}/pieces?group=ch:tail`)).json();
+  assert.deepEqual(group.pieces.map((p) => [p.id, p.newStart]), [["h2", 47]]);
+  const whole = await (await fetch(`${at(second.port)}/api/rounds/${id}/file?path=lib/a.mjs&side=new`)).json();
+  assert.match(whole.text, /^line 1\nline 2\nline three\n/, "the file as it was at the reviewed commit, not as it is now");
+  const sent = await post(second.port, "submit", { verdict: "nits" });
+  assert.equal(sent.status, 200);
+  assert.match((await sent.json()).result.digest, /^Verdict: APPROVED WITH NITS\. Comments: 1 to fix, 1 question \(1 not answered\)\. Chapters read: 1 of 2/);
 });
