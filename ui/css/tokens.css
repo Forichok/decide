@@ -1,5 +1,6 @@
-/* tokens.css — color, type and motion tokens; light by default, dark via
-   prefers-color-scheme unless the user picked a theme (data-theme). */
+/* tokens.css — color, type, space and material tokens. The theme follows the
+   system (prefers-color-scheme); data-theme="light" or "dark" on <html> is the
+   manual toggle and always wins. */
 
 :root {
   --bg: #f6f5f3;
@@ -7,23 +8,26 @@
   --surface: #ffffff;
   --surface-2: #f3f2ef;
   --surface-3: #ebe9e5;
+  --surface-solid: #ffffff;
   --line: rgba(20, 16, 12, 0.08);
   --line-strong: rgba(20, 16, 12, 0.16);
   --tx: #17161a;
-  --tx-mut: #5d5a63;
-  --tx-dim: #8e8a93;
-  --accent: #e2336e;
-  --accent-tx: #c21f58;
-  --accent-soft: rgba(226, 51, 110, 0.08);
-  --accent-line: rgba(226, 51, 110, 0.45);
+  --tx-mut: #55525c;
+  --tx-dim: #66626c;
+  /* one accent: crimson. Primary action and selection only. */
+  --accent: #d6245f;
+  --accent-tx: #b81c52;
+  --accent-soft: rgba(214, 36, 95, 0.08);
+  --accent-line: rgba(214, 36, 95, 0.45);
   --on-accent: #ffffff;
-  --ok: #0f9a6e;
+  /* state colours are text too: each holds 4.5:1 on its own soft fill over any surface of the page */
+  --ok: #076a4b;
   --ok-soft: rgba(15, 154, 110, 0.1);
-  --warn: #c07a0c;
+  --warn: #875106;
   --warn-soft: rgba(192, 122, 12, 0.12);
-  --danger: #d23b3b;
+  --danger: #b02828;
   --danger-soft: rgba(210, 59, 59, 0.1);
-  --info: #2f6fe4;
+  --info: #1f58c0;
   --info-soft: rgba(47, 111, 228, 0.1);
   --c-what: #2f6fe4;
   --c-how: #0f9a6e;
@@ -35,37 +39,72 @@
   --chart-2: #eb6834;
   --chart-3: #1baf7a;
   --chart-4: #eda100;
-  --shadow-1: 0 1px 2px rgba(20, 16, 12, 0.05), 0 1px 1px rgba(20, 16, 12, 0.03);
-  --shadow-2: 0 10px 30px -12px rgba(20, 16, 12, 0.18), 0 2px 6px rgba(20, 16, 12, 0.04);
-  --shadow-3: 0 24px 60px -18px rgba(20, 16, 12, 0.35);
+  --shadow-1: 0 1px 2px rgba(20, 16, 12, 0.05), 0 4px 14px -8px rgba(20, 16, 12, 0.1);
+  --shadow-2: 0 2px 6px rgba(20, 16, 12, 0.05), 0 18px 40px -18px rgba(20, 16, 12, 0.22);
+  --shadow-3: 0 4px 10px rgba(20, 16, 12, 0.06), 0 28px 64px -20px rgba(20, 16, 12, 0.38);
   --scrim: rgba(18, 16, 20, 0.5);
-  --r-sm: 9px;
-  --r-md: 13px;
-  --r-lg: 18px;
+  /* material: translucent surface, soft edge, top highlight, layered shadow */
+  --glass-bg: rgba(255, 255, 255, 0.62);
+  --glass-bg-strong: rgba(255, 255, 255, 0.86);
+  --glass-blur: blur(24px) saturate(1.7);
+  --glass-edge: rgba(255, 255, 255, 0.75);
+  --glass-hl: rgba(255, 255, 255, 0.9);
+  --glass-shadow: 0 1px 2px rgba(20, 16, 12, 0.05), 0 8px 24px -10px rgba(20, 16, 12, 0.14), 0 28px 56px -28px rgba(20, 16, 12, 0.18);
+  /* the quiet colour field behind the page */
+  --field-1: rgba(226, 51, 110, 0.1);
+  --field-2: rgba(122, 79, 214, 0.08);
+  --field-3: rgba(47, 111, 228, 0.07);
+  /* progress states */
+  --state-answered: #0a7a58;
+  --state-current: #d6245f;
+  --state-skipped: #8a8690;
+  --state-stale: #875106;
+  /* radii */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 22px;
+  /* type steps: a 1.2 scale from 13px */
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.0625rem;
+  --step-2: 1.25rem;
+  --step-3: 1.5rem;
+  --step-4: clamp(1.75rem, 1.2rem + 2vw, 2.375rem);
+  /* spacing: 4px base */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 72px;
   --font: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
   --mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur: 0.18s;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0c0c0f;
+    --bg: #0c0c10;
     --bg-glow: rgba(255, 93, 143, 0.08);
     --surface: #15151a;
     --surface-2: #1b1b21;
     --surface-3: #23232b;
-    --line: rgba(255, 255, 255, 0.07);
-    --line-strong: rgba(255, 255, 255, 0.15);
+    --surface-solid: #17171d;
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.16);
     --tx: #ececf1;
-    --tx-mut: #a3a3ae;
-    --tx-dim: #6f6f7b;
+    --tx-mut: #a9a9b5;
+    --tx-dim: #9494a1;
     --accent: #ff5d8f;
     --accent-tx: #ff7aa3;
-    --accent-soft: rgba(255, 93, 143, 0.12);
+    --accent-soft: rgba(255, 93, 143, 0.13);
     --accent-line: rgba(255, 93, 143, 0.5);
-    --on-accent: #ffffff;
+    --on-accent: #1a0710;
     --ok: #3ad3a0;
     --ok-soft: rgba(58, 211, 160, 0.12);
     --warn: #f2b155;
@@ -83,29 +122,44 @@
     --c-why: #f2b155;
     --c-goal: #ff7aa3;
     --c-then: #b294ff;
-    --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
-    --shadow-2: 0 14px 40px -16px rgba(0, 0, 0, 0.7);
-    --shadow-3: 0 30px 80px -20px rgba(0, 0, 0, 0.85);
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 14px -8px rgba(0, 0, 0, 0.5);
+    --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.3), 0 18px 44px -18px rgba(0, 0, 0, 0.75);
+    --shadow-3: 0 4px 10px rgba(0, 0, 0, 0.35), 0 30px 80px -20px rgba(0, 0, 0, 0.85);
     --scrim: rgba(4, 4, 6, 0.72);
+    --glass-bg: rgba(30, 30, 38, 0.6);
+    --glass-bg-strong: rgba(26, 26, 34, 0.82);
+    --glass-blur: blur(24px) saturate(1.6);
+    --glass-edge: rgba(255, 255, 255, 0.14);
+    --glass-hl: rgba(255, 255, 255, 0.12);
+    --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -10px rgba(0, 0, 0, 0.55), 0 28px 56px -28px rgba(0, 0, 0, 0.6);
+    --field-1: rgba(255, 93, 143, 0.16);
+    --field-2: rgba(122, 90, 220, 0.14);
+    --field-3: rgba(50, 120, 230, 0.12);
+    --state-answered: #3ad3a0;
+    --state-current: #ff5d8f;
+    --state-skipped: #8a8a97;
+    --state-stale: #f2b155;
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #0c0c0f;
+  --bg: #0c0c10;
   --bg-glow: rgba(255, 93, 143, 0.08);
   --surface: #15151a;
   --surface-2: #1b1b21;
   --surface-3: #23232b;
-  --line: rgba(255, 255, 255, 0.07);
-  --line-strong: rgba(255, 255, 255, 0.15);
+  --surface-solid: #17171d;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
   --tx: #ececf1;
-  --tx-mut: #a3a3ae;
-  --tx-dim: #6f6f7b;
+  --tx-mut: #a9a9b5;
+  --tx-dim: #9494a1;
   --accent: #ff5d8f;
   --accent-tx: #ff7aa3;
-  --accent-soft: rgba(255, 93, 143, 0.12);
+  --accent-soft: rgba(255, 93, 143, 0.13);
   --accent-line: rgba(255, 93, 143, 0.5);
+  --on-accent: #1a0710;
   --ok: #3ad3a0;
   --ok-soft: rgba(58, 211, 160, 0.12);
   --warn: #f2b155;
@@ -114,18 +168,31 @@
   --danger-soft: rgba(255, 107, 107, 0.12);
   --info: #6aa2ff;
   --info-soft: rgba(106, 162, 255, 0.12);
-    --chart-1: #3987e5;
-    --chart-2: #d95926;
-    --chart-3: #199e70;
-    --chart-4: #c98500;
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
   --c-what: #6aa2ff;
   --c-how: #3ad3a0;
   --c-why: #f2b155;
   --c-goal: #ff7aa3;
   --c-then: #b294ff;
-  --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
-  --shadow-2: 0 14px 40px -16px rgba(0, 0, 0, 0.7);
-  --shadow-3: 0 30px 80px -20px rgba(0, 0, 0, 0.85);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 14px -8px rgba(0, 0, 0, 0.5);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.3), 0 18px 44px -18px rgba(0, 0, 0, 0.75);
+  --shadow-3: 0 4px 10px rgba(0, 0, 0, 0.35), 0 30px 80px -20px rgba(0, 0, 0, 0.85);
   --scrim: rgba(4, 4, 6, 0.72);
+  --glass-bg: rgba(30, 30, 38, 0.6);
+  --glass-bg-strong: rgba(26, 26, 34, 0.82);
+  --glass-blur: blur(24px) saturate(1.6);
+  --glass-edge: rgba(255, 255, 255, 0.14);
+  --glass-hl: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -10px rgba(0, 0, 0, 0.55), 0 28px 56px -28px rgba(0, 0, 0, 0.6);
+  --field-1: rgba(255, 93, 143, 0.16);
+  --field-2: rgba(122, 90, 220, 0.14);
+  --field-3: rgba(50, 120, 230, 0.12);
+  --state-answered: #3ad3a0;
+  --state-current: #ff5d8f;
+  --state-skipped: #8a8a97;
+  --state-stale: #f2b155;
   color-scheme: dark;
 }

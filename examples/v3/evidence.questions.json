@@ -1,0 +1,39 @@
+{
+  "title": "Which database for the sync service?",
+  "intro": "The numbers below say where they come from. The task panel keeps what is decided and what is still open.",
+  "brief": [
+    { "kind": "decision", "text": "The sync service ships with the 3.1 release." },
+    { "kind": "risk", "text": "The expected load is a guess until the beta." },
+    { "kind": "open", "text": "Who pays for the managed option?" }
+  ],
+  "questions": [
+    {
+      "id": "db",
+      "type": "single",
+      "title": "Which database holds the synced tasks?",
+      "why": "The choice sets how much operating work the team takes on.",
+      "options": [
+        {
+          "id": "pg",
+          "label": "Postgres",
+          "recommended": true,
+          "reason": { "text": "We already run it for the main app.", "evidence": "measured", "source": "the ops dashboard, October" },
+          "pros": [
+            { "text": "Handles the beta load with room to spare", "evidence": "measured", "source": "load test, 40 req/s" },
+            "One system to back up"
+          ],
+          "cons": [{ "text": "Needs a replica above 500 users", "evidence": "estimate" }],
+          "metrics": [{ "label": "Cost", "value": "$40 a month" }],
+          "then": "The sync tables go into the main database."
+        },
+        {
+          "id": "sqlite",
+          "label": "SQLite per user",
+          "pros": [{ "text": "No server to run", "evidence": "guess" }],
+          "cons": [{ "text": "Merging two devices is hard", "evidence": "estimate" }],
+          "then": "Each user gets a file on the server."
+        }
+      ]
+    }
+  ]
+}

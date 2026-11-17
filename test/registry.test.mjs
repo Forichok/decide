@@ -208,8 +208,8 @@ function checkFieldDef(def, where) {
   for (const [k, f] of Object.entries(def.fields || {})) checkFieldDef(f, `${where}.${k}`);
 }
 
-test("the registry lists the six types in the 2.1 order and spec.mjs takes TYPES from it", () => {
-  assert.deepEqual([...REGISTRY.keys()], ["single", "multi", "rank", "scale", "text", "confirm"]);
+test("the registry lists the six 2.1 types in the 2.1 order, then the four 3.0 forms and tune, and spec.mjs takes TYPES from it", () => {
+  assert.deepEqual([...REGISTRY.keys()], ["single", "multi", "rank", "scale", "text", "confirm", "buckets", "tradeoff", "spot", "versus", "tune"]);
   assert.deepEqual(TYPES, [...REGISTRY.keys()]);
   for (const [name, def] of REGISTRY) assert.equal(def.name, name);
 });
@@ -301,12 +301,23 @@ function tokenise(value, dir) {
 }
 
 test("the six 2.1 types normalise exactly as before", () => {
-  const raw = JSON.parse(readFileSync(path.join(examples, "showcase.questions.json"), "utf8"));
+  const raw = JSON.parse(readFileSync(path.join(pluginDir, "test/fixtures/2.1/showcase.questions.json"), "utf8"));
   const now = JSON.parse(JSON.stringify(normalizeSpec(raw, { specDir: examples })));
   const before = JSON.parse(readFileSync(path.join(pluginDir, "test/fixtures/2.1/showcase.normalized.json"), "utf8"));
+  // Three things moved in 3.0: the folded points became `more` (test/migrate.test.mjs checks the text) and each option has
+  // a `then`. Everything else is what 2.1 wrote.
+  for (const q of before.spec.questions) {
+    for (const k of ["what", "how", "goal", "then"]) delete q[k];
+    for (const o of q.options) o.then = "";
+  }
+  for (const q of now.spec.questions) delete q.more;
+  // The new lint asks for `why` and `then`; the 2.1 showcase has few of them.
+  now.issues = now.issues.filter((i) => !/^("[^"]+" has no "why"|no "then" on )/.test(i.message));
+  for (const q of now.spec.questions) { delete q.dependsOn; for (const o of q.options) delete o.evidence; }
+  delete now.spec.brief;
   assert.deepEqual(tokenise(now, examples), before);
   const types = new Set(now.spec.questions.map((q) => q.type));
-  assert.deepEqual([...types].sort(), [...REGISTRY.keys()].sort(), "the showcase uses all six types, so the snapshot covers them");
+  assert.deepEqual([...types].sort(), [...REGISTRY.keys()].slice(0, 6).sort(), "the showcase uses all six 2.1 types, so the snapshot covers them");
 });
 
 // ---- every spec the repository ships
@@ -436,7 +447,7 @@ test("an option or question field met one level away says where it goes", () => 
     assert.deepEqual(said({ [name]: true }, {}), [`unknown field "${name}"; "${name}" is an option field: put it on the option`], name);
   }
   assert.deepEqual(said({}, { default: ["x"], optional: true }), ["default", "optional"].map((n) => `unknown field "${n}"; "${n}" is a question field: put it on the question`));
-  assert.deepEqual(said({}, { how: "x", note: "y", then: "z" }), ["how", "note", "then"].map((n) => `unknown field "${n}"; "${n}" is a question field; for text on one option use its "detail"`));
+  assert.deepEqual(said({}, { how: "x", note: "y" }), ["how", "note"].map((n) => `unknown field "${n}"; "${n}" is a question field; for text on one option use its "detail"`));
   assert.deepEqual(said({ detail: "d" }, {}), ['unknown field "detail"; "detail" is an option field; the question has no "detail": "tldr" is its one line, "body" its longer text']);
   assert.deepEqual(said({ label: "l" }, {}), ['unknown field "label"; "label" is an option field; the question has no "label": its words are "title"']);
 });
@@ -566,7 +577,7 @@ async function mediaDir(context) {
   for (const f of ["card.html", "after.html", "before.png", "after.png", "clip.mp4"]) await writeFile(path.join(dir, f), "x");
   return dir;
 }
-const mediaQuestion = (extra = {}, option = {}) => ({ questions: [{ id: "q", title: "t", options: [{ id: "a", label: "A", recommended: true, ...option }, { id: "b", label: "B" }], ...extra }] });
+const mediaQuestion = (extra = {}, option = {}) => ({ questions: [{ id: "q", title: "t", why: "w", options: [{ id: "a", label: "A", then: "x", recommended: true, ...option }, { id: "b", label: "B", then: "y" }], ...extra }] });
 const unknownOf = (issues) => issues.filter((i) => /unknown field/.test(i.message)).map((i) => `${i.level} ${i.where}: ${i.message}`);
 
 test("every media kind has a page module, a doc row and a valid example", async (context) => {
@@ -912,7 +923,7 @@ test("typeLines names every type and every media kind once", async () => {
 test("npm run docs is the generator and is the only script this task added", () => {
   const pkg = JSON.parse(readFileSync(path.join(pluginDir, "package.json"), "utf8"));
   assert.equal(pkg.scripts.docs, "node lib/registry/docs.mjs --write");
-  assert.equal(pkg.version, "2.2.0");
+  assert.equal(pkg.version, "3.0.0");
 });
 
 test("nothing in the engine switches on a media kind outside the registry", () => {
@@ -988,19 +999,19 @@ test("the schema takes every shape the strict engine takes without an error", as
   assert.match(validate(specSchema(), q({ titel: "x" }), specSchema()).join("\n"), /unknown field "titel"/);
 });
 
-test("the schema is small: ask's whole input schema 9,000 bytes, swipe's 7,000, tools/list pinned near its size", async () => {
+test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tune, rules, evidence), swipe's 7,000, tools/list pinned near its size", async () => {
   const { specSchema, deckSchema } = await docs();
   const size = (v) => JSON.stringify(v).length;
-  assert.ok(size(specSchema()) <= 9000, `specSchema ${size(specSchema())} bytes`);
+  assert.ok(size(specSchema()) <= 12000, `specSchema ${size(specSchema())} bytes`);
   assert.ok(size(deckSchema()) <= 7000, `deckSchema ${size(deckSchema())} bytes`);
   const { toolList } = await load("lib/commands/index.mjs");
   const tools = toolList();
   const input = (name) => tools.find((t) => t.name === name).inputSchema;
-  assert.ok(size(input("ask")) <= 9000 + 1000, `ask inputSchema ${size(input("ask"))} bytes`);
+  assert.ok(size(input("ask")) <= 12000 + 1000, `ask inputSchema ${size(input("ask"))} bytes`);
   assert.ok(size(input("swipe")) <= 7000 + 1000, `swipe inputSchema ${size(input("swipe"))} bytes`);
   assert.ok(size(input("ask")) >= size(specSchema()), "the whole input schema holds the spec schema, $defs and all");
   const whole = size({ result: { tools } });
-  assert.ok(whole <= 33_000, `tools/list ${whole} bytes: pinned near the size after Task 13's deck lines, far under 2.1.1's 11,281 plus the 2.1 ask schema growth`);
+  assert.ok(whole <= 37_000, `tools/list ${whole} bytes: pinned near the size after Task 13's deck lines, far under 2.1.1's 11,281 plus the 2.1 ask schema growth`);
 });
 
 test("a description sits only where the name does not say it, never on a spelling or a union arm", async () => {
@@ -1064,7 +1075,7 @@ test("a remote .html in a compare warns and is drawn as two links; a local pair 
 
 test("metrics as a list of {label, value} is read as the object form: the same rows, no warning", async (context) => {
   const { exportSpec } = await load("lib/export.mjs");
-  const make = (metrics) => normalizeSpec({ questions: [{ id: "q", title: "t", options: [{ label: "x", recommended: true, metrics }, "y"] }] });
+  const make = (metrics) => normalizeSpec({ questions: [{ id: "q", title: "t", why: "w", options: [{ label: "x", then: "t", recommended: true, metrics }, { label: "y", then: "t" }] }] });
   const asList = make([{ label: "Speed", value: 4 }, { label: "Time", value: "5 days" }]);
   const asObject = make({ Speed: 4, Time: "5 days" });
   assert.deepEqual(asList.issues, []);
@@ -1179,4 +1190,98 @@ test("default is valid on scale and text; a table column may have a number for a
   }
   const { issues } = normalizeSpec({ questions: [{ id: "a", title: "t", options: ["x", "y"], table: { columns: [{ id: "y", label: 2024 }], rows: [["1"]] } }] });
   assert.deepEqual(errorsOf(issues), []);
+});
+
+// ---- question anatomy: why, more, option then
+
+test("a question has why and more, an option has then; the folded points are older spellings of more", () => {
+  assert.ok(QUESTION_FIELDS.why && QUESTION_FIELDS.more, "why and more");
+  assert.equal(OPTION_FIELDS.then.type, "string");
+  for (const k of ["what", "how", "goal", "then"]) assert.equal(QUESTION_FIELDS[k].alias, "more", `${k} reads into more`);
+  const { spec, issues } = normalizeSpec({ questions: [{ id: "a", title: "A", why: "w", more: "m", options: [{ label: "x", then: "t", recommended: true }, "y"] }] });
+  assert.deepEqual(errorsOf(issues), []);
+  assert.equal(spec.questions[0].why, "w");
+  assert.equal(spec.questions[0].more, "m");
+  assert.equal(spec.questions[0].options[0].then, "t");
+  assert.equal(spec.questions[0].options[1].then, "");
+});
+
+test("lint: a single or multi question with no why, or options with no then, is a warning, not an error", () => {
+  const lint = (q) => {
+    const { issues } = normalizeSpec({ questions: [{ id: "a", title: "A", ...q }] });
+    return { errors: errorsOf(issues), warns: warnsOf(issues).filter((w) => /no "why"|no "then"/.test(w)) };
+  };
+  const options = (then) => [{ id: "x", label: "X", recommended: true, ...(then.x && { then: "t" }) }, { id: "y", label: "Y", ...(then.y && { then: "t" }) }];
+  const bare = lint({ options: options({}) });
+  assert.deepEqual(bare.errors, []);
+  assert.equal(bare.warns.length, 2);
+  assert.match(bare.warns[0], /"a" has no "why"/);
+  assert.match(bare.warns[1], /no "then" on any option/);
+  const partial = lint({ why: "w", options: options({ x: true }) });
+  assert.deepEqual(partial.warns.map((w) => w.replace(/^[^:]*: /, "")), ['no "then" on option "y": say what happens next if it is picked']);
+  assert.deepEqual(lint({ why: "w", options: options({ x: true, y: true }) }).warns, []);
+  assert.equal(lint({ type: "multi", options: options({}) }).warns.length, 2, "multi too");
+  for (const type of ["confirm", "rank", "scale", "text"]) assert.deepEqual(lint({ type, options: type === "rank" ? options({}) : undefined, ...(type === "scale" ? { scale: { min: 1, max: 5 } } : {}) }).warns, [], `${type} is not asked for them`);
+});
+
+test("pinned sizes after 3.0: the spec schema is 11,102 bytes, the deck schema 6,928", async () => {
+  const { specSchema, deckSchema } = await docs();
+  assert.equal(JSON.stringify(specSchema()).length, 11102);
+  assert.equal(JSON.stringify(deckSchema()).length, 6928);
+});
+
+// ---- 3.0 rounds that react: rules on the round spec
+
+test("rules on the round spec: kept in the normalized spec, an unknown question is an error, a loop a warning", () => {
+  const opts = [{ id: "x", label: "X" }, { id: "y", label: "Y" }];
+  const two = (rules) => ({ questions: [{ id: "a", title: "A", options: opts }, { id: "b", title: "B", options: opts }], rules });
+  const ok = normalizeSpec(two([{ when: { question: "a", in: ["x"] }, do: [{ ghost: ["b"] }], reason: "x needs no b" }]), { specDir: examples });
+  assert.deepEqual(errorsOf(ok.issues), []);
+  assert.equal(ok.spec.rules.length, 1);
+  assert.equal(normalizeSpec(two(undefined), { specDir: examples }).spec.rules, undefined, "no rules, no field");
+  assert.match(errorsOf(normalizeSpec(two([{ when: { question: "zz", answered: true }, do: [{ ghost: ["b"] }] }]), { specDir: examples }).issues).join("\n"), /unknown question "zz"/);
+  const loop = normalizeSpec(
+    two([
+      { when: { question: "b", answered: true }, do: [{ ghost: "a" }], reason: "b" },
+      { when: { question: "a", answered: true }, do: [{ ghost: "b" }], reason: "a" },
+    ]),
+    { specDir: examples },
+  );
+  assert.deepEqual(errorsOf(loop.issues), []);
+  assert.match(warnsOf(loop.issues).join("\n"), /rules loop/);
+});
+
+test("evidence labels: a point is a string or {text, evidence, source}; the text stays a string", () => {
+  const { spec, issues } = normalizeSpec({
+    questions: [{ id: "a", title: "t", options: [
+      { id: "x", label: "X", recommended: { text: "fast", evidence: "measured", source: "bench.txt" }, pros: ["plain", { text: "cheap", evidence: "estimate" }], cons: [{ text: "odd", evidence: "guess" }], metrics: { ms: { text: "12ms", evidence: "measured", source: "bench.txt" }, speed: 4 } },
+      { id: "y", label: "Y" },
+    ] }],
+  });
+  const o = spec.questions[0].options[0];
+  assert.equal(o.reason, "fast");
+  assert.deepEqual(o.pros, ["plain", "cheap"]);
+  assert.deepEqual(o.evidence.pros, [null, { kind: "estimate", source: "" }]);
+  assert.deepEqual(o.evidence.cons, [{ kind: "guess", source: "" }]);
+  assert.deepEqual(o.evidence.reason, { kind: "measured", source: "bench.txt" });
+  assert.deepEqual(o.evidence.metrics, { ms: { kind: "measured", source: "bench.txt" } });
+  assert.deepEqual(o.metrics, [{ label: "ms", value: "12ms" }, { label: "speed", value: 4 }]);
+  assert.equal(errorsOf(issues).length, 0);
+  assert.ok(!warnsOf(issues).some((w) => /measured/.test(w)));
+});
+
+test("lint warns on measured without a source and on an unknown label", () => {
+  const { issues } = normalizeSpec({
+    questions: [{ id: "a", title: "t", options: [{ id: "x", label: "X", pros: [{ text: "quick", evidence: "measured" }], cons: [{ text: "x", evidence: "sure" }] }, { id: "y", label: "Y" }] }],
+  });
+  const w = warnsOf(issues);
+  assert.ok(w.some((m) => /pros\[0\].*measured but has no source/.test(m)));
+  assert.ok(w.some((m) => /unknown evidence "sure"/.test(m)));
+});
+
+test("a round brief and dependsOn are read", () => {
+  const { spec, issues } = normalizeSpec({ brief: ["the task", { kind: "open", text: "naming" }], questions: [{ id: "a", title: "t", dependsOn: ["b", "r-1"], options: opts("A", "B") }] });
+  assert.deepEqual(spec.brief.map((b) => [b.kind, b.text]), [["decision", "the task"], ["open", "naming"]]);
+  assert.deepEqual(spec.questions[0].dependsOn, ["b", "r-1"]);
+  assert.ok(!errorsOf(issues).some((m) => /unknown field/.test(m)));
 });

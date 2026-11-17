@@ -4,15 +4,26 @@
 
 import { $, $$, icon } from "./dom.js";
 import { lang, t } from "./i18n.js";
+import * as net from "./net.js";
 import { answererName, cancelRound, download, getRound, getState, listen, offline, reopen, submitRound } from "./net.js";
+import { createStore } from "./store.js";
 import { hideBar, mountRound } from "./round.js";
-import { mountSwipe } from "./swipe.js";
-import { renderDone, renderIdle, roundTabs, updatePresence } from "./header.js";
+import { mountSwipe } from "./swipe/index.js";
+import { pasteLine, renderIdle, roundTabs, updatePresence } from "./header.js";
+import { renderDone } from "./done.js";
+import { createInbox, dismissRound, loadInbox, notifyNew } from "./inbox.js";
+import { baseName, nextRound } from "./inbox-logic.js";
+import { showStopped } from "./stopped.js";
 import { renderJournal } from "./journal.js";
+import { renderSettings } from "./settings.js";
 import { bindKeys } from "./nav.js";
-import { confirmCancel, openHelp, openReview, toast } from "./overlays.js";
+import { closeOverlays, confirmCancel, openHelp, openReview, toast } from "./overlays.js";
 import { finalizeAnswers, isResolved, recommendedIds } from "./logic.js";
 import { typeOf } from "./types/index.js";
+import { badgeCount, registerShell, setBadge, wrongPort } from "./pwa.js";
+
+// Answers, notes and flags of every round this page shows, saved one question at a time (store.js).
+const store = createStore(net);
 
 const app = {
   state: { rounds: [], history: [] },
@@ -22,10 +33,15 @@ const app = {
   done: null, // { id, result } while the done screen is shown
   seen: new Set(),
   sending: false,
-  closing: null, // seconds until the tab closes itself, "failed", or null
-  closeFor: null, // the done round the countdown already ran for
-  closeTimer: null,
+  closing: null, // "failed" after a Close tab the browser refused, else null
+  inbox: [], // the rail's rows, see inbox.js
+  advance: null, // seconds until Done goes on to the next round, or null
+  advanceFor: null, // the done round the countdown already ran for
+  advanceTimer: null,
+  spec: null, // spec of the round on the done screen
+  idleError: null, // why the idle screen shows, e.g. a round id that does not exist
 };
+let rail = null;
 
 // ---- theme (per-viewer convenience; storage may be unavailable)
 const THEME_KEY = "decide-theme";
@@ -52,12 +68,18 @@ function env() {
   return {
     pending: app.state.rounds,
     currentId: app.round?.id ?? app.done?.id,
+    project: app.projectDir,
     history: app.state.history,
     connected: app.connected,
     delivery: app.done && deliveryOf(app.done.id),
     closing: app.closing,
-    keepOpen,
+    idleError: app.view === "idle" ? app.idleError : null,
     closeTab,
+    spec: app.spec,
+    nextRound: app.view === "done" ? nextRound(app.inbox.length ? app.inbox : [], app.done?.id) : null,
+    advance: app.advance,
+    stay,
+    inbox: { count: app.inbox.length, toggle: () => toggleRail() },
     copyNudge,
     help: openHelp,
     isDark,
@@ -73,80 +95,90 @@ function env() {
     submit: review,
     cancel,
     nextOpen,
+    store,
   };
 }
 
 // ---- views
-async function openRound(id, fallback = true) {
+async function openRound(id, fallback = false) {
   let data;
   try {
     data = await getRound(id);
   } catch {
     const next = fallback && app.state.rounds.find((r) => r.id !== id);
     if (next) return openRound(next.id, false);
-    return showIdle(t("idle.inactive"));
+    return showIdle(t("idle.badRound", id));
   }
   history.replaceState(null, "", `#r=${data.id}`);
+  app.projectDir = data.project || app.projectDir;
   app.seen.add(data.id);
   if (data.status === "pending") showRound(data);
-  else showDone(data.id, data.result || { cancelled: true });
+  else showDone(data.id, data.result || { cancelled: true }, data.spec);
 }
 
 function showRound(data) {
-  disarmClose();
+  disarmAdvance();
   app.round?.stop();
   app.view = "round";
   app.done = null;
-  app.round = data.mode === "swipe" ? mountSwipe(data, env()) : mountRound(data, env());
-  window.scrollTo({ top: 0 });
+  // The header draws the round's own buttons for the round being shown, before app.round names it.
+  const e = { ...env(), currentId: data.id };
+  app.round = data.mode === "swipe" ? mountSwipe(data, e) : mountRound(data, e);
+  syncRail();
 }
 
-function showDone(id, result) {
-  app.round?.stop();
+function showDone(id, result, spec = null) {
+  app.spec = spec || app.round?.spec || null;
+  // only the round being settled drops its queue: another pending round still reports what was seen
+  app.round?.stop({ settled: app.round.id === id });
   app.round = null;
   app.view = "done";
   app.done = { id, result };
   hideBar();
   renderDoneView();
   window.scrollTo({ top: 0 });
-  armClose();
+  syncRail();
+  armAdvance();
 }
 
-// ---- after the answers reach the agent the tab closes itself, unless more rounds wait
+// ---- after Done the page goes on to the next open round; the tab never closes itself
 const deliveryOf = (id) => app.state.history.find((e) => e.id === id) || { delivered: true };
+const ADVANCE_SEC = 6;
 
-function armClose() {
+function armAdvance() {
   const { id, result } = app.done;
-  // An exported file stays open: its done screen offers the download again.
-  if (offline || result?.cancelled || !deliveryOf(id).delivered || app.closeFor === id || app.state.rounds.some((r) => r.id !== id)) return;
-  app.closeFor = id;
-  app.closing = 5;
+  // Answers the agent has not collected stay on screen: the user may need the line to paste.
+  const held = !result?.cancelled && !result?.dismissed && !deliveryOf(id).delivered;
+  if (offline || held || app.advanceFor === id || !nextRound(app.inbox, id)) return;
+  app.advanceFor = id;
+  app.advance = ADVANCE_SEC;
   rerenderStatic();
-  app.closeTimer = setInterval(() => {
-    app.closing -= 1;
-    if (app.closing > 0) {
-      const count = $(".close-count");
-      if (count) count.textContent = t("done.closeIn", app.closing);
+  app.advanceTimer = setInterval(() => {
+    app.advance -= 1;
+    if (app.advance > 0) {
+      const count = $(".next-count");
+      if (count) count.textContent = t("done.advance", app.advance);
       return;
     }
-    closeTab();
+    const next = nextRound(app.inbox, app.done?.id);
+    disarmAdvance();
+    if (next) openRound(next.id);
   }, 1000);
 }
 
-function disarmClose() {
-  clearInterval(app.closeTimer);
-  app.closeTimer = null;
-  app.closing = null;
+function disarmAdvance() {
+  clearInterval(app.advanceTimer);
+  app.advanceTimer = null;
+  app.advance = null;
 }
 
-function keepOpen() {
-  disarmClose();
+function stay() {
+  disarmAdvance();
   rerenderStatic();
 }
 
-// Browsers let a page close only a tab that scripts opened or that has one history entry.
+// A button, never a timer. Browsers let a page close only a tab that scripts opened or that has one history entry.
 function closeTab() {
-  disarmClose();
   window.close();
   setTimeout(() => {
     app.closing = "failed";
@@ -155,27 +187,29 @@ function closeTab() {
 }
 
 function copyNudge() {
+  const line = pasteLine(app.done?.id || "");
   navigator.clipboard
-    .writeText(t("done.nudge"))
+    .writeText(line)
     .then(() => toast(t("done.copied")))
-    .catch(() => toast(t("done.nudge")));
+    .catch(() => toast(line));
 }
 
 function showIdle(message) {
-  disarmClose();
+  disarmAdvance();
   app.round?.stop();
   app.round = null;
   app.view = "idle";
   app.done = null;
   hideBar();
-  $("#main").replaceChildren(renderIdle(env()));
+  $("#main").replaceChildren(renderIdle(((app.idleError = message || null), env())));
   document.title = "decide";
+  syncRail();
   if (message) toast(message);
 }
 
 function showJournal() {
   if (app.round) app.journalFrom = app.round.id;
-  disarmClose();
+  disarmAdvance();
   app.round?.stop();
   app.round = null;
   app.view = "journal";
@@ -184,6 +218,20 @@ function showJournal() {
   $("#main").replaceChildren(renderJournal(env()));
   document.title = `${t("journalPage.title")} — decide`;
   window.scrollTo({ top: 0 });
+  syncRail();
+}
+
+function showSettings() {
+  disarmAdvance();
+  app.round?.stop();
+  app.round = null;
+  app.view = "settings";
+  app.done = null;
+  hideBar();
+  $("#main").replaceChildren(renderSettings(env()));
+  document.title = `${t("settings.title")} — decide`;
+  window.scrollTo({ top: 0 });
+  syncRail();
 }
 
 function leaveJournal() {
@@ -201,24 +249,91 @@ function refreshTabs() {
   else if (fresh) $(".top .eyebrow")?.after(fresh);
 }
 
+// ---- the rail (inbox.js)
+let railTimer = null;
+function ensureRail() {
+  if (rail || offline) return;
+  rail = createInbox({
+    open: (id) => {
+      closeRail();
+      if (id !== app.round?.id) openRound(id);
+    },
+    dismiss: (id) =>
+      dismissRound(id)
+        .then(() => refreshInbox())
+        .catch(() => toast(t("inbox.dismissFailed"))),
+    askNotify: () => Notification.requestPermission().then(() => rail.repaint()),
+    close: closeRail,
+  });
+  const scrim = Object.assign(document.createElement("div"), { className: "rail-scrim", onclick: closeRail });
+  $(".layout").prepend(rail.el);
+  document.body.append(scrim);
+  document.addEventListener("keydown", (e) => e.key === "Escape" && document.body.classList.contains("rail-open") && closeRail());
+}
+
+const toggleRail = () => document.body.classList.toggle("rail-open");
+const closeRail = () => document.body.classList.remove("rail-open");
+
+function syncRail() {
+  if (offline) return;
+  ensureRail();
+  rail.set(app.inbox, app.round?.id ?? app.done?.id ?? null);
+  // The header's "Rounds · n" button, where the rail is a drawer.
+  for (const b of $$(".inbox-btn")) {
+    b.textContent = t("inbox.button", app.inbox.length);
+    b.hidden = app.inbox.length < 2;
+  }
+}
+
+// Called on every state or inbox event: one fetch after a short pause, however many events came.
+function refreshInbox() {
+  if (offline) return Promise.resolve();
+  clearTimeout(railTimer);
+  return new Promise((resolve) => {
+    railTimer = setTimeout(async () => {
+      const rows = await loadInbox(app.state);
+      if (rows) {
+        const nextId = () => (app.view === "done" ? nextRound(app.inbox, app.done.id)?.id : null);
+        const before = nextId();
+        app.inbox = rows;
+        setBadge(badgeCount(rows, app.state));
+        syncRail();
+        if (nextId() !== before) rerenderStatic();
+        if (app.view === "done") armAdvance();
+      }
+      resolve();
+    }, 80);
+  });
+}
+
 // ---- daemon push
+const rowOf = (r) => ({ id: r.id, title: r.title, projectName: baseName(r.project) });
+
 function onState(st) {
   app.state = st;
   const fresh = st.rounds.filter((r) => !app.seen.has(r.id));
   fresh.forEach((r) => app.seen.add(r.id));
+  refreshInbox();
+  const announce = () => {
+    for (const r of fresh) {
+      toast(t("toast.newRound", r.title));
+      notifyNew(rowOf(r));
+    }
+  };
   if (app.view === "round") {
     const current = st.rounds.find((r) => r.id === app.round.id);
     if (!current) return openRound(app.round.id, false);
+    if (current.view !== undefined) app.round.setView?.(current.view);
     if (app.round.mode === "swipe") app.round.setListening(current.listening !== false);
     else updatePresence(current.listening !== false);
     refreshTabs();
-    for (const r of fresh) toast(t("toast.newRound", r.title));
-    return;
+    return announce();
   }
-  if (fresh.length) return openRound(fresh.at(-1).id);
+  // Sitting on the inbox (nothing open): the new round opens here. Elsewhere it joins the rail.
+  if (fresh.length && (app.view === "idle" || app.view === "boot")) return openRound(fresh.at(-1).id);
+  announce();
   if (app.view === "journal") return;
   rerenderStatic();
-  if (app.view === "done") armClose();
 }
 
 function onDialog(d) {
@@ -233,6 +348,7 @@ function onStatus(ok) {
   if (app.connected === ok) return;
   app.connected = ok;
   document.body.classList.toggle("offline", !ok);
+  showStopped(!ok, app.state);
   if (app.view !== "round") rerenderStatic();
 }
 
@@ -252,6 +368,12 @@ function rerenderStatic() {
 function review() {
   if (app.view !== "round" || app.sending) return;
   if (app.round.mode === "swipe") return app.round.finish();
+  // An answer marked "check" must be kept or answered again before the round can go.
+  const unchecked = app.round.toCheck?.() || [];
+  if (unchecked.length) {
+    toast(t("check.refuse", unchecked.length));
+    return app.round.openCheck();
+  }
   const open = $("#overlay .review .btn.primary");
   if (open) return open.click();
   const r = app.round;
@@ -263,6 +385,8 @@ async function send(fill = "recommend", name = "") {
   if (!r || app.sending) return;
   app.sending = true;
   try {
+    // A flag or an answer still on its way lands first: the server adds the flags to the answers it sends.
+    await store.flush();
     const res = await submitRound(r.id, { ...r.payload(finalizeAnswers(r.spec, r.answers, { fill })), ...(offline ? { name } : {}) });
     showDone(r.id, res.result);
   } catch (e) {
@@ -344,6 +468,8 @@ function pick(n) {
   if (swiping()) return;
   const q = currentQuestion();
   if (!q) return;
+  // With nothing current yet, the first card is the one being answered; remember it so J moves on from it.
+  if (!app.round.current()) app.round.setCurrent(q.id);
   typeOf(q).keys?.pick(q, n, app.round.ctx);
 }
 
@@ -394,8 +520,25 @@ function bindFrameFocus() {
   );
 }
 
+// ---- skip link: first stop in the tab order
+function skipLink() {
+  const main = $("#main");
+  main.setAttribute("tabindex", "-1");
+  const a = document.createElement("a");
+  a.className = "skip-link";
+  a.href = "#main";
+  a.textContent = t("a11y.skip");
+  a.addEventListener("click", (e) => {
+    e.preventDefault();
+    main.focus();
+    main.scrollIntoView();
+  });
+  document.body.prepend(a);
+}
+
 async function boot() {
   document.documentElement.lang = lang;
+  skipLink();
   $("#toc").setAttribute("aria-label", t("toc"));
   $(".boot").textContent = t("boot");
   loadTheme();
@@ -407,19 +550,34 @@ async function boot() {
     app.connected = true;
   } catch {
     showIdle();
+    showStopped(true, app.state);
   }
   app.state.rounds.forEach((r) => app.seen.add(r.id));
+  if (app.connected && !offline) app.inbox = (await loadInbox(app.state)) || [];
   window.addEventListener("hashchange", () => {
-    if (location.hash === "#journal") return app.view !== "journal" && showJournal();
+    if (location.hash === "#journal") return app.view !== "journal" && (closeOverlays(), showJournal());
+    if (location.hash === "#settings") return app.view !== "settings" && (closeOverlays(), showSettings());
     const id = new URLSearchParams(location.hash.slice(1)).get("r");
-    if (id && id !== app.round?.id && id !== app.done?.id) openRound(id);
+    if (id && id !== app.round?.id && id !== app.done?.id) {
+      closeOverlays();
+      openRound(id);
+    }
   });
   const id = new URLSearchParams(location.hash.slice(1)).get("r");
   if (location.hash === "#journal") showJournal();
+  else if (location.hash === "#settings") showSettings();
   else if (id) await openRound(id);
   else if (app.state.rounds.length) await openRound(app.state.rounds.at(-1).id);
   else if (app.view === "boot") showIdle();
-  listen(onState, onStatus, onDialog, onDeck);
+  const es = listen(onState, onStatus, onDialog, onDeck);
+  // 3.0 rounds that react: an agent patch, a restore or a keep moves the round's view (the store keeps answers only).
+  net.onEvent("round", (d) => {
+    if (d?.patch?.view !== undefined && app.view === "round" && app.round?.id === d.round) app.round.setView?.(d.patch.view);
+  });
+  es.addEventListener?.("inbox", refreshInbox);
+  syncRail();
+  registerShell(); // installable page: offline shell, app badge, fallback-port note
+  setBadge(badgeCount(app.inbox, app.state));
 }
 
 boot();

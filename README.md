@@ -21,11 +21,50 @@ cards you clear with the arrow keys. No more walls of numbered questions in chat
 ![Codex plugin](https://img.shields.io/badge/Codex-plugin-111111)
 ![dependencies: 0](https://img.shields.io/badge/dependencies-0-2ea44f)
 
-[Install](#install) · [When to use it](#when-to-use-it) · [Screens](#screens) · [Swipe interview](#swipe-interview) · [How it works](#how-it-works) · [FAQ](#faq)
+[What's new](#whats-new-in-30) · [Install](#install) · [When to use it](#when-to-use-it) · [Screens](#screens) · [Swipe interview](#swipe-interview) · [How it works](#how-it-works) · [FAQ](#faq)
 
 </div>
 
 https://github.com/user-attachments/assets/00b0ef15-06af-41a0-9ac2-9587f890b694
+
+## What's new in 3.0
+
+3.0 is a new core and a new page. If you used 2.x, read
+[docs/migrating-to-3.md](docs/migrating-to-3.md).
+
+- **Rounds that react.** A spec can carry `rules`: when an answer matches, a
+  question becomes a ghost or loses an option, at once and with a reason. Undo
+  the answer and the effect goes. The agent can do the same with the new
+  `patch` tool, and a reply to your question can change the current card and
+  the ones after it. The page lists what changed. It never moves your focus.
+- **Live rounds.** With `live: true` the agent hears answers in batches while
+  you work, and can patch what is ahead. Without it, only the rules react.
+- **Knobs.** A `tune` question shows a live mockup and a panel of controls:
+  range, toggle, select, color, text, image. You tune the thing and the agent
+  gets the values. Presets, saved variants, phone and desktop side by side,
+  and numbers that drive a table.
+- **New forms.** `buckets` sorts items into named groups. `tradeoff` is a
+  slider between two poles. `spot` marks points on a screenshot. `versus`
+  compares 4 to 8 variants in pairs until one wins.
+- **Evidence labels.** A pro, con or metric can say `measured`, `estimate` or
+  `guess`, with a source.
+- **Ready answers.** "Yes, but...", "None, suggest others" and "Later" sit
+  next to every choice. The agent gets the condition, a request for new
+  options, or a deferred decision.
+- **A task panel** in both modes: what the task is, what is decided, what is open.
+- **A journal map.** The journal shows dates across projects, and a map of
+  which decision depends on which and what replaced what.
+- **How much to ask.** Three levels (everything, only the irreversible, only
+  what you marked as yours) and rules from answers: "don't ask again" and
+  "always ask me".
+- **Page buttons.** Export this round, save it as an ADR, or "I have 5
+  minutes". They run without the agent.
+- **One page, installable.** An inbox of open rounds from every project at one
+  address, `127.0.0.1:47474`. It can be installed as an app.
+- **Answers survive a crash.** Every round is an event log on disk. Kill the
+  server at any moment and the next command brings everything back.
+- **A new look.** Calmer glass, one accent color, key hints, segmented
+  progress, a real card stack and thumb-sized buttons on a phone.
 
 ## The problem
 
@@ -65,7 +104,7 @@ the result.
 
 ## How
 
-<img src="docs/demo.gif" alt="The agent asks six questions in the terminal, decide opens them as a page, the user picks options, asks the agent about one of them, presses Done, and the agent carries on with the exact answers" width="100%">
+<img src="docs/demo.gif" alt="A round opens as a page, the user picks options, asks the agent about one of them and gets a reply on the page, presses Done, and the agent gets the exact answers" width="100%">
 
 1. Type `/decide` in Claude Code or `$decide` in Codex. Most of the time you
    don't have to: the agent opens decide on its own when a task has open
@@ -409,14 +448,14 @@ you about the current task. See [Swipe interview](#swipe-interview).
 
 ## How it works
 
-The plugin ships an MCP server with thirteen tools: `ask` opens a round,
+The plugin ships an MCP server with these tools: `ask` opens a round,
 `swipe` opens a card interview, `wait` blocks until you answer or ask
 something, `push` updates the deck and brief of a card interview, `explain`
 puts the agent's answer on the page, `screenshot` captures a running page or
 a simulator, `history` searches past decisions, `supersede` marks one as no
 longer holding, `adr` writes one into the repo, `export` and `import`
 carry a round to someone else and back, `lint` checks a spec without opening a
-page, and `stop` stops the server. Agents without MCP can run the same
+page, `patch` changes an open round, and `stop` stops the server. Agents without MCP can run the same
 engine as a CLI (`node decide.mjs --help`).
 
 One server serves every project's page on 127.0.0.1:47474. It starts on

@@ -1,0 +1,13 @@
+{
+  "name": "decide",
+  "short_name": "decide",
+  "description": "Answer an agent's questions on a local page.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#17161a",
+  "theme_color": "#e8457a",
+  "icons": [
+    { "src": "/ui/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

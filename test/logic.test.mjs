@@ -49,7 +49,7 @@ test("normalizes a v1 spec: single by default, option image becomes an absolute 
         {
           id: "q1",
           title: "Pick",
-          what: "What",
+          why: "Why",
           note: true,
           options: [{ id: "a", label: "A", image: "shot.png", recommended: "cheapest" }, { id: "b", label: "B" }],
         },
@@ -61,7 +61,7 @@ test("normalizes a v1 spec: single by default, option image becomes an absolute 
   assert.deepEqual(issues.filter((i) => i.level === "error"), []);
   const q = spec.questions[0];
   assert.equal(q.type, "single");
-  assert.equal(q.what, "What");
+  assert.equal(q.why, "Why");
   assert.equal(q.noteOpen, true);
   assert.equal(q.options[0].recommended, true);
   assert.equal(q.options[0].reason, "cheapest");
@@ -274,4 +274,106 @@ test("a round nobody has waited on for the grace period is not listened to", asy
   assert.equal(store.summary().rounds[0].listening, true);
   store.close(); // frees the waiter and the log before the directory goes
   assert.equal(await waiting, null);
+});
+
+test("progressOf counts one thing everywhere: visible questions with an answer, rank and scale included", () => {
+  const { spec } = normalizeSpec(
+    {
+      questions: [
+        choice("mode"),
+        { ...choice("detail"), showIf: { q: "mode", in: ["b"] } },
+        { ...choice("order"), type: "rank" },
+        { id: "level", title: "Level", type: "scale", scale: { min: 1, max: 5 } },
+        choice("skipped"),
+        choice("handed"),
+      ],
+    },
+    { specDir: tmpdir() },
+  );
+  const [mode, detail, order, level, skipped, handed] = spec.questions;
+  const answers = {
+    mode: { ...logic.emptyAnswer(mode), selected: ["a"], touched: true },
+    detail: logic.emptyAnswer(detail),
+    order: logic.emptyAnswer(order),
+    level: logic.emptyAnswer(level),
+    skipped: { ...logic.emptyAnswer(skipped), flag: "skip" },
+    handed: { ...logic.emptyAnswer(handed), flag: "delegate" },
+  };
+  // detail is hidden, order and level are untouched, skip is not an answer, delegating is
+  assert.deepEqual(logic.progressOf(spec, answers), { answered: 2, total: 5 });
+  answers.order = { ...answers.order, touched: true };
+  answers.level = { ...answers.level, value: 4 };
+  assert.deepEqual(logic.progressOf(spec, answers), { answered: 4, total: 5 });
+  assert.deepEqual(
+    logic.segmentsOf(spec, answers, "order").map((x) => x.state),
+    ["answered", "current", "answered", "skipped", "answered"],
+  );
+});
+
+// ---- the ready answers: "Yes, but…", "None, suggest others", "Later"
+
+test("a question answered none or later counts as answered and resolved, and keeps what the user wrote", () => {
+  const { spec } = normalizeSpec({ questions: [choice("s"), { ...choice("m"), type: "multi", min: 2 }, { id: "c", title: "?", type: "confirm" }] }, { specDir: tmpdir() });
+  for (const q of spec.questions) {
+    const blank = logic.emptyAnswer(q);
+    assert.equal(logic.isAnswered(q, blank), false, `${q.id}: nothing yet`);
+    for (const flag of ["none", "later"]) {
+      const a = { ...blank, flag };
+      assert.equal(logic.isAnswered(q, a), true, `${q.id}: ${flag} counts as answered`);
+      assert.equal(logic.isResolved(q, a), true, `${q.id}: ${flag} resolves`);
+    }
+  }
+  const answers = { s: { ...logic.emptyAnswer(spec.questions[0]), flag: "later", revisit: "after the pilot" }, m: logic.emptyAnswer(spec.questions[1]), c: logic.emptyAnswer(spec.questions[2]) };
+  assert.deepEqual(logic.progress(spec, answers), { resolved: 1, total: 3 });
+});
+
+test("compact keeps condition with a pick, revisit with later, and the note of none", () => {
+  const { spec } = normalizeSpec({ questions: [choice("s"), choice("n"), choice("l"), choice("x")] }, { specDir: tmpdir() });
+  const [s, n, l, x] = spec.questions;
+  const answers = {
+    s: { ...logic.emptyAnswer(s), selected: ["b"], condition: " only if it stays free " },
+    n: { ...logic.emptyAnswer(n), flag: "none", note: "something self-hosted" },
+    l: { ...logic.emptyAnswer(l), flag: "later", revisit: "when the pilot ends", condition: "ignored" },
+    x: { ...logic.emptyAnswer(x), condition: "no pick, no condition" },
+  };
+  const out = logic.finalizeAnswers(spec, answers);
+  assert.deepEqual(out.s, { selected: ["b"], condition: "only if it stays free" });
+  assert.deepEqual(out.n, { selected: [], note: "something self-hosted", flag: "none" });
+  assert.deepEqual(out.l, { selected: [], revisit: "when the pilot ends", flag: "later" });
+  assert.equal("condition" in out.x, false, "a condition without a pick is not kept");
+  // A flagged question is not filled with the recommendation.
+  const filled = logic.finalizeAnswers(spec, { ...answers }, { fill: true });
+  assert.equal(filled.n.auto, undefined);
+  assert.equal(filled.l.auto, undefined);
+});
+
+test("the digest has a line for each ready answer, in English", () => {
+  const { spec } = normalizeSpec({ questions: [choice("s"), choice("n"), choice("n2"), choice("l")] }, { specDir: tmpdir() });
+  const text = logic.digest(spec, {
+    answers: {
+      s: { selected: ["b"], condition: "only if it stays free" },
+      n: { selected: [], flag: "none", note: "something self-hosted" },
+      n2: { selected: [], flag: "none" },
+      l: { selected: [], flag: "later", revisit: "when the pilot ends" },
+    },
+  });
+  assert.match(text, /\[s\] Question s → Beta \(against the recommendation: Alpha\) · Yes, but: only if it stays free/);
+  assert.match(text, /\[n\] Question n → None of these; suggest others: something self-hosted\n/);
+  assert.equal(text.includes("✎ something self-hosted"), false, "the note is in the line, not repeated");
+  assert.match(text, /\[n2\] Question n2 → None of these; suggest others\n/);
+  assert.match(text, /\[l\] Question l → Later: when the pilot ends/);
+});
+
+test("an answers file keeps the ready answers; the comparison does not count them as a pick", async () => {
+  const { checkAnswers, compareAnswers } = await import(path.join(toolDir, "lib/answers.mjs"));
+  const { spec } = normalizeSpec({ questions: [choice("s"), choice("n"), choice("l")] }, { specDir: tmpdir() });
+  const file = { format: 3, answers: { s: { selected: ["a"], condition: "if cheap" }, n: { flag: "none", note: "other" }, l: { flag: "later", revisit: "in May", condition: "x" } } };
+  const { errors, answers } = checkAnswers(spec, file);
+  assert.deepEqual(errors, []);
+  assert.equal(answers.s.condition, "if cheap");
+  assert.deepEqual(answers.n, { note: "other", flag: "none" });
+  assert.equal(answers.l.revisit, "in May");
+  const other = { name: "b", answers: { l: { selected: ["a"] } } };
+  const cmp = compareAnswers(spec, [{ name: "a", answers }, other]);
+  assert.equal(cmp.rows.find((r) => r.q.id === "l").disagree, false, "a parked question is not a competing pick");
 });

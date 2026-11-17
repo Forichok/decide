@@ -1,0 +1,182 @@
+{
+  "title": "A long round",
+  "intro": "Sixteen questions. Press I have 5 minutes and the page keeps only what fits.",
+  "questions": [
+    {
+      "id": "must1",
+      "type": "single",
+      "priority": 1,
+      "title": "Decision 1 that blocks the release?",
+      "why": "The release waits for it.",
+      "options": [
+        {
+          "id": "a",
+          "label": "Yes",
+          "then": "We go on.",
+          "recommended": true
+        },
+        {
+          "id": "b",
+          "label": "No",
+          "then": "We stop."
+        }
+      ]
+    },
+    {
+      "id": "must2",
+      "type": "single",
+      "priority": 1,
+      "title": "Decision 2 that blocks the release?",
+      "why": "The release waits for it.",
+      "options": [
+        {
+          "id": "a",
+          "label": "Yes",
+          "then": "We go on.",
+          "recommended": true
+        },
+        {
+          "id": "b",
+          "label": "No",
+          "then": "We stop."
+        }
+      ]
+    },
+    {
+      "id": "must3",
+      "type": "single",
+      "priority": 1,
+      "title": "Decision 3 that blocks the release?",
+      "why": "The release waits for it.",
+      "options": [
+        {
+          "id": "a",
+          "label": "Yes",
+          "then": "We go on.",
+          "recommended": true
+        },
+        {
+          "id": "b",
+          "label": "No",
+          "then": "We stop."
+        }
+      ]
+    },
+    {
+      "id": "must4",
+      "type": "single",
+      "priority": 1,
+      "title": "Decision 4 that blocks the release?",
+      "why": "The release waits for it.",
+      "options": [
+        {
+          "id": "a",
+          "label": "Yes",
+          "then": "We go on.",
+          "recommended": true
+        },
+        {
+          "id": "b",
+          "label": "No",
+          "then": "We stop."
+        }
+      ]
+    },
+    {
+      "id": "nice1",
+      "type": "text",
+      "priority": 3,
+      "title": "Detail 1: anything to add?",
+      "why": "Nice to know, not blocking.",
+      "optional": true
+    },
+    {
+      "id": "nice2",
+      "type": "text",
+      "priority": 3,
+      "title": "Detail 2: anything to add?",
+      "why": "Nice to know, not blocking.",
+      "optional": true
+    },
+    {
+      "id": "nice3",
+      "type": "text",
+      "priority": 3,
+      "title": "Detail 3: anything to add?",
+      "why": "Nice to know, not blocking.",
+      "optional": true
+    },
+    {
+      "id": "nice4",
+      "type": "text",
+      "priority": 3,
+      "title": "Detail 4: anything to add?",
+      "why": "Nice to know, not blocking.",
+      "optional": true
+    },
+    {
+      "id": "nice5",
+      "type": "text",
+      "priority": 3,
+      "title": "Detail 5: anything to add?",
+      "why": "Nice to know, not blocking.",
+      "optional": true
+    },
+    {
+      "id": "nice6",
+      "type": "text",
+      "priority": 3,
+      "title": "Detail 6: anything to add?",
+      "why": "Nice to know, not blocking.",
+      "optional": true
+    },
+    {
+      "id": "nice7",
+      "type": "text",
+      "priority": 3,
+      "title": "Detail 7: anything to add?",
+      "why": "Nice to know, not blocking.",
+      "optional": true
+    },
+    {
+      "id": "nice8",
+      "type": "text",
+      "priority": 3,
+      "title": "Detail 8: anything to add?",
+      "why": "Nice to know, not blocking.",
+      "optional": true
+    },
+    {
+      "id": "nice9",
+      "type": "text",
+      "priority": 3,
+      "title": "Detail 9: anything to add?",
+      "why": "Nice to know, not blocking.",
+      "optional": true
+    },
+    {
+      "id": "nice10",
+      "type": "text",
+      "priority": 3,
+      "title": "Detail 10: anything to add?",
+      "why": "Nice to know, not blocking.",
+      "optional": true
+    },
+    {
+      "id": "nice11",
+      "type": "text",
+      "priority": 3,
+      "title": "Detail 11: anything to add?",
+      "why": "Nice to know, not blocking.",
+      "optional": true
+    },
+    {
+      "id": "nice12",
+      "type": "text",
+      "priority": 3,
+      "title": "Detail 12: anything to add?",
+      "why": "Nice to know, not blocking.",
+      "optional": true
+    }
+  ]
+}

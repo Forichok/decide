@@ -162,6 +162,10 @@ test("export: one self-contained page, its modules resolved through the import m
   assert.equal(built.missing.length, 0);
   assert.doesNotMatch(html, /["(]\/ui\//);
   assert.doesNotMatch(html, /\/r\/[0-9a-f]{8,}\//);
+  // every stylesheet the page links is in the file: a sheet missing here leaves its questions unstyled
+  const sheets = [...readFileSync(path.join(pluginDir, "ui/index.html"), "utf8").matchAll(/href="\/ui\/css\/([\w-]+)\.css"/g)].map((m) => m[1]);
+  assert.ok(sheets.includes("forms") && sheets.includes("tune"), "index.html links the 3.0 sheets");
+  for (const name of sheets) assert.ok(html.includes(readFileSync(path.join(pluginDir, "ui/css", `${name}.css`), "utf8")), `${name}.css is inlined`);
   assert.match(html, /data:image\/svg\+xml;name=home-list\.svg;base64,/);
   assert.match(html, /data:text\/html;charset=utf-8;name=card\.html;base64,/);
   const map = JSON.parse(html.match(/<script type="importmap">([\s\S]*?)<\/script>/)[1]);

@@ -3,7 +3,7 @@
 
 import { h, $, $$ } from "./dom.js";
 import { t } from "./i18n.js";
-import { isAnswered, isVisible } from "./logic.js";
+import { isAnswered, isVisible, progressOf, segmentsOf } from "./logic.js";
 import { modalOpen } from "./overlays.js";
 
 export function renderToc(spec, go) {
@@ -33,13 +33,52 @@ export function syncToc(spec, answers, current) {
   }
 }
 
+// Segmented progress: one segment per visible question, coloured by state. No legend.
+// Also keeps the count in the header chip, on each card and in the footer in step.
+export function syncProgress(spec, answers, current, go) {
+  const { answered, total } = progressOf(spec, answers);
+  const segs = segmentsOf(spec, answers, current);
+  const box = $("#bar .bar-segs");
+  if (box) {
+    const same = box.children.length === segs.length && segs.every((g, i) => box.children[i].dataset.qid === g.id);
+    if (!same) {
+      box.replaceChildren(...segs.map((g) => h("button.seg-dot", { type: "button", dataset: { qid: g.id }, onclick: () => go?.(g.id) })));
+    }
+    const byId = new Map(spec.questions.map((q, i) => [q.id, { q, i }]));
+    segs.forEach((g, i) => {
+      const el = box.children[i];
+      el.dataset.state = g.state;
+      const q = byId.get(g.id).q;
+      const label = t("progress.seg", i + 1, strip(q.title), t(`progress.state.${g.state}`));
+      el.title = label;
+      el.setAttribute("aria-label", label);
+      if (g.state === "current") el.setAttribute("aria-current", "step");
+      else el.removeAttribute("aria-current");
+    });
+  }
+  const count = t("progress.count", answered, total);
+  const barCount = $("#bar .bar-count");
+  if (barCount) barCount.textContent = answered === total ? t("progress.all") : count;
+  const chip = $(".meta-row .chip.count");
+  if (chip) chip.textContent = count;
+  segs.forEach((g, i) => {
+    const idx = $(`.card[data-qid="${CSS.escape(g.id)}"] .q-idx`);
+    if (idx) idx.title = `${i + 1} / ${total}`;
+  });
+  return { answered, total };
+}
+
 const strip = (s) => s.replace(/[*_`]/g, "");
 
 // Tracks which card is "current": the last one interacted with, or the one
 // crossing the upper third of the viewport while scrolling.
 export function trackCurrent(onChange) {
   let current = null;
-  const set = (id) => {
+  let lockUntil = 0;
+  const set = (id, { fromScroll = false } = {}) => {
+    // A jump the user asked for (J, K, a click) wins over the scroll that follows it.
+    if (!fromScroll) lockUntil = Date.now() + 900;
+    else if (Date.now() < lockUntil) return;
     if (id && id !== current) {
       current = id;
       onChange(id);
@@ -48,7 +87,7 @@ export function trackCurrent(onChange) {
   const io = new IntersectionObserver(
     (entries) => {
       const hit = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-      if (hit) set(hit.target.dataset.qid);
+      if (hit) set(hit.target.dataset.qid, { fromScroll: true });
     },
     { rootMargin: "-30% 0px -60% 0px" },
   );
@@ -61,7 +100,8 @@ export function trackCurrent(onChange) {
     document.removeEventListener("focusin", onEvent);
     document.removeEventListener("pointerdown", onEvent);
   };
-  return { get: () => current, set, stop };
+  // A card added later (an agent's patch) is followed too.
+  return { get: () => current, set, stop, follow: (el) => el && io.observe(el) };
 }
 
 export function bindKeys(api) {

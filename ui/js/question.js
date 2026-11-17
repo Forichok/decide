@@ -1,5 +1,5 @@
-// question.js — one question card: header, badges, explanation facets, media,
-// answer control, extras (own option, note, attachments) and quick actions.
+// question.js — one question card: header, badges, the why line and the "more" text, media,
+// answer control, extras (own option, note, attachments), ready answers and quick actions.
 
 import { h, icon, $ } from "./dom.js";
 import { t } from "./i18n.js";
@@ -10,7 +10,9 @@ import { renderExtras, syncExtras } from "./extras.js";
 import { renderThread, syncThread } from "./dialog.js";
 import { isAnswered, recommendedIds } from "./logic.js";
 import { typeOf } from "./types/index.js";
+import { hasQuick, renderQuick, syncQuick } from "./quick.js";
 
+// The five folded points of 2.x. A question no longer has them (they became `more`); the swipe cards still do.
 export const FACETS = [
   ["what", t("facet.what")],
   ["how", t("facet.how")],
@@ -42,28 +44,41 @@ export function renderQuestion(q, index, ctx) {
       ),
     ),
   );
-  const facets = FACETS.filter(([k]) => q[k]);
-  if (facets.length) {
-    const grid = h(
-      "div.facets",
-      { hidden: Boolean(q.tldr) },
-      facets.map(([k, label]) => h(`div.facet.${k}`, {}, h("div.f-label", {}, label), h("div.f-text.rich", { html: md(q[k], g) }))),
-    );
-    const toggle = h("button.explain-toggle", {
-      type: "button",
-      "aria-expanded": String(!grid.hidden),
-      html: `${icon("chevron", "chev")}${t("facet.more", facets.map(([, l]) => l.toLowerCase()).join(" · "))}`,
-      onclick: () => {
-        grid.hidden = !grid.hidden;
-        toggle.setAttribute("aria-expanded", String(!grid.hidden));
-      },
-    });
-    card.append(toggle, grid);
-  }
-  const body = h("div.q-body", {}, q.body && h("div.q-text.rich", { html: md(q.body, g) }), renderMedia(q, ctx, q.id), renderInput(q, ctx), renderThread(q, ctx), renderExtras(q, ctx));
-  card.append(body, renderActions(q, ctx));
+  const quick = hasQuick(q) ? renderQuick(q, ctx) : null;
+  const body = h(
+    "div.q-body",
+    {},
+    q.why && h("p.q-why.rich", { html: mdInline(q.why, g) }),
+    q.more && renderMore(q, g),
+    q.body && h("div.q-text.rich", { html: md(q.body, g) }),
+    // A spot question draws its first picture itself, to mark it; a tune question frames its own mockup.
+    renderMedia(q.type === "spot" ? { ...q, images: q.images.slice(1) } : q.type === "tune" ? { ...q, preview: null } : q, ctx, q.id),
+    renderInput(q, ctx),
+    quick?.state,
+    quick?.panel,
+    renderThread(q, ctx),
+    renderExtras(q, ctx),
+  );
+  card.append(body, renderActions(q, ctx, quick?.buttons));
   syncQuestion(card, q, ctx);
   return card;
+}
+
+// One button that opens the connected text; closed until asked for.
+function renderMore(q, g) {
+  const text = h("div.q-more-text.rich", { id: `qm-${q.id}`, hidden: true, html: md(q.more, g) });
+  const toggle = h("button.more-toggle", {
+    type: "button",
+    "aria-expanded": "false",
+    "aria-controls": `qm-${q.id}`,
+    html: `${icon("chevron", "chev")}<span>${t("q.more")}</span>`,
+    onclick: () => {
+      text.hidden = !text.hidden;
+      toggle.setAttribute("aria-expanded", String(!text.hidden));
+      toggle.lastElementChild.textContent = t(text.hidden ? "q.more" : "q.less");
+    },
+  });
+  return h("div.q-more", {}, toggle, text);
 }
 
 function badges(q) {
@@ -77,8 +92,8 @@ function badges(q) {
   return list.length ? h("div.badges", {}, list) : null;
 }
 
-function renderActions(q, ctx) {
-  const row = h("div.actions");
+function renderActions(q, ctx, quick) {
+  const row = h("div.actions", {}, quick);
   const tools = h("div.tools");
   const toolList = [
     h("button.chip.ghost", { type: "button", dataset: { act: "note" }, html: `${icon("note")}${t("chip.note")}`, title: t("chip.noteTitle"), onclick: () => ctx.openNote(q.id) }),
@@ -116,7 +131,7 @@ export function syncQuestion(card, q, ctx) {
   // green once the user actually did something with it.
   card.classList.toggle("resolved", Boolean(a.flag) || isAnswered(q, a));
   card.classList.toggle("answered", isAnswered(q, a));
-  for (const f of ["explain", "delegate", "skip"]) card.classList.toggle(`flag-${f}`, a.flag === f);
+  for (const f of ["explain", "delegate", "skip", "none", "later"]) card.classList.toggle(`flag-${f}`, a.flag === f);
   for (const b of card.querySelectorAll(".chip.flag")) {
     const on = a.flag === b.dataset.flag;
     b.classList.toggle("on", on);
@@ -127,5 +142,6 @@ export function syncQuestion(card, q, ctx) {
   $(".rec-act", card)?.classList.toggle("on", isRec);
   syncInput(card, q, a);
   syncExtras(card, q, ctx);
+  syncQuick(card);
   syncThread(card, q, ctx);
 }

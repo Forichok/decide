@@ -1,0 +1,26 @@
+/* states.css — ghost, changed, new and stale items. Calm: one quiet strip under the title. */
+.q-state { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px); padding: 0 var(--space-4, 16px) var(--space-2, 8px); font-size: var(--step--1, 0.875rem); color: var(--tx-mut); }
+.state-badge { font-weight: 600; padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, currentColor 10%, transparent); }
+.state-badge.stale { color: var(--state-stale); }
+.state-badge.changed, .state-badge.new { color: var(--accent, #c0183c); }
+.state-reason { flex: 1 1 12rem; min-width: 0; }
+.state-was { flex-basis: 100%; padding: var(--space-2, 8px) var(--space-3, 12px); border-radius: 10px; background: color-mix(in srgb, currentColor 6%, transparent); white-space: pre-wrap; }
+.state-note { font-style: italic; }
+/* a ghost recedes: its heading dims, its card goes flat. The strip that says why, and the way back, stay at full strength. */
+.card.st-ghost { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border-color: var(--line); box-shadow: none; }
+.card.st-ghost .q-head { opacity: 0.55; filter: grayscale(1); }
+.card.st-ghost .q-body, .card.st-ghost .actions, .card.st-ghost .q-tldr { display: none; }
+.card.st-stale { box-shadow: inset 3px 0 0 var(--state-stale); }
+.opt-removed { text-decoration: line-through; opacity: 0.6; }
+.bar-check { color: var(--state-stale); font-weight: 600; }
+.check-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3, 12px); }
+.check-row { display: grid; gap: 4px; }
+.check-row .check-q { font-weight: 600; }
+.check-row .check-why { color: var(--tx-mut); font-size: var(--step--1, 0.875rem); }
+.check-row .check-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+/* swipe */
+.sw-ghosts { margin-top: var(--space-4, 16px); }
+.sw-ghosts li { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; opacity: 0.7; }
+.sw-card.recheck .sw-q::after { content: attr(data-recheck); display: block; margin-top: 4px; font-size: var(--step--1, 0.875rem); color: var(--state-stale); }
+.sw-card.recheck[data-pre="left"] .sw-side.left, .sw-card.recheck[data-pre="right"] .sw-side.right { outline: 2px solid var(--accent, #c0183c); outline-offset: 2px; }
+.bar-check[hidden] { display: none; }

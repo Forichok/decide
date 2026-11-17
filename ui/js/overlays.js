@@ -9,6 +9,13 @@ import { sameOrigin } from "./media.js";
 import { startAnnotate } from "./annotate.js";
 
 let closeCurrent = null;
+let closeBox = null; // the open lightbox, if any
+
+// Another view is coming (a hash change, Back): a dialog or a picture of the old one must not stay over it.
+export function closeOverlays() {
+  closeCurrent?.();
+  closeBox?.();
+}
 
 export function openModal(content, { wide = false, onClose } = {}) {
   closeCurrent?.();
@@ -56,7 +63,8 @@ export function openZoom(content) {
 export const modalOpen = () => Boolean(closeCurrent) || !$("#lightbox").hidden;
 
 // onAnnotate(file): enables the mark-up button; annotate: open straight in drawing mode.
-export function openLightbox(images, start, { onAnnotate, annotate = false } = {}) {
+export function openLightbox(images, start, { onAnnotate, annotate = false, pick = null } = {}) {
+  closeBox?.();
   const root = $("#lightbox");
   let i = start;
   let annotating = false;
@@ -64,6 +72,21 @@ export function openLightbox(images, start, { onAnnotate, annotate = false } = {
   const cap = h("div.lb-cap");
   const count = h("div.lb-count");
   const open = h("a.lb-open", { target: "_blank", rel: "noopener", html: `${t("lb.original")}${icon("expand")}` });
+  const pickBtn =
+    pick &&
+    h("button.btn.primary.sm.lb-pick", {
+      type: "button",
+      onclick: () => {
+        pick.on();
+        paintPick();
+        close();
+      },
+    });
+  const paintPick = () => {
+    const on = pick.selected();
+    pickBtn.innerHTML = `${icon("check")}${on ? t("lb.picked") : t("lb.pick")}`;
+    pickBtn.title = pick.label || "";
+  };
   const mark = onAnnotate && h("button.btn.ghost.sm.lb-mark", { type: "button", html: `${icon("pen")}${t("lb.mark")}`, onclick: () => startMarks() });
   const nav = (d) => {
     i = (i + d + images.length) % images.length;
@@ -78,6 +101,7 @@ export function openLightbox(images, start, { onAnnotate, annotate = false } = {
     open.href = images[i].src;
     open.hidden = Boolean(images[i].noOriginal); // a drawing the frame made: its blob: link would open as a page of this origin
     if (mark) mark.hidden = !sameOrigin(images[i].src);
+    if (pickBtn) paintPick();
   }
   function startMarks() {
     annotating = true;
@@ -94,7 +118,7 @@ export function openLightbox(images, start, { onAnnotate, annotate = false } = {
   const parts = [
     h("div.lb-top", {}, count, h("span.spacer"), mark, open, h("button.icon-btn.lb-x", { type: "button", "aria-label": t("lb.close"), html: icon("x"), onclick: close })),
     multi && h("button.lb-nav.prev", { type: "button", "aria-label": t("lb.prev"), html: icon("left"), onclick: () => nav(-1) }),
-    h("figure.lb-stage", {}, img, cap),
+    h("figure.lb-stage", {}, img, cap, pickBtn && h("div.lb-pick-row", {}, pickBtn)),
     multi && h("button.lb-nav.next", { type: "button", "aria-label": t("lb.next"), html: icon("right"), onclick: () => nav(1) }),
   ];
   const view = () => {
@@ -121,7 +145,9 @@ export function openLightbox(images, start, { onAnnotate, annotate = false } = {
     document.body.classList.remove("locked");
     document.removeEventListener("keydown", onKey, true);
     root.removeEventListener("click", onClick);
+    closeBox = null;
   }
+  closeBox = close;
   document.addEventListener("keydown", onKey, true);
   root.addEventListener("click", onClick);
   if (annotate && onAnnotate && sameOrigin(images[i].src)) startMarks();
@@ -137,6 +163,8 @@ export function openReview({ spec, answers, comment, onSend, onJump, askName = n
   const mine = missingMine(spec, answers);
   const words = reviewWords();
   const list = h("div.rv-list");
+  // The digest marks "left to the agent" with an emoji; on the page it is the same hand as the "Agent decides" chip.
+  const handed = (text) => (text.startsWith("🤝 ") ? [h("i.rv-ic", { html: icon("hand") }), text.slice("🤝 ".length)] : [text]);
   const render = () => {
     const final = finalizeAnswers(spec, answers, { fill: fillMode });
     list.replaceChildren(
@@ -146,7 +174,7 @@ export function openReview({ spec, answers, comment, onSend, onJump, askName = n
           { type: "button", class: open.includes(q) ? "auto" : "", onclick: () => (close(), onJump(q.id)) },
           h("span.rv-n", {}, String(i + 1)),
           h("span.rv-q", { html: mdInline(q.title) }),
-          h("span.rv-a", {}, describe(q, final[q.id], words), extrasNote(final[q.id])),
+          h("span.rv-a", {}, ...handed(describe(q, final[q.id], words)), extrasNote(final[q.id])),
         ),
       ),
     );

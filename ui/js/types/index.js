@@ -13,14 +13,19 @@
 // A type without compact/check keeps nothing of its own; one without recommend takes none.
 // Nothing here touches the DOM when imported. To add a type: write the module, list it below.
 
+import * as buckets from "./buckets.js";
+import * as spot from "./spot.js";
+import * as tradeoff from "./tradeoff.js";
+import * as versus from "./versus.js";
 import * as confirm from "./confirm.js";
 import * as multi from "./multi.js";
 import * as rank from "./rank.js";
 import * as scale from "./scale.js";
 import * as single from "./single.js";
 import * as text from "./text.js";
+import * as tune from "./tune.js";
 
-export const TYPES = new Map(Object.entries({ single, multi, rank, scale, text, confirm }));
+export const TYPES = new Map(Object.entries({ single, multi, rank, scale, text, confirm, buckets, tradeoff, spot, versus, tune }));
 
 // A question of a type the page does not know behaves like single, as it always did.
 export const typeOf = (q) => TYPES.get(q.type) ?? single;

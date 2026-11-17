@@ -90,6 +90,33 @@ export function saveDraft(id, draft) {
   draftTimer = setTimeout(sendDraft, 400);
 }
 
+// One question at a time (see store.js): each resolves {seq} once the server has the event on disk.
+const post = (path, body) => fetch(path, { method: "POST", headers: WRITE, body: JSON.stringify(body) }).then(json);
+export const postAnswer = (id, qid, answer) => post(`/api/rounds/${id}/answer`, { qid, answer });
+export const postNote = (id, qid, text) => post(`/api/rounds/${id}/note`, { qid, text });
+export const postFlag = (id, qid, flag, extra = {}) => post(`/api/rounds/${id}/flag`, { qid, flag, ...extra });
+// The round-level draft (closing comment, its files, time spent), through the store's retries.
+export const putDraft = (id, draft) => fetch(`/api/rounds/${id}/draft`, { method: "PUT", headers: WRITE, body: JSON.stringify(draft) }).then(json);
+export const getInbox = () => fetch("/api/inbox", { cache: "no-store" }).then(json);
+
+// Stream events besides the ones listen() takes: "round", "inbox", "handover" (data parsed), and
+// "reconnect" (the stream is back after a break: whatever was missed must be fetched again).
+const handlers = new Map();
+export function onEvent(name, fn) {
+  if (!handlers.has(name)) handlers.set(name, new Set());
+  handlers.get(name).add(fn);
+  return () => handlers.get(name).delete(fn);
+}
+function dispatch(name, data) {
+  for (const fn of handlers.get(name) || []) {
+    try {
+      fn(data);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+}
+
 export const swipeCard = (id, body) =>
   fetch(`/api/rounds/${id}/swipe`, { method: "POST", headers: WRITE, body: JSON.stringify(body) }).then(json);
 
@@ -99,8 +126,11 @@ export const digDeeper = (id, note) =>
 export const askAgent = (id, question, text) =>
   fetch(`/api/rounds/${id}/ask`, { method: "POST", headers: WRITE, body: JSON.stringify({ question, text }) }).then(json);
 
-export const getJournal = (q = "", limit = 30, { mode = "", status = "" } = {}) =>
-  fetch(`/api/journal?${new URLSearchParams({ limit: String(limit), q, ...(mode && { mode }), ...(status && { status }) })}`, { cache: "no-store" }).then(json);
+export const getMap = (round = "", project = "") =>
+  fetch(`/api/map?${new URLSearchParams({ ...(round && { round }), ...(project && { project }) })}`, { cache: "no-store" }).then(json);
+
+export const getJournal = (q = "", limit = 30, { mode = "", status = "", project = "" } = {}) =>
+  fetch(`/api/journal?${new URLSearchParams({ limit: String(limit), q, ...(mode && { mode }), ...(status && { status }), ...(project && { project }) })}`, { cache: "no-store" }).then(json);
 
 // Whether the user is looking at this page: the daemon sends a system notification only when no page is.
 const PAGE = Math.random().toString(36).slice(2, 10);
@@ -128,11 +158,34 @@ export function listen(onState, onStatus, onDialog, onDeck) {
   es.addEventListener("state", (e) => onState(JSON.parse(e.data)));
   es.addEventListener("dialog", (e) => onDialog(JSON.parse(e.data)));
   es.addEventListener("deck", (e) => onDeck(JSON.parse(e.data)));
+  for (const name of ["round", "inbox", "handover"]) es.addEventListener(name, (e) => dispatch(name, e.data ? JSON.parse(e.data) : null));
+  let broken = false;
   es.onopen = () => {
     told = null;
     tellWatching();
     onStatus(true);
+    if (broken) dispatch("reconnect", null);
+    broken = false;
   };
-  es.onerror = () => onStatus(false);
+  es.onerror = () => {
+    broken = true;
+    onStatus(false);
+  };
   return es;
 }
+
+// Reactive rounds: bring a ghost back, keep a stale answer.
+export const restoreItem = (id, item) => fetch(`/api/rounds/${id}/restore`, { method: "POST", headers: WRITE, body: JSON.stringify({ id: item }) }).then(json);
+export const keepAnswer = (id, qid) => fetch(`/api/rounds/${id}/keep`, { method: "POST", headers: WRITE, body: JSON.stringify({ qid }) }).then(json);
+// K8 "in words" on a tune question: {sent: true} when an agent listens, else {sent: false, note} (saved as its note).
+export const sendWords = (id, qid, text) => fetch(`/api/rounds/${id}/words`, { method: "POST", headers: WRITE, body: JSON.stringify({ qid, text }) }).then(json);
+// What the user has seen (questions that were in view, swipe cards shown): a patch then ghosts them, never drops them.
+export const markSeen = (id, ids) => fetch(`/api/rounds/${id}/seen`, { method: "POST", headers: WRITE, body: JSON.stringify({ ids }) }).then(json);
+// How much to ask, and the page's own buttons (settings.js, actions.js).
+export const getSettings = (project) => fetch(`/api/settings?${new URLSearchParams({ project })}`, { cache: "no-store" }).then(json);
+export const setLevel = (project, level) => post("/api/settings", { project, level });
+export const addRuleTo = (project, text, mode, question = "") => post("/api/rules", { project, text, mode, question });
+export const removeRuleFrom = (project, id) => post("/api/rules", { project, remove: id });
+export const exportRoundFile = (id) => post(`/api/rounds/${id}/export`, {});
+export const saveRoundAdr = (id) => post(`/api/rounds/${id}/adr`, {});
+export const fitRound = (id, minutes) => post(`/api/rounds/${id}/fit`, { minutes });
