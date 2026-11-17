@@ -999,8 +999,9 @@ test("the schema takes every shape the strict engine takes without an error", as
   assert.match(validate(specSchema(), q({ titel: "x" }), specSchema()).join("\n"), /unknown field "titel"/);
 });
 
-test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tune, rules, evidence), swipe's 7,000, tools/list pinned near its size", async () => {
-  const { specSchema, deckSchema } = await docs();
+test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tune, rules, evidence), swipe's 7,000, review's 2,000, tools/list pinned near its size", async () => {
+  const { specSchema, deckSchema, reviewSchema } = await docs();
+  assert.ok(JSON.stringify(reviewSchema()).length <= 2000, `reviewSchema ${JSON.stringify(reviewSchema()).length} bytes`);
   const size = (v) => JSON.stringify(v).length;
   assert.ok(size(specSchema()) <= 12000, `specSchema ${size(specSchema())} bytes`);
   assert.ok(size(deckSchema()) <= 7000, `deckSchema ${size(deckSchema())} bytes`);
@@ -1011,7 +1012,8 @@ test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tun
   assert.ok(size(input("swipe")) <= 7000 + 1000, `swipe inputSchema ${size(input("swipe"))} bytes`);
   assert.ok(size(input("ask")) >= size(specSchema()), "the whole input schema holds the spec schema, $defs and all");
   const whole = size({ result: { tools } });
-  assert.ok(whole <= 37_000, `tools/list ${whole} bytes: pinned near the size after Task 13's deck lines, far under 2.1.1's 11,281 plus the 2.1 ask schema growth`);
+  // 37,000 before the review tool; review (its schema, its description, the chapter lines) and lint's base/head add about 4,200.
+  assert.ok(whole <= 41_500, `tools/list ${whole} bytes: pinned near the size after Task 13's deck lines plus the review tool, far under 2.1.1's 11,281 plus the 2.1 ask schema growth`);
 });
 
 test("a description sits only where the name does not say it, never on a spelling or a union arm", async () => {
