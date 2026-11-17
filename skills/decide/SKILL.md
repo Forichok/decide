@@ -350,6 +350,23 @@ everything (default), only the irreversible and money and data, only what the
 user marked as theirs. Below "everything", `ask` rejects questions under the
 bar: decide them yourself and say so in your report.
 
+The gear beside the theme button opens settings. The ask level and reviewer
+settings have a global choice with a project override; “Same as everywhere”
+clears the override. Rules made from answers belong only to the project.
+Global settings live in `<DECIDE_HOME>/settings.json`; the project’s
+`<dataDir>/settings.json` holds only its overrides. An old project level stays
+an override. No file is migrated on read.
+
+Read `rules` before planning a review. It prints the effective level and
+reviewers, where they came from, and the project’s rules. For structured JSON,
+use `rules` with `json: true` (CLI: `decide rules --json --project /path`).
+`settings.level` and `settings.reviewers` each contain `value`, `from`
+(`project`, `global` or `default`), `global` and `globalFrom`. Reviewers is a
+whole block: `mode` (`always`, `large`, `request`), `lines` (default 200), and
+ordered `roles` (`id`, `title`, `brief`, `model`). A project replaces or inherits
+the whole block. An empty model uses your default; if you cannot start a
+role’s model, skip that role and say so in the review overview.
+
 What puts a question over the bar: `reversible: false`, `stakes: "high"`,
 `mine: true`, or `touches`, a list of `money`, `data`, `security`, `public`.
 Fill these in honestly; at the middle level lint demands `reversible` on every

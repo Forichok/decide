@@ -182,8 +182,9 @@ export const sendWords = (id, qid, text) => fetch(`/api/rounds/${id}/words`, { m
 // What the user has seen (questions that were in view, swipe cards shown): a patch then ghosts them, never drops them.
 export const markSeen = (id, ids) => fetch(`/api/rounds/${id}/seen`, { method: "POST", headers: WRITE, body: JSON.stringify({ ids }) }).then(json);
 // How much to ask, and the page's own buttons (settings.js, actions.js).
-export const getSettings = (project) => fetch(`/api/settings?${new URLSearchParams({ project })}`, { cache: "no-store" }).then(json);
-export const setLevel = (project, level) => post("/api/settings", { project, level });
+export const getSettings = (project) => fetch(`/api/settings?${new URLSearchParams(project ? { project } : {})}`, { cache: "no-store" }).then(json);
+// Keep the old call signature for exported/offline pages; a patch adds scope and clear.
+export const setLevel = (project, level) => post("/api/settings", typeof level === "string" ? { project, level } : { ...(project && { project }), ...level });
 export const addRuleTo = (project, text, mode, question = "") => post("/api/rules", { project, text, mode, question });
 export const removeRuleFrom = (project, id) => post("/api/rules", { project, remove: id });
 export const exportRoundFile = (id) => post(`/api/rounds/${id}/export`, {});

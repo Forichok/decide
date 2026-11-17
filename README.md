@@ -115,6 +115,35 @@ the result.
    with text, a screenshot, a diagram or code.
 4. Press Done. The tab closes, and the agent gets your answers and carries on.
 
+## Settings
+
+Open the gear next to the theme button on any page. Back returns to the round
+or page you left. Each section has a Save button; a failed save keeps your edits.
+
+Choose how much to ask everywhere, then give a project its own choice if needed.
+“Same as everywhere” clears that project’s override. Global choices live in
+`<DECIDE_HOME>/settings.json` (`~/.decide/settings.json` by default); the project’s
+`<dataDir>/settings.json` holds its overrides. Existing project files keep their
+meaning. Missing values use the built-in defaults. Rules made from answers
+belong to the project and stay in its `rules.json`.
+
+Reviewer settings follow the same scopes. A project inherits or replaces the
+whole reviewer block, including the ordered role list. The default is to review
+large or risky changes, with 200 changed lines counting as large. The three
+starting roles check bugs, security and data, and what the checks prove. Expand
+a role to edit its title, brief or model; add, remove or reorder up to eight
+roles. An empty model means the agent’s default. A model the agent cannot start
+causes that role to be skipped and named in the review overview.
+
+Agents can read the effective choices, their sources and rules with
+`decide rules --project /path/to/project`; add `--json` for machine-readable
+output. The MCP `rules` tool accepts `json: true` for the same output.
+
+Theme is saved in this browser only: light, dark or as the system. The gear page
+and the top-bar theme button change the same preference. Language is not saved:
+`?lang=en` or `?lang=ru` overrides the browser’s language for page controls;
+questions keep the language in which they were written.
+
 ## Screens
 
 The page follows your system theme and your browser's language (English or

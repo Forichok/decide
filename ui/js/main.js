@@ -43,6 +43,7 @@ const app = {
   idleError: null, // why the idle screen shows, e.g. a round id that does not exist
 };
 let rail = null;
+let settingsFrom = null;
 
 // ---- theme (per-viewer convenience; storage may be unavailable)
 const THEME_KEY = "decide-theme";
@@ -56,13 +57,36 @@ const isDark = () => {
   const t = document.documentElement.dataset.theme;
   return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
 };
+function themeChoice() {
+  return document.documentElement.dataset.theme || "system";
+}
+function setTheme(next) {
+  try {
+    if (next === "system") localStorage.removeItem(THEME_KEY);
+    else localStorage.setItem(THEME_KEY, next);
+  } catch {
+    throw new Error(t("settings4.themeFailed"));
+  }
+  if (next === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = next;
+  syncTheme();
+}
+function paintTheme() {
+  for (const b of $$(".icon-btn.theme")) b.innerHTML = icon(isDark() ? "sun" : "moon");
+}
+function syncTheme(saved = true) {
+  paintTheme();
+  $("[data-theme-form]")?.dispatchEvent(new CustomEvent("decide-theme", { detail: { choice: themeChoice(), saved } }));
+}
 function toggleTheme() {
   const next = isDark() ? "light" : "dark";
-  document.documentElement.dataset.theme = next;
-  try {
-    localStorage.setItem(THEME_KEY, next);
-  } catch {}
-  for (const b of $$(".icon-btn.theme")) b.innerHTML = icon(next === "dark" ? "sun" : "moon");
+  try { setTheme(next); }
+  catch (e) {
+    // The top bar still switches the current page when browser storage is blocked.
+    document.documentElement.dataset.theme = next;
+    syncTheme(false);
+    toast(e.message);
+  }
 }
 
 function env() {
@@ -85,6 +109,10 @@ function env() {
     help: openHelp,
     isDark,
     toggleTheme,
+    themeChoice,
+    setTheme,
+    settings: offline ? null : openSettings,
+    leaveSettings,
     switchTo: (id) => openRound(id),
     journal: offline ? null : () => (location.hash = "journal"),
     offline,
@@ -222,7 +250,28 @@ function showJournal() {
   syncRail();
 }
 
+function rememberSettingsFrom() {
+  if (app.view === "settings" || app.view === "boot") return;
+  const id = app.round?.id || app.done?.id;
+  settingsFrom = { hash: id ? `#r=${id}` : app.view === "journal" ? "#journal" : "", scroll: window.scrollY };
+}
+function openSettings() {
+  if (app.view === "settings") return;
+  rememberSettingsFrom();
+  location.hash = "settings";
+}
+async function leaveSettings() {
+  net.holdReload("view", () => false);
+  const back = settingsFrom || { hash: "", scroll: 0 };
+  settingsFrom = null;
+  history.replaceState(null, "", location.pathname + location.search + back.hash);
+  if (back.hash === "#journal") showJournal();
+  else if (back.hash.startsWith("#r=")) await openRound(back.hash.slice(3));
+  else showIdle();
+  requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: back.scroll, behavior: "instant" })));
+}
 function showSettings() {
+  rememberSettingsFrom();
   disarmAdvance();
   app.round?.stop();
   app.round = null;
@@ -548,6 +597,13 @@ async function boot() {
   $("#toc").setAttribute("aria-label", t("toc"));
   $(".boot").textContent = t("boot");
   loadTheme();
+  window.addEventListener("storage", (e) => {
+    if (e.key !== THEME_KEY && e.key !== null) return;
+    delete document.documentElement.dataset.theme;
+    loadTheme();
+    syncTheme();
+  });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", paintTheme);
   bindKeys({ submit: review, step: (d) => app.round && step(d), nextOpen, act, help: () => (app.round?.help ? app.round.help() : swiping() || openHelp()), pick });
   bindDrop();
   bindFrameFocus();
@@ -563,6 +619,7 @@ async function boot() {
   window.addEventListener("hashchange", () => {
     if (location.hash === "#journal") return app.view !== "journal" && (closeOverlays(), showJournal());
     if (location.hash === "#settings") return app.view !== "settings" && (closeOverlays(), showSettings());
+    if (!location.hash && app.view === "settings") { settingsFrom = null; return showIdle(); }
     const id = new URLSearchParams(location.hash.slice(1)).get("r");
     if (id && id !== app.round?.id && id !== app.done?.id) {
       closeOverlays();

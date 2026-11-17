@@ -97,6 +97,7 @@ export function eyebrow(env) {
     env.journal && h("button.icon-btn.jr-btn", { type: "button", title: t("journal.open"), "aria-label": t("journal.open"), html: icon("history"), onclick: env.journal }),
     h("a.icon-btn.gh", { href: REPO, ...out, title: t("brand.title"), "aria-label": t("brand.title"), html: icon("github") }),
     h("button.icon-btn.keys-btn", { type: "button", title: t("keys.button"), "aria-label": t("keys.label"), html: icon("keyboard"), onclick: env.help }),
+    env.settings && h("button.icon-btn.settings-btn", { type: "button", title: t("settings4.open"), "aria-label": t("settings4.open"), html: icon("settings"), onclick: env.settings }),
     h("button.icon-btn.theme", { type: "button", title: t("theme.button"), "aria-label": t("theme.label"), html: icon(env.isDark() ? "sun" : "moon"), onclick: env.toggleTheme }),
   );
 }
