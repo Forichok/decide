@@ -253,7 +253,7 @@ export function mountReview(round, env) {
         ...[
           approving && red && h("div.cr-alert", { dataset: { alert: "checks" } }, h("b", {}, t("cr.alert.checks")), " ", t("cr.alert.checksText", red)),
           approving && !checks.total && h("div.cr-alert", { dataset: { alert: "checks" } }, h("b", {}, t("cr.alert.noChecks")), " ", t("cr.alert.noChecksText")),
-          v === "approve" && n.fix > 0 && h("div.cr-alert", { dataset: { alert: "fix" } }, h("b", {}, t("cr.alert.fix", n.fix)), " ", t("cr.alert.fixText")),
+          approving && n.fix > 0 && h("div.cr-alert", { dataset: { alert: "fix" } }, h("b", {}, t("cr.alert.fix", n.fix)), " ", t("cr.alert.fixText")),
           approving && unread.length > 0 && h("div.cr-alert", { dataset: { alert: "unread" } }, h("b", {}, t("cr.alert.unread", unread.length, s.spec.chapters.length)), " ", unread.map((c) => `«${c.title}»`).join(", ")),
           v === "return" && !n.fix && !n.nit && !n.question && h("div.cr-alert", { dataset: { alert: "empty" } }, h("b", {}, t("cr.alert.empty")), " ", t("cr.alert.emptyText")),
         ].filter(Boolean),
