@@ -21,12 +21,18 @@ export function ruleButtons(project, row) {
     save.onclick = async () => {
       save.disabled = true;
       try {
-        await addRuleTo(project, input.value, mode, row.title);
+        await addRuleTo(project, input.value.replace(/\s+/g, " ").trim(), mode, row.title);
         box.replaceChildren(h("span.rule-state", {}, t(mode === "never" ? "rule.savedNever" : "rule.savedAlways")), h("a.link-btn", { href: "#settings" }, t("rule.manage")));
       } catch {
         save.disabled = false;
         state.textContent = t("rule.failed");
       }
+    };
+    // a rule is one line: Enter saves it, as it did in the single-line field
+    input.onkeydown = (e) => {
+      if (e.key !== "Enter" || e.shiftKey || e.isComposing) return;
+      e.preventDefault();
+      save.click();
     };
     box.replaceChildren(input, save, state);
     input.focus();

@@ -383,6 +383,12 @@ const CARD_SHOTS = new Set(["showcase", "forms", "evidence", "reactive", "tune"]
 
 // ---- main
 
+const unknown = names.filter((n) => !(n in VIEWS));
+if (unknown.length) {
+  console.error(`unknown view: ${unknown.join(", ")}. Views: ${Object.keys(VIEWS).join(", ")}`);
+  process.exit(2);
+}
+
 d = await startServer({ name: "ui-audit" });
 const findings = [];
 let browser;

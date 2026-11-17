@@ -51,7 +51,7 @@
 @media (max-width: 640px) { .vs-pair { grid-template-columns: 1fr; } .vs-or { text-align: center; } }
 .vs-or { align-self: center; color: var(--tx-dim); }
 .vs-side { display: grid; align-content: start; gap: 8px; padding: var(--space-4); border: 0; border-radius: var(--r-md); font: inherit; color: inherit; text-align: left; cursor: pointer; background: color-mix(in srgb, var(--surface-solid) 70%, transparent); box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow var(--dur), background var(--dur); }
-.vs-side:hover, .vs-side:focus-visible { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent-line); outline: none; }
+.vs-side:hover, .vs-side:focus-visible { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent-line); }
 .vs-label { font-weight: 600; font-size: 17px; }
 .vs-detail { color: var(--tx-dim); font-size: 14px; }
 .vs-arrow { width: 20px; height: 20px; color: var(--accent); }

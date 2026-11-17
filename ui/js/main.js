@@ -129,7 +129,8 @@ function showRound(data) {
 
 function showDone(id, result, spec = null) {
   app.spec = spec || app.round?.spec || null;
-  app.round?.stop({ settled: true });
+  // only the round being settled drops its queue: another pending round still reports what was seen
+  app.round?.stop({ settled: app.round.id === id });
   app.round = null;
   app.view = "done";
   app.done = { id, result };

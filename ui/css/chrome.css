@@ -145,7 +145,7 @@ kbd {
   input:not([type="range"], [type="color"], [type="checkbox"], [type="radio"]), select { min-height: 44px; }
   .jp-digest summary, .ib-older summary { min-height: 44px; }
   .chip:not(.static) { min-width: 44px; justify-content: center; }
-  .sum-raw summary, .map-centres summary { padding-block: 11px; }
+  .sum-raw summary, .map-centres summary { padding-block: 12px; }
   .map-round { min-height: 44px; }
   .credit a, .lb-open { min-height: 44px; }
 }

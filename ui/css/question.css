@@ -87,7 +87,7 @@ details:not([open]) .chev { transform: rotate(-90deg); }
 .other-wrap:focus-within { outline: 2px solid var(--accent); outline-offset: -1px; }
 .other-mark { color: var(--tx-dim); display: grid; }
 .other-input { flex: 1; border: 0; background: none; padding: 12px 0; }
-.other-input:focus-visible { outline: none; } /* the ring is on the pill around it */
+.other-wrap .other-input:focus-visible { outline: none; } /* the ring is on the pill around it */
 textarea.note, textarea.answer-text {
   width: 100%; resize: none; min-height: 52px; padding: 13px 16px;
   border: 0; border-radius: var(--r-md);
