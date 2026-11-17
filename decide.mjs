@@ -22,9 +22,10 @@
 //   node decide.mjs --demo [--lang en|ru]             the feature tour
 //   node decide.mjs notice                            answers the user sent that no agent has collected
 //   node decide.mjs --lint <x.questions.json> | --stop
+//   node decide.mjs review <x.review.json> [--base ref] [--head ref] [--no-open]   a code review of a branch
 //   node decide.mjs serve [--port n]                  run the home's server (started on demand)
 //   Every command also has a name: ask swipe wait push explain screenshot history supersede adr export
-//   import lint stop open notice, as in `node decide.mjs wait <round> --live`, `node decide.mjs open <round>`.
+//   import lint stop open notice rules patch review, as in `node decide.mjs wait <round> --live`, `node decide.mjs open <round>`.
 //   Every command takes --project <dir> (default: the current directory).
 //
 // Zero dependencies, Node >= 20. Agent guide and spec: skills/decide/.

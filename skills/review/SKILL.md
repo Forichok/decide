@@ -1,0 +1,220 @@
+---
+name: review
+description: Show the user a code review of a branch on a local page: your overview of the change, then the diff cut into chapters by meaning, with line comments, questions to you and a verdict. Use when the user types /decide:review, asks to review a branch or a change before merging ("покажи ревью", "дай посмотреть дифф", "review this branch"), or when you finished a change and the user reviews before merge.
+---
+
+# decide:review — a code review by chapters
+
+You open a page with the change you made (or any branch against its base).
+The user reads your overview first: what changed and why, what can go wrong,
+which checks you ran and how they went. Then they walk the diff, which you
+have cut into chapters by meaning, not by file. On any line they can leave a
+comment of two kinds (fix, nit) or ask you a question. At the end they give
+one of three verdicts: approve, approve with nits, return.
+
+The server reads the diff from git itself. You never paste a diff: you write
+the words and say which hunks belong to which chapter. The snapshot is taken
+once, when the review opens, and holds commits only. Uncommitted work is not
+in it, so commit before you call `review`.
+
+Use plain `/decide` when the user has to choose between options. A review
+decides one thing: does this change go in.
+
+## Arguments
+
+| After `/decide:review`   | Do                                                      |
+| ------------------------ | ------------------------------------------------------- |
+| nothing                  | Review the current branch against its base              |
+| a branch or a commit     | Review that head against the default base (`head`)      |
+| `<base>..<head>`         | Review that range: pass them as `base` and `head`       |
+| a path to a review JSON  | Run that spec (`specPath`)                              |
+
+The default base is the remote's default branch, else `main` or `master`.
+The diff runs from the point where the branch left the base to the head, so
+what landed on the base since is not in the review.
+
+## The loop
+
+Always pass `project`, the absolute path of the project you work in.
+
+1. Commit the change. Run the checks and note for each the command, the exit
+   code and the seconds. The page runs nothing, and the user approves on what
+   you report.
+2. Read the diff yourself (`git diff <base>...HEAD`) and cut it into chapters
+   (below).
+3. `lint {project, spec}` lays the spec on the diff without opening anything.
+   Fix what it names: a reference that matches no hunk, hunks in no chapter.
+4. `review {project, spec}` opens the page and returns the round id, the URL
+   and the lint warnings. Tell the user in one line that the review is open,
+   with the URL.
+5. `wait {project, round}` returns one of:
+   - **"Still waiting"**: call `wait` again at once.
+   - **A question on a hunk**: the file, the line, the code on it and the
+     user's words. Answer with
+     `explain {project, round, question: <the id in brackets>, askId, text}`,
+     then `wait`. The answer appears under that line. Answer the question
+     asked; don't defend the code and don't change it yet.
+   - **The verdict**, with every comment: what to fix, the nits, the
+     questions and whether you answered them.
+6. Act on the verdict (below).
+
+**Don't end your turn while the review is open**, and don't change code
+before the verdict: the user is reading a snapshot, and a commit under their
+hands makes the comments point at lines that moved. If you must stop, tell
+the user to message you when they are done, and on that message call
+`wait {project, round, timeoutSec: 5}` first.
+
+## The spec
+
+```json
+{
+  "title": "Sign-in by magic link",
+  "summary": "Guests can sign in from a link in the mail instead of a password. The link holds a one-time token that lives 15 minutes. Passwords still work.",
+  "risks": [
+    { "level": "high", "what": "A leaked link signs anyone in", "why": "The token is single-use and expires, but it is the only factor.", "chapter": "token" }
+  ],
+  "checks": [
+    { "command": "npm test", "exit": 0, "seconds": 41 },
+    { "command": "npx playwright test e2e/signin.spec.mjs", "exit": 1, "seconds": 73, "note": "the resend case fails, see the chapter on mail" },
+    { "command": "npm run lint", "note": "not run: no linter in this repo yet" }
+  ],
+  "chapters": [
+    {
+      "id": "token",
+      "title": "A one-time token",
+      "summary": "A token is 32 random bytes, stored hashed with its expiry. Using it deletes it.",
+      "watch": "`consume()` reads and deletes in two statements. I think the unique index makes a double use fail, but look at it.",
+      "risk": "high",
+      "hunks": ["lib/auth/token.mjs", "db/migrations/0042_tokens.sql", "test/token.test.mjs"]
+    },
+    {
+      "id": "mail",
+      "title": "The mail with the link",
+      "summary": "A new template and a rate limit of three mails an hour per address.",
+      "hunks": ["lib/mail/", "lib/server.mjs:210-260", "e2e/signin.spec.mjs"]
+    }
+  ],
+  "mechanical": [
+    { "title": "`session` renamed to `signin` in imports", "hunks": ["lib/routes/*.mjs", "lib/server.mjs"] },
+    { "title": "Lock file", "hunks": ["package-lock.json"] }
+  ]
+}
+```
+
+| Field                  | Meaning                                                                                                   |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- |
+| `title`                | What the change is, as you would name the pull request.                                                    |
+| `summary`              | What changed and why. The first thing the user reads. Markdown.                                            |
+| `risks[]`              | `{level, what, why, chapter}`. `level` is `high`, `medium` or `low`. `chapter` is a chapter id: the risk on the page jumps there. |
+| `checks[]`             | `{command, exit, seconds, note}`. Leave `exit` out for a check you did not run; the page shows it as not run. |
+| `chapters[].id`        | Short, unique, a word (`token`, not `h3`: those are the hunks' own ids).                                   |
+| `chapters[].summary`   | What this part does and why. Two or three sentences.                                                       |
+| `chapters[].watch`     | The line or the decision you are least sure of. The user reads it before the diff.                         |
+| `chapters[].risk`      | `high`, `medium` or `low` (default). A high chapter wants a risk in the overview that points to it.        |
+| `chapters[].hunks`     | References to the hunks of this chapter.                                                                   |
+| `mechanical[]`         | `{title, hunks}`: one folded line on the page with a count.                                                |
+
+### Naming hunks
+
+| Reference                 | Takes                                                                    |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `"lib/x.mjs"`             | Every hunk of the file                                                   |
+| `"lib/x.mjs:120-180"`     | The hunks that touch lines 120–180 of the new file; context lines count  |
+| `"lib/x.mjs:120"`         | The hunk that holds line 120                                             |
+| `"docs/shots/"`           | Every file under the directory                                           |
+| `"ui/css/*.css"`, `"e2e/**"` | A glob: `*` within a name, `**` across directories                    |
+
+A hunk goes to the first chapter that names it, then to the first mechanical
+group. So a file split between two chapters is written
+`"lib/x.mjs:1-90"` in the first and plain `"lib/x.mjs"` in the second, which
+takes what is left. A renamed file answers to its old name too. A binary
+file, a pure rename and a mode change count as one hunk each.
+
+Hunks nobody names are not lost. The page shows them under "The rest" and
+"sorted N of M" in the rail, and `review` and `lint` list them. Aim for
+nothing in the rest: an unsorted hunk tells the user you did not look at it.
+
+## Cutting chapters
+
+A chapter is one idea of the change, and its hunks may sit in five files.
+"The token", "the mail", "the rate limit" are chapters. "Changes in
+lib/server.mjs" is not: that is how git sorts a diff.
+
+- Order the chapters the way you would explain the change aloud: the data
+  model before the code that reads it, the core before the callers, the
+  risky part early while the user is fresh.
+- Put a test in the chapter of the code it covers, after that code. The page
+  marks it as a test. A chapter of code with no test is something the user
+  should see, so don't hide the tests in a chapter of their own.
+- Three to eight chapters is a change a person can review. Twelve chapters
+  means the branch holds several changes: say so in the summary and offer to
+  split the branch.
+- One hunk that carries two ideas goes where the riskier idea lives; name the
+  other in that chapter's summary.
+- Write `watch` only when there is something to watch. "Looks fine" on every
+  chapter teaches the user to skip the field.
+
+## What counts as mechanical
+
+Mechanical is an edit the user can check by its description, without reading
+each line: a rename applied everywhere, moved files, formatting, a lock file,
+generated code, regenerated screenshots and snapshots, a version bump.
+
+Say in the title what was done, so that one look at a few hunks confirms it:
+"`getUser` renamed to `loadUser` (14 call sites)". The user can unfold the
+group and read all of it.
+
+Not mechanical, however small: a changed default, a changed condition, a
+dependency added or upgraded across a major version, a config value, a
+migration, anything in auth or money, a deleted test. If a rename hunk also
+changes behaviour, it belongs to a chapter.
+
+## Writing the overview
+
+The user decides from the overview how carefully to read the rest. It is
+marked on the page as your words, not as fact.
+
+- **Summary**: what the change does for the user or the system, then why it
+  was needed. Then what you left out on purpose. No list of files: the
+  chapters are that.
+- **Risks**: what can break and for whom, worst first, each pointing to the
+  chapter where it lives. Say what you did about it and what you did not
+  check. A change with nothing risky has no risks; don't invent one.
+- **Checks**: every command as you ran it, with its real exit code. A failed
+  check stays in the list with a note on why it fails. A check you skipped
+  stays too, without `exit`. The user sees a warning when they approve with a
+  red or missing check, and that is how it should be.
+
+Never report a check you did not run, and never round a failure up. The
+review is worth exactly as much as this table is true.
+
+## After the verdict
+
+| Verdict             | Do                                                                                                    |
+| ------------------- | ----------------------------------------------------------------------------------------------------- |
+| Returned            | Fix what is under "To fix". Decide on each nit. Answer the open questions in chat. Tell the user for every comment what you did: fixed, answered, or declined and why. Then commit and call `review` again on the new head. |
+| Approved with nits  | Fix the nits or say why not. No new review is needed.                                                  |
+| Approved            | Nothing to fix.                                                                                        |
+
+An approval is the user's opinion of the code. It merges nothing and pushes
+nothing: that stays under the repository's own rules, and you ask as you
+would have without the review.
+
+The full result is in the JSON that `wait` names: the verdict, the note, the
+range of commits, and every comment with its file, line, side and the code on
+that line.
+
+## With the CLI
+
+When the tools are not available, the same runs through `decide.mjs` in the
+plugin root:
+
+```bash
+node <plugin>/decide.mjs lint <spec.json> --project <project>
+node <plugin>/decide.mjs review <spec.json> --project <project> [--base <ref>] [--head <ref>]
+node <plugin>/decide.mjs wait <round> --live --project <project>
+node <plugin>/decide.mjs explain <round> --question <id> --text "…" --project <project>
+```
+
+`wait` exits with code 3 when the user asked a question (the output has a
+`DECIDE ask:` line) and with 0 on the verdict.

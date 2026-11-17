@@ -315,6 +315,15 @@ test("the spec lint: what only warns", () => {
   assert.ok(warnsOf(normalizeReview({ chapters: [{ id: "a", title: "A", summary: "s" }], summary: "s" }).issues).some((m) => m.startsWith("checks: no checks")));
 });
 
+test("the spec the skill shows passes its own lint", () => {
+  const skill = readFileSync(path.join(pluginDir, "skills/review/SKILL.md"), "utf8");
+  const [, block] = skill.match(/```json\n([\s\S]*?)```/);
+  const { spec, issues } = normalizeReview(JSON.parse(block));
+  assert.deepEqual(issues, []);
+  assert.deepEqual(spec.chapters.map((c) => c.id), ["token", "mail"]);
+  assert.deepEqual(spec.checks.map(checkState), ["ok", "failed", "missing"]);
+});
+
 // ---------- the digest ----------
 
 test("the verdict digest: every comment by kind, with its file, line and code", () => {
