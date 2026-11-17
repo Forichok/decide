@@ -280,7 +280,7 @@ export function mountReview(round, env) {
       return s.box?.focusText();
     }
     if (s.draft) closeBox();
-    s.draft = { text: "", ...d, group: s.loaded.get(d.hunk)?.group || "" };
+    s.draft = { text: "", ...d, group: s.loaded.get(d.view || d.hunk)?.group || "" };
     s.box = composer(s);
     chapters.paintPiece(d.hunk);
     s.box.focusText();

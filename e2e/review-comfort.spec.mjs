@@ -1,0 +1,92 @@
+import { spawnSync } from 'node:child_process';
+import { test, expect } from '@playwright/test';
+import { startDecide, writeFile, spec } from './helpers.mjs';
+let d;
+const review = { title: 'Comfort', summary: 'Two places.', chapters: [{ id: 'all', title: 'Code', summary: 'Read it.', hunks: ['a.mjs'] }] };
+test.beforeAll(async () => {
+  d = await startDecide({name: 'comfort'});
+  const git = (...args) => {
+    const r = spawnSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.invalid', '-c', 'commit.gpgsign=false', ...args], {cwd: d.project, encoding: 'utf8'});
+    if (r.status) throw Error(r.stderr);
+  };
+  git('init', '-b', 'main');
+  const content = (changed) => Array.from({length: 60}, (_, i) => i === 3 ? `const animal = "${changed ? 'dog' : 'cat'}";` : i === 48 ? (changed ? 'entirely rewritten' : 'old text') : `// line ${i + 1}`).join('\n') + '\n';
+  writeFile(d.project, 'a.mjs', content(false)); git('add', '.'); git('commit', '-m', 'base');
+  git('checkout', '-b', 'feature'); writeFile(d.project, 'a.mjs', content(true)); git('add', '.'); git('commit', '-m', 'change');
+});
+test.afterAll(async () => d?.stop());
+async function open(page) {
+  const r = await d.must('POST', '/api/rounds', {project: d.project, mode: 'review', spec: review, open: false});
+  await page.goto(`${d.origin}/?lang=en#r=${r.id}`);
+  await page.locator('.cr-full').click();
+  await expect(page.locator('.cr-hunk')).toHaveCount(2);
+  return r.id;
+}
+test('whole-file neighbours share comments, ownership, coverage and digest', async ({page}) => {
+  const id = await open(page);
+  const first = page.locator('.cr-hunk').first(), second = page.locator('.cr-hunk').last();
+  for (const host of [first, second]) await host.getByRole('button', {name: 'Whole file', exact: true}).click();
+  const neighbour = first.locator('tr.cr-line[data-key="new:49"]');
+  await neighbour.locator('td.t').click();
+  await first.locator('.cr-compose textarea').fill('Check the replacement.');
+  await first.locator('.cr-compose .btn.primary').click();
+  for (const host of [first, second]) await expect(host.locator('.cr-cm-text')).toHaveText('Check the replacement.');
+  const owner = await second.getAttribute('data-hunk');
+  await expect.poll(async () => (await d.round(id)).review.comments[0]?.hunk).toBe(owner);
+  await neighbour.scrollIntoViewIfNeeded();
+  await expect.poll(async () => (await d.round(id)).review.coverage[await second.getAttribute('data-hunk')]).toBe('opened');
+  await page.locator('.cr-bar [data-verdict="return"]').click();
+  await page.locator('.cr-verdict .btn.primary').click();
+  await expect.poll(async () => (await d.round(id)).result?.digest ?? '').toContain('Check the replacement.'); // the verdict is saved after the click
+});
+test('intraline marks preserve row text and omit rewrites', async ({page}) => {
+  await open(page);
+  for (const [side, word] of [['old', 'cat'], ['new', 'dog']]) {
+    const row = page.locator(`tr.cr-line[data-key="${side}:4"] td.t`);
+    await expect(row).toHaveText(`const animal = "${word}";`);
+    await expect(row.locator('.cr-intraline')).toHaveText(word);
+  }
+  await expect(page.locator('tr[data-key="new:49"] .cr-intraline')).toHaveCount(0);
+});
+test('review inbox folds, overlays without resizing code, remembers and leaves questions unchanged', async ({page}) => {
+  await d.open(spec());
+  for (const [width, theme] of [[1440, "light"], [1280, "dark"]]) {
+    await page.setViewportSize({width, height: 900});
+    await open(page);
+    await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+    const toggle = page.locator('.ib-review-toggle');
+    await expect(toggle).toBeVisible();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    const code = page.locator('.cr-view');
+    const before = await code.boundingBox();
+    expect(before.width).toBeGreaterThan(width - 500);
+    await toggle.focus(); await page.keyboard.press('Enter');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect.poll(async () => (await code.boundingBox()).width).toBe(before.width);
+    await page.reload(); await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('Escape'); await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await toggle.click(); await page.locator('.rail-scrim').click({position: {x: width - 10, y: 500}});
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  }
+  const q = await d.open(spec()); await page.goto(`${d.origin}/?lang=en#r=${q}`);
+  await expect(page.locator('.ib-review-toggle')).toBeHidden();
+  await expect(page.locator('body')).not.toHaveClass(/review-inbox/);
+  await page.setViewportSize({width: 1440, height: 900});
+  await expect(page.locator('.rail')).toBeVisible();
+});
+
+test('whole-file exposure counts a neighbouring hunk while its chapter stays folded', async ({page}) => {
+  const spec = { ...review, chapters: [
+    {id: 'first', title: 'First', summary: 'Read here.', hunks: ['a.mjs:1-10']},
+    {id: 'last', title: 'Last', summary: 'Later.', hunks: ['a.mjs'], skim: 'Read only if needed.'},
+  ] };
+  const r = await d.must('POST', '/api/rounds', {project: d.project, mode: 'review', spec, open: false});
+  await page.goto(`${d.origin}/?lang=en#r=${r.id}`);
+  const first = page.locator('#cr-ch-first .cr-hunk');
+  await first.getByRole('button', {name: 'Whole file', exact: true}).click();
+  const neighbour = first.locator('tr.cr-line.add[data-key="new:49"]');
+  const owner = await neighbour.getAttribute('data-owner');
+  await neighbour.scrollIntoViewIfNeeded();
+  await expect.poll(async () => (await d.round(r.id)).review.coverage[owner]).toBe('opened');
+  await expect(page.locator('#cr-ch-last details.cr-others')).not.toHaveAttribute('open');
+});

@@ -80,10 +80,11 @@ export function trackCoverage(s, onError) {
       if (hidden) continue;
       const rect = el.getBoundingClientRect();
       if (rect.bottom <= 0 || rect.top >= innerHeight || rect.right <= 0 || rect.left >= innerWidth) continue;
-      const value = el.coverageState();
-      if (rank(value) <= rank(next[id])) continue;
-      next[id] = pending[id] = value;
-      changed = true;
+      for (const [owner, value] of Object.entries(el.coveragePieces?.() ?? { [id]: el.coverageState() })) {
+        if (rank(value) <= rank(next[owner])) continue;
+        next[owner] = pending[owner] = value;
+        changed = true;
+      }
     }
     if (changed) {
       s.rv.coverage = next;

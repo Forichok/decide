@@ -780,4 +780,6 @@ export default {
   "cr.done.note": "Your note",
   "cr.done.answered": "the agent answered on the page",
   "cr.done.open": "not answered yet",
+  // Wave 8: review comfort
+  "inbox.reviewWaiting": (n) => `Waiting for you · ${n}`,
 };

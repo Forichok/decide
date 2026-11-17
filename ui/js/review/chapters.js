@@ -152,9 +152,8 @@ export function createChapters(s) {
     },
     paintPiece(id) {
       const hit = s.loaded.get(id);
-      if (!hit) return;
-      hit.el.paint();
-      openOthers(hit.group);
+      for (const { el } of s.loaded.values()) el.paint();
+      if (hit) openOthers(hit.group);
     },
     // "The whole diff" went on or off: every piece on screen is drawn again, the folds follow.
     async redraw() {

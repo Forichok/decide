@@ -102,3 +102,21 @@
   .ib-meta { padding-right: 40px; }
 }
 @media (prefers-reduced-motion: reduce) { .rail, .ib-track i { transition: none; } }
+
+/* Wave 8: the review inbox opens over the code. */
+.ib-review-toggle { display: none; }
+@media (min-width: 1180px) {
+  body.review-inbox.has-rail .layout { padding-left: 56px; }
+  body.review-inbox .ib-review-toggle:not([hidden]) {
+    display: block; position: fixed; left: 8px; top: 110px; z-index: 54;
+    writing-mode: vertical-rl; padding: 12px 8px; border: 1px solid var(--line-strong);
+    border-radius: 12px; background: var(--surface); color: var(--tx); font: inherit; cursor: pointer;
+  }
+  body.review-inbox .rail {
+    position: fixed; z-index: 60; top: 16px; bottom: 16px; left: 48px; width: 300px;
+    border-radius: 22px; transform: translateX(-120%); visibility: hidden;
+  }
+  body.review-inbox.rail-open .rail { transform: none; visibility: visible; }
+  body.review-inbox.rail-open .rail-scrim { display: block; position: fixed; inset: 0; z-index: 55; background: var(--scrim); }
+  body.review-inbox .ib-close { display: inline-grid; }
+}

@@ -209,3 +209,10 @@
   --state-stale: #f2b155;
   color-scheme: dark;
 }
+
+/* Wave 8: stronger spans within added and removed lines. */
+:root { --diff-intraline-add: #b6e7c6; --diff-intraline-del: #ffc7c7; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --diff-intraline-add: #225139; --diff-intraline-del: #673333; }
+}
+:root[data-theme="dark"] { --diff-intraline-add: #225139; --diff-intraline-del: #673333; }

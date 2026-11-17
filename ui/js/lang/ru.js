@@ -787,4 +787,6 @@ export default {
   "cr.done.note": "Ваши слова агенту",
   "cr.done.answered": "агент ответил на странице",
   "cr.done.open": "пока без ответа",
+  // Wave 8: review comfort
+  "inbox.reviewWaiting": (n) => `Ждут вас · ${n}`,
 };

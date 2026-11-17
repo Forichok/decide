@@ -318,3 +318,13 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 .cr-overview-decision { margin-block: .8rem; }
 .cr-place-in > .cr-decision { flex-basis: 100%; }
 .cr-whole-note { margin-top: 1.5rem; font-size: .9rem; }
+/* Wave 8: changed characters and the width released by the inbox. */
+.cr-diff .cr-intraline { border-radius: 2px; }
+.cr-diff .add .cr-intraline { background: var(--diff-intraline-add); }
+.cr-diff .del .cr-intraline { background: var(--diff-intraline-del); }
+.cr-diff .cr-intraline.whitespace { text-decoration: underline dotted; text-underline-offset: 3px; }
+.cr-diff .cr-line td.t { opacity: 1; }
+@media (min-width: 1180px) {
+  body.review-mode.review-inbox .layout { grid-template-columns: 220px minmax(0, 1fr); gap: 24px; }
+  body.review-mode.review-inbox .wrap { max-width: none; }
+}

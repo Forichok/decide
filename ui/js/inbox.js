@@ -62,6 +62,22 @@ export function createInbox(env) {
   const title = h("h2.ib-title", {}, t("inbox.title"));
   const head = h("div.ib-head", {}, title, h("button.icon-btn.ib-close", { type: "button", "aria-label": t("inbox.close"), html: icon("x"), onclick: () => env.close() }));
   const el = h("aside.rail", { id: "rail", "aria-label": t("inbox.title"), hidden: true }, head, list, foot);
+  // Review keeps a small entry point; the existing drawer controls close the overlay too.
+  let reviewMode = false;
+  let reviewOpen = false;
+  try { reviewOpen = sessionStorage.getItem("decide.reviewInbox") === "open"; } catch {}
+  const toggle = h("button.ib-review-toggle", { type: "button", "aria-controls": "rail", hidden: true, onclick: () => document.body.classList.toggle("rail-open") });
+  function syncReview() {
+    if (!reviewMode) return;
+    const open = document.body.classList.contains("rail-open");
+    const wasOpen = toggle.getAttribute("aria-expanded") === "true";
+    reviewOpen = open;
+    try { sessionStorage.setItem("decide.reviewInbox", open ? "open" : "closed"); } catch {}
+    toggle.setAttribute("aria-expanded", String(open));
+    el.inert = !open;
+    if (wasOpen && !open && el.contains(document.activeElement)) toggle.focus();
+  }
+  new MutationObserver(syncReview).observe(document.body, { attributes: true, attributeFilter: ["class"] });
   let pendingDismiss = null;
   let pendingTimer = null;
 
@@ -121,6 +137,10 @@ export function createInbox(env) {
       ...(mayAskNotify() ? [h("button.link-btn", { type: "button", onclick: () => env.askNotify() }, t("inbox.notify"))] : []),
     );
     el.hidden = rows.length < 2;
+    if (el.isConnected && !toggle.isConnected) el.before(toggle);
+    toggle.hidden = !reviewMode || rows.length < 2;
+    toggle.textContent = t("inbox.reviewWaiting", g.open.length);
+    toggle.setAttribute("aria-label", t("inbox.reviewWaiting", g.open.length));
     document.body.classList.toggle("has-rail", rows.length >= 2);
   }
 
@@ -128,6 +148,15 @@ export function createInbox(env) {
     el,
     set(rows, currentId) {
       last = { rows, currentId };
+      paint();
+    },
+    setReview(active) {
+      if (active === reviewMode) return;
+      reviewMode = active;
+      document.body.classList.toggle("review-inbox", active);
+      document.body.classList.toggle("rail-open", active && reviewOpen);
+      el.inert = active && !reviewOpen;
+      if (active) syncReview();
       paint();
     },
     repaint: paint,

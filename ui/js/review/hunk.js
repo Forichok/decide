@@ -17,6 +17,7 @@ import { md, mdInline } from "../md.js";
 import { reviewFile } from "../net.js";
 import { toast } from "../overlays.js";
 import { lexer } from "./syntax.js";
+import { intraline, splitTokens } from "./intraline.js";
 
 const KINDS = ["fix", "question", "nit"];
 const keyOf = (x) => (Number.isInteger(x.line) ? `${x.side === "old" ? "old" : "new"}:${x.line}` : "");
@@ -33,13 +34,16 @@ const TEST_NAME = /^\s*(?:test|it|describe)(?:\.\w+)*\(\s*(["'`])(.+?)\1/;
 const lineKey = (l) => (l.t === "del" ? `old:${l.o}` : `new:${l.n}`);
 const sign = (kind) => (kind === "add" ? "+" : kind === "del" ? "−" : "");
 // The text of a line in its colours: what syntax.js made of it, each coloured run in a span.
-const code = (pairs) => pairs.map(([cls, text]) => (cls ? h(`span.tk-${cls}`, {}, text) : text));
-// place: undefined off a key place, else the place's kind ("" for a plain one).
-function lineRow(l, place, pairs) {
-  return h(`tr.cr-line.${l.t}${place === undefined ? "" : `.focus${place ? `.kind-${place}` : ""}`}`, { dataset: { key: lineKey(l) } }, h("td.n", {}, l.o ?? ""), h("td.n", {}, l.n ?? ""), h("td.s", {}, sign(l.t)), h("td.t", {}, pairs ? code(pairs) : l.text));
+const code = (pairs, mark) => splitTokens(pairs, mark).map(([cls, text, changed]) => {
+  const token = cls ? h(`span.tk-${cls}`, {}, text) : text;
+  return changed ? h(`span.cr-intraline${mark.whitespace ? ".whitespace" : ""}`, {}, token) : token;
+});
+// place: undefined off a key place, else its kind.
+function lineRow(l, place, pairs, owner, mark) {
+  return h(`tr.cr-line.${l.t}${place === undefined ? "" : `.focus${place ? `.kind-${place}` : ""}`}`, { dataset: { key: lineKey(l), owner } }, h("td.n", {}, l.o ?? ""), h("td.n", {}, l.n ?? ""), h("td.s", {}, sign(l.t)), h("td.t", {}, pairs ? code(pairs, mark) : l.text));
 }
 const eolRow = () => h("tr.eol", {}, h("td.n"), h("td.n"), h("td.s"), h("td.t", {}, t("cr.noeol")));
-// A line of the file outside the piece: read only, it takes no comment. Another hunk's line keeps its mark.
+// A line outside every hunk is read only.
 const farRow = (l) => h(`tr.far${l.t === "ctx" ? "" : `.${l.t}`}`, {}, h("td.n", {}, l.o ?? ""), h("td.n", {}, l.n ?? ""), h("td.s", {}, sign(l.t)), h("td.t", {}, l.code ? code(l.code) : l.text));
 
 const fill = (set, from, to, n) => {
@@ -83,7 +87,10 @@ function layFile(file, piece) {
     const first = hunk.newLines ? hunk.newStart : hunk.newStart + 1;
     plain(first);
     if (hunk.id === piece.id) into = after;
-    else for (const l of hunk.lines) into.push(l.t === "ctx" ? { t: "ctx", text: l.text, n: l.n } : l);
+    else {
+      const marks = intraline(hunk.lines);
+      for (const [i, l] of hunk.lines.entries()) into.push({ ...l, owner: hunk.id, mark: marks.get(i) });
+    }
     at = first + hunk.newLines;
   }
   plain(text.length + 1);
@@ -116,6 +123,8 @@ export function renderPiece(s, piece, { folded = false } = {}) {
   const read = lexer(piece.file);
   const painted = lines.map((l) => read(l.text, l.t));
   const n = lines.length;
+  const marks = intraline(lines);
+  const compose = (d) => s.compose({ ...d, view: piece.id });
   const index = new Map(lines.map((l, i) => [lineKey(l), i]));
   const spans = isHunk ? s.focusOf(piece.id).map((place) => spanOf(lines, place)).filter(Boolean) : [];
   const inPlace = new Map(); // a line of a key place → the place's kind
@@ -198,8 +207,8 @@ export function renderPiece(s, piece, { folded = false } = {}) {
   }
   // The row over a key place: why the agent named it, and the two things to do about it. A question or
   // a comment made here sits on the place's first line.
-  const onPlace = (sp, kind) => () => s.compose({ hunk: piece.id, line: lines[sp.at].n, side: "new", kind });
-  const placeRow = (sp) =>
+  const onPlace = (sp, kind, owner = piece.id, source = lines) => () => compose({ hunk: owner, line: source[sp.at].n, side: "new", kind });
+  const placeRow = (sp, owner = piece.id, source = lines) =>
     h(
       `tr.cr-place${sp.place.kind ? `.kind-${sp.place.kind}` : ""}`,
       { dataset: { focus: sp.place.key } },
@@ -212,7 +221,7 @@ export function renderPiece(s, piece, { folded = false } = {}) {
           sp.place.kind === "decision" && sp.place.question && renderDecision(s, { ...sp.place, chapter: sp.place.key.slice(0, sp.place.key.lastIndexOf(":")) }),
           sp.place.kind && h("span.cr-kind", {}, t(`cr.placeKind.${sp.place.kind}`)),
           h("span.cr-place-note", { html: mdInline(sp.place.note || t("cr.placeNoNote")) }),
-          h("span.cr-place-acts", {}, tool(t("cr.askHunk"), onPlace(sp, "question")), tool(t("cr.commentHunk"), onPlace(sp, "fix"))),
+          h("span.cr-place-acts", {}, tool(t("cr.askHunk"), onPlace(sp, "question", owner, source)), tool(t("cr.commentHunk"), onPlace(sp, "fix", owner, source))),
         ),
       ),
     );
@@ -229,13 +238,31 @@ export function renderPiece(s, piece, { folded = false } = {}) {
         continue;
       }
       for (const sp of spans) if (sp.first === i) out.push(placeRow(sp));
-      out.push(lineRow(lines[i], inPlace.get(i), painted[i]));
+      out.push(lineRow(lines[i], inPlace.get(i), painted[i], piece.id, marks.get(i)));
       if (lines[i].noeol) out.push(eolRow());
       i++;
     }
     const above = st.file && st.above ? st.file.before.slice(-st.above) : [];
     const below = st.file && st.below ? st.file.after.slice(0, st.below) : [];
-    return [...above.map(farRow), ...out, ...below.map(farRow)];
+    const sources = new Map();
+    for (const l of [...(st.file?.before ?? []), ...(st.file?.after ?? [])]) {
+      if (!l.owner) continue;
+      if (!sources.has(l.owner)) sources.set(l.owner, []);
+      sources.get(l.owner).push(l);
+    }
+    const neighbourPlaces = new Map([...sources].map(([owner, source]) => [owner, s.focusOf(owner).map(p => spanOf(source, p)).filter(Boolean)]));
+    const neighbours = (list) => list.flatMap((l) => {
+      if (!l.owner) return [farRow(l)];
+      const source = sources.get(l.owner);
+      const places = neighbourPlaces.get(l.owner);
+      const i = source.indexOf(l);
+      const row = lineRow(l, undefined, l.code, l.owner, l.mark);
+      row.classList.add("far");
+      const focus = places.find(sp => i >= sp.first && i <= sp.last);
+      if (focus) { row.classList.add("focus"); if (focus.place.kind) row.classList.add(`kind-${focus.place.kind}`); }
+      return [...places.filter(sp => sp.first === i).map(sp => placeRow(sp, l.owner, source)), row, ...(l.noeol ? [eolRow()] : [])];
+    });
+    return [...neighbours(above), ...out, ...neighbours(below)];
   }
 
   // Draws the lines again. hold: the key of a line that should stay where it is on the screen.
@@ -299,15 +326,24 @@ export function renderPiece(s, piece, { folded = false } = {}) {
     // A click that ends a text selection is a selection, not a comment.
     if (!row || String(getSelection())) return;
     const [side, line] = row.dataset.key.split(":");
-    s.compose({ hunk: piece.id, line: Number(line), side, kind: "fix" });
+    compose({ hunk: row.dataset.owner, line: Number(line), side, kind: "fix" });
   });
 
   el.coverageState = () => {
     if (!isHunk) return "opened";
     const changed = lines.filter((l) => l.t === "add" || l.t === "del").length;
     // Count rendered rows: a full-diff request can be pending while s.full is already true.
-    const shown = tbody.querySelectorAll("tr.cr-line.add, tr.cr-line.del").length;
+    const shown = tbody.querySelectorAll(`tr.cr-line.add[data-owner="${piece.id}"], tr.cr-line.del[data-owner="${piece.id}"]`).length;
     return shown === changed ? "opened" : shown ? "part" : null;
+  };
+  el.coveragePieces = () => {
+    const result = { [piece.id]: el.coverageState() };
+    for (const owner of new Set([...(st.file?.before ?? []), ...(st.file?.after ?? [])].map(l => l.owner).filter(Boolean))) {
+      const all = [...st.file.before, ...st.file.after].filter(l => l.owner === owner && l.t !== "ctx").length;
+      const shown = tbody.querySelectorAll(`tr.cr-line.add[data-owner="${owner}"], tr.cr-line.del[data-owner="${owner}"]`).length;
+      result[owner] = shown === all ? "opened" : shown ? "part" : null;
+    }
+    return result;
   };
   el.unfold = () => { st.all = true; update(); };
   el.update = update;
@@ -397,26 +433,28 @@ export function composer(s) {
 // Lays the piece's comments, questions and the open box under their lines (or under the bar, for the
 // ones about the piece as a whole). Rows it made before are reused, so the box is never rebuilt.
 export function paintNotes(s, el, piece) {
-  const said = s.notesOf(piece.id);
-  const d = s.draft?.hunk === piece.id ? s.draft : null;
+  const tbody = el.querySelector("tbody");
+  const owners = new Set([piece.id, ...[...(tbody?.querySelectorAll("tr.cr-line") ?? [])].map(r => r.dataset.owner)]);
+  const said = [...owners].flatMap(id => s.notesOf(id).filter(c => id === piece.id || Number.isInteger(c.line)));
+  const d = (s.draft?.view || s.draft?.hunk) === piece.id ? s.draft : null;
+  const address = (owner, key) => key ? `${owner}/${key}` : "";
   const groups = new Map();
   const group = (key) => groups.get(key) || groups.set(key, { list: [], box: false }).get(key);
-  for (const c of said) if (c.id !== d?.edit) group(keyOf(c)).list.push(c);
-  if (d) group(keyOf(d)).box = true;
+  for (const c of said) if (c.id !== d?.edit) group(address(c.hunk, keyOf(c))).list.push(c);
+  if (d) group(address(d.hunk, keyOf(d))).box = true;
 
-  const tbody = el.querySelector("tbody");
-  const rows = new Map([...(tbody?.querySelectorAll("tr.cr-line") ?? [])].map((r) => [r.dataset.key, r]));
+  const rows = new Map([...(tbody?.querySelectorAll("tr.cr-line") ?? [])].map((r) => [address(r.dataset.owner, r.dataset.key), r]));
   // A comment whose line is not on screen falls back to the piece's own notes.
   for (const [key, g] of [...groups]) {
     if (!key || rows.has(key)) continue;
     const top = group("");
-    top.list.push(...g.list);
+    top.list.push(...g.list.filter(c => c.hunk === piece.id));
     top.box ||= g.box;
     groups.delete(key);
   }
 
   const lay = (cell, g) => {
-    cell.querySelector(".cr-list").replaceChildren(...g.list.map((c) => saved(s, c)));
+    cell.querySelector(".cr-list").replaceChildren(...g.list.map((c) => saved({ ...s, compose: (d) => s.compose({ ...d, view: piece.id }) }, c)));
     const slot = cell.querySelector(".cr-slot");
     if (g.box) {
       if (s.box.parentNode !== slot) slot.replaceChildren(s.box);
@@ -432,16 +470,16 @@ export function paintNotes(s, el, piece) {
   if (g0) lay(cellOf(top), g0);
   else top.replaceChildren();
 
-  for (const note of [...(tbody?.querySelectorAll("tr.cr-note") ?? [])]) if (!groups.has(note.dataset.key) || !rows.has(note.dataset.key)) note.remove();
+  for (const note of [...(tbody?.querySelectorAll("tr.cr-note") ?? [])]) if (!groups.has(note.dataset.address) || !rows.has(note.dataset.address)) note.remove();
   for (const [key, g] of groups) {
     if (!key) continue;
     const row = rows.get(key);
     let note = row.nextElementSibling;
     // The "no newline" mark belongs to the line: the note goes under it.
     if (note?.classList.contains("eol")) note = note.nextElementSibling;
-    if (!note?.classList.contains("cr-note") || note.dataset.key !== key) {
+    if (!note?.classList.contains("cr-note") || note.dataset.address !== key) {
       const after = row.nextElementSibling?.classList.contains("eol") ? row.nextElementSibling : row;
-      note = h("tr.cr-note", { dataset: { key } }, h("td", { colspan: 4 }));
+      note = h("tr.cr-note", { dataset: { key: row.dataset.key, address: key } }, h("td", { colspan: 4 }));
       after.after(note);
     }
     lay(cellOf(note.firstChild), g);
