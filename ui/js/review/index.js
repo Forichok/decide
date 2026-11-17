@@ -37,7 +37,15 @@ export function mountReview(round, env) {
     note: "", // the words that go with the verdict
     current: "overview",
     sending: false,
+    full: false, // the whole diff: nothing folded
   };
+
+  // ---- key places: piece id → the places of its chapter that fall on it
+  const places = new Map();
+  s.rv.chapters.forEach((c) => c.focus.forEach((f, k) => f.pieces.forEach((id) => places.set(id, [...(places.get(id) || []), { ...f, key: `${c.id}:${k}` }]))));
+  s.focusOf = (piece) => places.get(piece) || [];
+  // Is anything on this page folded on the agent's word: key places or a chapter to skim.
+  s.guided = s.rv.chapters.some((c) => c.focus.length) || s.spec.chapters.some((c) => c.skim);
 
   // ---- text that must survive a reload: the open box and the note to the verdict
   const KEY = `decide.review.${round.id}`;
@@ -54,6 +62,10 @@ export function mountReview(round, env) {
     if (typeof kept.note === "string") s.note = kept.note;
   } catch {}
   holdReload("view", () => Boolean((s.draft?.text || "").trim() || s.note.trim()));
+  const FULL = `decide.review.full.${round.id}`;
+  try {
+    s.full = sessionStorage.getItem(FULL) === "1";
+  } catch {}
 
   // ---- what was said
   // Comments and questions as one list: a question is a dialog entry, with the agent's reply once it came.
@@ -68,15 +80,14 @@ export function mountReview(round, env) {
     return { fix: of("fix"), nit: of("nit"), question: of("question"), open: all.filter((c) => c.kind === "question" && !c.reply).length };
   };
   s.checks = () => ({ failed: s.spec.checks.filter((c) => checkState(c) === "failed").length, missing: s.spec.checks.filter((c) => checkState(c) === "missing").length, total: s.spec.checks.length });
-  // Chapter id → how many notes sit on its pieces (known for the pieces already loaded).
+  // Chapter id → how many notes sit on its pieces.
+  const chapterOf = new Map(s.rv.chapters.flatMap((c) => c.ids.map((id) => [id, c.id])));
   s.byChapter = () => {
     const out = new Map();
-    for (const c of s.notes()) {
-      const group = s.loaded.get(c.hunk)?.group || "";
-      if (group.startsWith("ch:")) out.set(group.slice(3), (out.get(group.slice(3)) || 0) + 1);
-    }
+    for (const c of s.notes()) if (chapterOf.has(c.hunk)) out.set(chapterOf.get(c.hunk), (out.get(chapterOf.get(c.hunk)) || 0) + 1);
     return out;
   };
+  const isRead = (id) => Object.hasOwn(s.rv.read, id);
 
   // ---- screen
   document.body.classList.add("review-mode");
@@ -105,6 +116,28 @@ export function mountReview(round, env) {
     if (!el) return;
     el.scrollIntoView({ behavior: reduced.matches ? "auto" : "smooth", block: "start" });
     el.focus?.({ preventScroll: true });
+  };
+  // To a key place: its chapter is loaded, the row that names it comes to the middle of the screen.
+  s.goPlace = async (chapter, k) => {
+    const row = await chapters.place(chapter, k);
+    if (!row) return;
+    row.scrollIntoView({ behavior: reduced.matches ? "auto" : "smooth", block: "center" });
+    row.classList.remove("flash");
+    requestAnimationFrame(() => row.classList.add("flash"));
+  };
+  // The whole diff, nothing folded, or back to the key places. The chapter being read stays in place.
+  s.setFull = (on) => {
+    const anchor = stopEl(s.current);
+    const top = anchor?.getBoundingClientRect().top;
+    s.full = on;
+    try {
+      if (on) sessionStorage.setItem(FULL, "1");
+      else sessionStorage.removeItem(FULL);
+    } catch {}
+    chapters.redraw();
+    rail.paint();
+    const now = anchor?.getBoundingClientRect().top;
+    if (top !== undefined && now !== top) scrollBy({ top: now - top, behavior: "instant" });
   };
   s.goFolds = (key) => {
     const el = key ? stopEl(key) : document.getElementById("cr-folds");
@@ -140,7 +173,7 @@ export function mountReview(round, env) {
   function setReview(review, seq = 0) {
     if (seq && seq < s.seq) return;
     s.seq = Math.max(s.seq, seq);
-    s.rv = { ...s.rv, comments: review.comments ?? s.rv.comments, read: review.read ?? s.rv.read };
+    s.rv = { ...s.rv, comments: review.comments ?? s.rv.comments, read: review.read ?? s.rv.read, ...(review.newer !== undefined ? { newer: review.newer } : {}) };
     s.paint();
   }
   const failed = (e) => {
@@ -167,9 +200,10 @@ export function mountReview(round, env) {
   }
   s.closeDraft = closeBox;
   s.compose = (d) => {
-    // Another box with words in it is not thrown away for a click on a line.
-    if (s.draft && (s.draft.text || "").trim() && !(s.draft.hunk === d.hunk && s.draft.line === d.line && s.draft.side === d.side)) {
-      toast(t("cr.oneBox"));
+    // A box with words in it is not thrown away for a click: not on another line, not on its own.
+    if (s.draft && (s.draft.text || "").trim()) {
+      const same = s.draft.hunk === d.hunk && s.draft.line === d.line && s.draft.side === d.side;
+      if (!same) toast(t("cr.oneBox"));
       s.box?.scrollIntoView({ behavior: reduced.matches ? "auto" : "smooth", block: "center" });
       return s.box?.focusText();
     }
@@ -205,7 +239,7 @@ export function mountReview(round, env) {
     }
   };
   s.toggleRead = async (chapter) => {
-    const read = !s.rv.read[chapter];
+    const read = !isRead(chapter);
     try {
       await reviewRead(round.id, chapter, read);
       await refresh();
@@ -227,7 +261,7 @@ export function mountReview(round, env) {
     let verdict = first;
     const n = s.counts();
     const checks = s.checks();
-    const unread = s.spec.chapters.filter((c) => !s.rv.read[c.id]);
+    const unread = s.spec.chapters.filter((c) => !isRead(c.id));
     const text = h("p");
     const alerts = h("div");
     const confirm = h("button.btn.primary", { type: "button", "data-autofocus": true, onclick: () => submit() });
@@ -317,6 +351,9 @@ export function mountReview(round, env) {
     if (s.draft && !(s.draft.text || "").trim()) closeBox();
   };
   document.addEventListener("keydown", onKey);
+  // Back on the page after a while: the branch may have a commit this review does not show.
+  const onShow = () => document.visibilityState === "visible" && refresh();
+  document.addEventListener("visibilitychange", onShow);
 
   function openKeys() {
     const close = openModal(
@@ -359,6 +396,7 @@ export function mountReview(round, env) {
     finish: () => (modalOpen() ? null : s.verdict(suggested())),
     stop() {
       document.removeEventListener("keydown", onKey);
+      document.removeEventListener("visibilitychange", onShow);
       removeEventListener("scroll", onScroll);
       chapters.stop();
       document.body.classList.remove("review-mode");

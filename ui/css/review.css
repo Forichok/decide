@@ -105,6 +105,27 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 .cr-watch b { font-weight: 650; }
 .cr-watch.high b { color: var(--danger); }
 .cr-watch.medium b { color: var(--warn); }
+/* what to read in a chapter: the key places by name, a chapter to skim, the fold with its other hunks */
+.cr-skim { margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); color: var(--tx-mut); font-size: 14px; }
+.cr-skim b { font-weight: 650; color: var(--tx); }
+.cr-places { margin: 14px 0 0; font-size: 14px; }
+.cr-places > b { font-size: 12.5px; font-weight: 650; color: var(--tx-mut); }
+.cr-places ol { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.cr-places button { display: flex; gap: 4px 10px; flex-wrap: wrap; align-items: baseline; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--surface-solid); border-radius: 10px; padding: 7px 12px; cursor: pointer; color: var(--tx); line-height: 1.45; }
+.cr-places button:hover { border-color: var(--line-strong); }
+.cr-places code { font: 12px/1.5 var(--mono); color: var(--tx-mut); overflow-wrap: anywhere; }
+.cr-others { margin-top: 18px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-solid); }
+.cr-others > summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; font-weight: 620; font-size: 14px; flex-wrap: wrap; border-radius: var(--r-md); }
+.cr-others > summary::-webkit-details-marker { display: none; }
+.cr-others .what { font-weight: 400; color: var(--tx-mut); font-size: 13px; flex: 1 1 160px; }
+.cr-others .cr-chev { display: inline-flex; transition: transform 0.18s; transform: rotate(-90deg); color: var(--tx-dim); }
+.cr-others[open] .cr-chev { transform: none; }
+.cr-others[open] > summary { border-bottom: 1px solid var(--line); border-radius: var(--r-md) var(--r-md) 0 0; }
+.cr-others > .cr-hunk { margin: 12px; }
+.cr-how { margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); color: var(--tx-mut); font-size: 14px; text-wrap: pretty; }
+.cr-full { display: block; width: calc(100% - 20px); margin: 14px 10px 0; padding: 7px 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: none; color: var(--tx-mut); font-size: 12.5px; font-weight: 620; cursor: pointer; }
+.cr-full:hover { color: var(--tx); background: var(--surface-3); }
+.cr-full[aria-pressed="true"] { color: var(--accent-tx); border-color: var(--accent); }
 .cr-ch-foot { display: flex; align-items: center; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
 .cr-hint { color: var(--tx-dim); font-size: 13px; }
 .btn.cr-sm { padding: 6px 12px; font-size: 13px; }
@@ -117,10 +138,11 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 .cr-path { font: 600 12.5px/1.5 var(--mono); color: var(--tx); overflow-wrap: anywhere; }
 .cr-path s { color: var(--tx-dim); font-weight: 500; }
 .cr-at { flex: 1 1 0; min-width: 40px; font: 12px/1.5 var(--mono); color: var(--tx-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cr-tools { display: flex; flex: none; margin-left: auto; }
+.cr-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
 .cr-tool { border: 0; background: none; padding: 4px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--tx-mut); cursor: pointer; white-space: nowrap; }
 .cr-tool:hover { background: var(--surface-3); color: var(--tx); }
 .cr-tool[disabled] { opacity: 0.5; cursor: default; }
+.cr-tool[aria-pressed="true"] { color: var(--accent-tx); }
 .cr-plain { margin: 0; padding: 12px 14px; color: var(--tx-mut); font-size: 13.5px; }
 .cr-hunk-notes:not(:empty) { padding: 10px 12px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
 .cr-diff { width: 100%; border-collapse: collapse; table-layout: fixed; font: 12.5px/1.6 var(--mono); }
@@ -142,6 +164,28 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
   content: "+"; position: absolute; left: 4px; top: 2px; width: 16px; height: 16px; border-radius: 5px;
   background: var(--accent); color: var(--on-accent); font: 700 13px/16px var(--font); text-align: center;
 }
+.cr-diff tr.far.add td.s { color: var(--ok); }
+.cr-diff tr.far.del td.s { color: var(--danger); }
+/* a key place: the lines the agent asks to read, and the row that says why */
+.cr-diff tr.cr-line.focus td.n:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.cr-diff tr.cr-place td { padding: 7px 12px 7px 14px; font: 13.5px/1.45 var(--font); color: var(--tx); background: var(--accent-soft, var(--surface-2)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); box-shadow: inset 3px 0 0 var(--accent); }
+.cr-diff tr.cr-place b { color: var(--accent-tx); font-weight: 650; }
+.cr-diff tr.cr-place.flash td { animation: cr-flash 1.2s ease-out; }
+@keyframes cr-flash { from { background: color-mix(in srgb, var(--accent) 30%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .cr-diff tr.cr-place.flash td { animation: none; } }
+/* folded lines of a hunk */
+.cr-diff tr.cr-gap td { padding: 0; background: var(--surface-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.cr-diff tr.cr-gap:first-child td { border-top: 0; }
+.cr-diff tr.cr-gap:last-child td { border-bottom: 0; }
+.cr-gap-in { display: flex; align-items: center; gap: 2px 6px; flex-wrap: wrap; padding: 3px 8px 3px 14px; font: 12.5px/1.5 var(--font); }
+.cr-gap-n { color: var(--tx-dim); margin-right: 6px; }
+.cr-gap-n::before { content: "⋯ "; }
+/* a long test file as the list of its tests */
+.cr-tests { padding: 10px 14px 12px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.cr-tests b { font-weight: 650; color: var(--tx-mut); font-size: 12.5px; }
+.cr-tests ol { margin: 6px 0 0; padding: 0 0 0 22px; display: grid; gap: 1px; color: var(--tx-dim); }
+.cr-tests button { border: 0; background: none; padding: 1px 4px; border-radius: 6px; text-align: left; color: var(--tx); cursor: pointer; font-size: 13.5px; line-height: 1.45; }
+.cr-tests button:hover { background: var(--surface-3); }
 .cr-diff tr.eol td.t { color: var(--tx-dim); font-style: italic; }
 .cr-diff tr.cr-note td { padding: 8px 12px 10px 54px; background: var(--surface-solid); font-family: var(--font); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 @media (max-width: 620px) { .cr-diff tr.cr-note td { padding-left: 12px; } .cr-diff col.n { width: 34px; } }

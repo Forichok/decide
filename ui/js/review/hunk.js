@@ -1,35 +1,87 @@
 // review/hunk.js — one piece of the diff: its bar (file, where, tools), the lines in one column, and
 // what was said on them: saved comments, questions with the agent's answers, and the box being typed in.
-// A click on a line opens the box there; "Whole file" lays the hunk into the file around it.
+// A click on a line opens the box there.
+//
+// A piece opens on what a person should read: the key places the agent named, with a few lines around
+// each. Its other lines are folded into gaps, and three things bring them back:
+//   a gap's own buttons       20 more lines of the hunk, or all of them
+//   "Lines around"            20 more lines of the file above and below the hunk
+//   "Whole file"              the file with every hunk of its diff laid in
+// A piece with no key place is shown whole when it is short, by its first lines when it is long, and
+// folded when its chapter has key places elsewhere. A long test file lists the names of its tests.
 
 import { h } from "../dom.js";
 import { t } from "../i18n.js";
-import { md } from "../md.js";
+import { md, mdInline } from "../md.js";
 import { reviewFile } from "../net.js";
 import { toast } from "../overlays.js";
 
 const KINDS = ["fix", "question", "nit"];
 const keyOf = (x) => (Number.isInteger(x.line) ? `${x.side === "old" ? "old" : "new"}:${x.line}` : "");
 
+const CONTEXT = 3; // lines kept around a key place
+const NOTE_CONTEXT = 2; // and around a line somebody wrote on
+const LONG = 60; // a hunk longer than this opens on its first lines
+const HEAD = 20;
+const STEP = 20; // what one press of "more" shows
+const TEST_LIST = 30; // a test file longer than this opens as a list of its tests
+const TEST_NAME = /^\s*(?:test|it|describe)(?:\.\w+)*\(\s*(["'`])(.+?)\1/;
+
 // ---- the lines
-function lineRow(l) {
-  const side = l.t === "del" ? "old" : "new";
-  const line = side === "old" ? l.o : l.n;
-  return h(
-    `tr.cr-line.${l.t}`,
-    { dataset: { key: `${side}:${line}` } },
-    h("td.n", {}, l.o ?? ""),
-    h("td.n", {}, l.n ?? ""),
-    h("td.s", {}, l.t === "add" ? "+" : l.t === "del" ? "−" : ""),
-    h("td.t", {}, l.text),
-  );
+const lineKey = (l) => (l.t === "del" ? `old:${l.o}` : `new:${l.n}`);
+const sign = (kind) => (kind === "add" ? "+" : kind === "del" ? "−" : "");
+function lineRow(l, focus) {
+  return h(`tr.cr-line.${l.t}${focus ? ".focus" : ""}`, { dataset: { key: lineKey(l) } }, h("td.n", {}, l.o ?? ""), h("td.n", {}, l.n ?? ""), h("td.s", {}, sign(l.t)), h("td.t", {}, l.text));
 }
 const eolRow = () => h("tr.eol", {}, h("td.n"), h("td.n"), h("td.s"), h("td.t", {}, t("cr.noeol")));
-// A line of the file outside the hunk: read only, it takes no comment.
-const farRow = (text, n, side) => h("tr.far", {}, h("td.n", {}, side === "old" ? n : ""), h("td.n", {}, side === "old" ? "" : n), h("td.s"), h("td.t", {}, text));
+// A line of the file outside the piece: read only, it takes no comment. Another hunk's line keeps its mark.
+const farRow = (l) => h(`tr.far${l.t === "ctx" ? "" : `.${l.t}`}`, {}, h("td.n", {}, l.o ?? ""), h("td.n", {}, l.n ?? ""), h("td.s", {}, sign(l.t)), h("td.t", {}, l.text));
 
-function hunkRows(piece) {
-  return piece.lines.flatMap((l) => (l.noeol ? [lineRow(l), eolRow()] : [lineRow(l)]));
+const fill = (set, from, to, n) => {
+  for (let i = Math.max(0, from); i <= Math.min(n - 1, to); i++) set.add(i);
+};
+
+// Where a key place sits in the piece's lines: { first, last }; null when none of its lines is here.
+function spanOf(lines, place) {
+  const inside = lines.map((l, i) => (l.t !== "del" && l.n >= place.from && l.n <= place.to ? i : -1)).filter((i) => i >= 0);
+  if (!inside.length) return null;
+  let first = inside[0];
+  // The lines removed just above belong to the place: they are what the new lines replaced.
+  while (first > 0 && lines[first - 1].t === "del") first--;
+  return { first, last: inside.at(-1), place };
+}
+
+// The tests a piece adds or touches, by name: [{ i, name }].
+const testNames = (lines) => lines.map((l, i) => (l.t === "del" ? null : { i, name: TEST_NAME.exec(l.text)?.[2] })).filter((x) => x?.name);
+
+// The file around the piece: what comes before its lines and what comes after, every other hunk of the
+// file with its own marks.
+function layFile(file, piece) {
+  const text = file.text.split("\n");
+  if (text.at(-1) === "") text.pop();
+  const before = [];
+  const after = [];
+  if (file.side === "old") {
+    const first = piece.oldLines ? piece.oldStart : piece.oldStart + 1;
+    text.forEach((line, i) => (i + 1 < first ? before : i + 1 >= first + piece.oldLines ? after : []).push({ t: "ctx", text: line, o: i + 1 }));
+    return { before, after };
+  }
+  const hunks = (file.hunks ?? []).some((x) => x.id === piece.id) ? [...file.hunks].sort((a, b) => a.newStart - b.newStart) : [{ id: piece.id, newStart: piece.newStart, newLines: piece.newLines, lines: [] }];
+  let into = before;
+  let at = 1;
+  const plain = (upTo) => {
+    for (; at < upTo && at <= text.length; at++) into.push({ t: "ctx", text: text[at - 1], n: at });
+  };
+  for (const hunk of hunks) {
+    // A hunk with no lines on this side sits after the line git names.
+    const first = hunk.newLines ? hunk.newStart : hunk.newStart + 1;
+    plain(first);
+    if (hunk.id === piece.id) into = after;
+    else for (const l of hunk.lines) into.push(l.t === "ctx" ? { t: "ctx", text: l.text, n: l.n } : l);
+    at = first + hunk.newLines;
+  }
+  plain(text.length + 1);
+  return { before, after };
 }
 
 function where(piece) {
@@ -40,10 +92,58 @@ function where(piece) {
 const STATUS = { added: "cr.status.added", deleted: "cr.status.deleted", renamed: "cr.status.renamed", copied: "cr.status.copied" };
 const PLAIN = { binary: "cr.plain.binary", rename: "cr.plain.rename", mode: "cr.plain.mode", empty: "cr.plain.empty" };
 
-// s: the review's state (index.js). Returns the piece's element; its notes are painted by paintNotes.
-export function renderPiece(s, piece) {
-  const tbody = h("tbody", {}, piece.kind === "hunk" ? hunkRows(piece) : []);
-  const whole = piece.kind === "hunk" && h("button.cr-tool", { type: "button", onclick: () => toggleFile() }, t("cr.whole"));
+// s: the review's state (index.js). folded: the piece's chapter has key places elsewhere, or is one to
+// skim: the piece opens as one folded line. Returns the piece's element; el.paint() lays what was said.
+export function renderPiece(s, piece, { folded = false } = {}) {
+  const isHunk = piece.kind === "hunk";
+  const lines = isHunk ? piece.lines : [];
+  const n = lines.length;
+  const index = new Map(lines.map((l, i) => [lineKey(l), i]));
+  const spans = isHunk ? s.focusOf(piece.id).map((place) => spanOf(lines, place)).filter(Boolean) : [];
+  const inPlace = new Set();
+  for (const sp of spans) fill(inPlace, sp.first, sp.last, n);
+  const names = piece.test && !spans.length && n > TEST_LIST ? testNames(lines) : [];
+  const listed = names.length > 0;
+
+  // What the piece opens on, before anybody asked for more.
+  const base = new Set();
+  for (const sp of spans) fill(base, sp.first - CONTEXT, sp.last + CONTEXT, n);
+  if (!spans.length && !folded && !listed) fill(base, 0, n > LONG ? HEAD - 1 : n - 1, n);
+  const st = { all: false, more: new Set(), above: 0, below: 0, file: null, busy: false };
+
+  // The lines on screen; null when it is all of them.
+  function visible() {
+    if (s.full || st.all || st.above === Infinity) return null;
+    const set = new Set([...base, ...st.more]);
+    // What was said on a line is never folded away, nor the line being written on.
+    const said = s.notesOf(piece.id).map(keyOf);
+    if (s.draft?.hunk === piece.id) said.push(keyOf(s.draft));
+    for (const key of said) if (index.has(key)) fill(set, index.get(key) - NOTE_CONTEXT, index.get(key) + NOTE_CONTEXT, n);
+    return set.size >= n ? null : set;
+  }
+
+  const tbody = h("tbody");
+  const tool = (label, onclick, title) => h("button.cr-tool", { type: "button", onclick, ...(title ? { title } : {}) }, label);
+  // "The whole piece" unfolds every line of the hunk; "Fold" takes it back to what it opened on.
+  const expand =
+    isHunk &&
+    tool("", () => {
+      st.all = visible() !== null;
+      if (!st.all) st.more.clear();
+      update();
+    });
+  // A new or a deleted file is one hunk: there is no file around it, "the whole piece" is the whole file.
+  const lone = piece.status === "added" || piece.status === "deleted";
+  const around = isHunk && !lone && tool(t("cr.around"), () => moreFile(false), t("cr.aroundTitle", STEP));
+  const whole = isHunk && !lone && tool(t("cr.whole"), () => moreFile(true));
+  const tests =
+    listed &&
+    h(
+      "div.cr-tests",
+      {},
+      h("b", {}, t("cr.tests", names.length)),
+      h("ol", {}, names.map((x, k) => h("li", {}, h("button", { type: "button", onclick: () => showTest(k) }, x.name)))),
+    );
   const el = h(
     "div.cr-hunk",
     { dataset: { hunk: piece.id } },
@@ -53,20 +153,109 @@ export function renderPiece(s, piece) {
       h("span.cr-path", {}, piece.oldFile && piece.oldFile !== piece.file ? [h("s", {}, piece.oldFile), " → "] : null, piece.file),
       piece.test && h("span.badge.cr-test", {}, t("cr.test")),
       STATUS[piece.status] && h("span.badge", {}, t(STATUS[piece.status])),
+      piece.modes && h("span.badge", {}, t("cr.modes", piece.modes[0], piece.modes[1])),
       h("span.cr-at", {}, where(piece)),
-      h(
-        "span.cr-tools",
-        {},
-        whole,
-        h("button.cr-tool", { type: "button", onclick: () => s.compose({ hunk: piece.id, kind: "question" }) }, t("cr.askHunk")),
-        h("button.cr-tool", { type: "button", onclick: () => s.compose({ hunk: piece.id, kind: "fix" }) }, t("cr.commentHunk")),
-      ),
+      h("span.cr-tools", {}, expand, around, whole, tool(t("cr.askHunk"), () => s.compose({ hunk: piece.id, kind: "question" })), tool(t("cr.commentHunk"), () => s.compose({ hunk: piece.id, kind: "fix" }))),
     ),
     h("div.cr-hunk-notes"),
-    piece.kind === "hunk"
-      ? h("table.cr-diff", {}, h("colgroup", {}, h("col.n"), h("col.n"), h("col.s"), h("col")), tbody)
-      : h("p.cr-plain", {}, t(PLAIN[piece.kind] || "cr.plain.empty")),
+    tests,
+    isHunk ? h("table.cr-diff", {}, h("colgroup", {}, h("col.n"), h("col.n"), h("col.s"), h("col")), tbody) : h("p.cr-plain", {}, t(PLAIN[piece.kind] || "cr.plain.empty")),
   );
+
+  // "⋯ 140 lines": the folded lines a to b, with what shows more of them.
+  function gapRow(a, b) {
+    const count = b - a + 1;
+    const show = (from, to, hold) => () => (fill(st.more, from, to, n), update(hold));
+    const below = b + 1 < n ? lineKey(lines[b + 1]) : "";
+    const acts =
+      count <= STEP
+        ? [tool(t("cr.gapShow", count), show(a, b))]
+        : [
+            a > 0 && tool(t("cr.gapDown", STEP), show(a, a + STEP - 1, below), t("cr.gapDownTitle")),
+            b < n - 1 && tool(t("cr.gapUp", STEP), show(b - STEP + 1, b), t("cr.gapUpTitle")),
+            a === 0 && b === n - 1 && tool(t("cr.gapFirst", STEP), show(0, STEP - 1)),
+            tool(t("cr.gapAll", count), show(a, b)),
+          ];
+    return h("tr.cr-gap", { dataset: { from: a, to: b } }, h("td", { colspan: 4 }, h("div.cr-gap-in", {}, h("span.cr-gap-n", {}, t("cr.gap", count)), acts)));
+  }
+  const placeRow = (sp) => h("tr.cr-place", { dataset: { focus: sp.place.key } }, h("td", { colspan: 4 }, h("b", {}, t("cr.place")), " ", h("span", { html: mdInline(sp.place.note || t("cr.placeNoNote")) })));
+
+  function rows() {
+    const vis = visible();
+    const out = [];
+    for (let i = 0; i < n; ) {
+      if (vis && !vis.has(i)) {
+        let j = i;
+        while (j < n && !vis.has(j)) j++;
+        out.push(gapRow(i, j - 1));
+        i = j;
+        continue;
+      }
+      for (const sp of spans) if (sp.first === i) out.push(placeRow(sp));
+      out.push(lineRow(lines[i], inPlace.has(i)));
+      if (lines[i].noeol) out.push(eolRow());
+      i++;
+    }
+    const above = st.file && st.above ? st.file.before.slice(-st.above) : [];
+    const below = st.file && st.below ? st.file.after.slice(0, st.below) : [];
+    return [...above.map(farRow), ...out, ...below.map(farRow)];
+  }
+
+  // Draws the lines again. hold: the key of a line that should stay where it is on the screen.
+  function update(hold) {
+    const typing = s.box?.contains(document.activeElement);
+    const at = (key) => (key ? tbody.querySelector(`tr.cr-line[data-key="${key}"]`)?.getBoundingClientRect().top : undefined);
+    const top = at(hold);
+    tbody.replaceChildren(...rows());
+    const vis = visible();
+    if (expand) {
+      expand.hidden = base.size >= n || s.full || st.above === Infinity;
+      expand.textContent = t(vis ? (lone ? "cr.whole" : "cr.pieceAll") : "cr.pieceFold");
+    }
+    if (whole) {
+      const far = st.file ? st.file.before.length + st.file.after.length : -1;
+      around.hidden = st.above === Infinity || far === 0 || (far > 0 && st.above >= st.file.before.length && st.below >= st.file.after.length);
+      whole.textContent = t(st.above === Infinity ? "cr.wholeBack" : "cr.whole");
+      el.classList.toggle("whole", st.above === Infinity);
+    }
+    if (tests) tests.hidden = !vis;
+    paintNotes(s, el, piece);
+    if (typing) s.box.focusText();
+    const now = at(hold);
+    if (top !== undefined && now !== undefined && now !== top) scrollBy({ top: now - top, behavior: "instant" });
+  }
+
+  // More of the file around the piece: 20 lines each way, or all of it; "Only the change" takes it back.
+  async function moreFile(all) {
+    if (st.busy) return;
+    const first = tbody.querySelector("tr.cr-line")?.dataset.key;
+    if (all && st.above === Infinity) {
+      st.above = st.below = 0;
+      return update(first);
+    }
+    if (!st.file) {
+      const side = piece.status === "deleted" ? "old" : "new";
+      st.busy = true;
+      let file;
+      try {
+        file = await reviewFile(s.id, side === "old" ? piece.oldFile || piece.file : piece.file, side);
+      } catch {
+        file = null;
+      }
+      st.busy = false;
+      if (!file || file.binary || typeof file.text !== "string") return toast(t("cr.wholeFailed"));
+      st.file = layFile(file, piece);
+    }
+    if (all) st.above = st.below = Infinity;
+    else [st.above, st.below] = [st.above + STEP, st.below + STEP];
+    update(first);
+  }
+
+  function showTest(k) {
+    fill(st.more, names[k].i, (names[k + 1]?.i ?? n) - 1, n);
+    update();
+    tbody.querySelector(`tr.cr-line[data-key="${lineKey(lines[names[k].i])}"]`)?.scrollIntoView({ block: "center" });
+  }
 
   tbody.addEventListener("click", (e) => {
     const row = e.target.closest("tr.cr-line");
@@ -76,48 +265,18 @@ export function renderPiece(s, piece) {
     s.compose({ hunk: piece.id, line: Number(line), side, kind: "fix" });
   });
 
-  let open = false;
-  let loading = false;
-  async function toggleFile() {
-    if (loading) return;
-    const anchor = tbody.querySelector("tr.cr-line");
-    const top = anchor?.getBoundingClientRect().top ?? 0;
-    if (open) {
-      tbody.replaceChildren(...hunkRows(piece));
-    } else {
-      const side = piece.status === "deleted" ? "old" : "new";
-      loading = true;
-      whole.disabled = true;
-      let file;
-      try {
-        file = await reviewFile(s.id, side === "old" ? piece.oldFile || piece.file : piece.file, side);
-      } catch {
-        file = null;
-      }
-      loading = false;
-      whole.disabled = false;
-      if (!file || file.binary || typeof file.text !== "string") return toast(t("cr.wholeFailed"));
-      const lines = file.text.split("\n");
-      if (lines.at(-1) === "") lines.pop();
-      const [start, count] = side === "old" ? [piece.oldStart, piece.oldLines] : [piece.newStart, piece.newLines];
-      // A hunk with no lines on this side sits after the line git names.
-      const first = count ? start : start + 1;
-      tbody.replaceChildren(
-        ...lines.slice(0, first - 1).map((text, i) => farRow(text, i + 1, side)),
-        ...hunkRows(piece),
-        ...lines.slice(first - 1 + count).map((text, i) => farRow(text, first + count + i, side)),
-      );
-    }
-    open = !open;
-    whole.textContent = t(open ? "cr.wholeBack" : "cr.whole");
-    el.classList.toggle("whole", open);
-    paintNotes(s, el, piece);
-    // The hunk stays where the eye was: the file grows above it.
-    const now = tbody.querySelector("tr.cr-line")?.getBoundingClientRect().top ?? top;
-    if (now !== top) scrollBy({ top: now - top, behavior: "instant" });
-  }
-
-  paintNotes(s, el, piece);
+  el.update = update;
+  // What was said changed: the notes are laid again, and a line that got one while folded is unfolded.
+  el.paint = () => {
+    const vis = isHunk && visible();
+    const hidden = vis && [...s.notesOf(piece.id).map(keyOf), s.draft?.hunk === piece.id ? keyOf(s.draft) : ""].some((key) => index.has(key) && !tbody.querySelector(`tr.cr-line[data-key="${key}"]`));
+    if (hidden) update();
+    else paintNotes(s, el, piece);
+  };
+  // Is there something here the reader was not shown: folded lines.
+  el.folded = () => isHunk && visible() !== null;
+  if (isHunk) update();
+  else paintNotes(s, el, piece);
   return el;
 }
 
@@ -186,6 +345,7 @@ export function composer(s) {
   const el = h("div.cr-compose", {}, seg, text, h("div.row", {}, send, h("button.btn.ghost.cr-sm", { type: "button", onclick: () => s.closeDraft() }, t("cr.cancel")), hint));
   pick(d.kind);
   el.focusText = () => text.focus({ preventScroll: true });
+  el.pick = pick;
   return el;
 }
 
@@ -210,7 +370,7 @@ export function paintNotes(s, el, piece) {
     groups.delete(key);
   }
 
-  const fill = (cell, g) => {
+  const lay = (cell, g) => {
     cell.querySelector(".cr-list").replaceChildren(...g.list.map((c) => saved(s, c)));
     const slot = cell.querySelector(".cr-slot");
     if (g.box) {
@@ -224,7 +384,7 @@ export function paintNotes(s, el, piece) {
 
   const top = el.querySelector(".cr-hunk-notes");
   const g0 = groups.get("");
-  if (g0) fill(cellOf(top), g0);
+  if (g0) lay(cellOf(top), g0);
   else top.replaceChildren();
 
   for (const note of [...(tbody?.querySelectorAll("tr.cr-note") ?? [])]) if (!groups.has(note.dataset.key) || !rows.has(note.dataset.key)) note.remove();
@@ -239,6 +399,6 @@ export function paintNotes(s, el, piece) {
       note = h("tr.cr-note", { dataset: { key } }, h("td", { colspan: 4 }));
       after.after(note);
     }
-    fill(cellOf(note.firstChild), g);
+    lay(cellOf(note.firstChild), g);
   }
 }

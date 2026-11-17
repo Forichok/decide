@@ -85,6 +85,10 @@ the user to message you when they are done, and on that message call
       "summary": "A token is 32 random bytes, stored hashed with its expiry. Using it deletes it.",
       "watch": "`consume()` reads and deletes in two statements. I think the unique index makes a double use fail, but look at it.",
       "risk": "high",
+      "focus": [
+        { "at": "lib/auth/token.mjs:41-58", "note": "`consume()`: the read and the delete are two statements." },
+        { "at": "db/migrations/0042_tokens.sql:3-9", "note": "The unique index that makes a second use fail." }
+      ],
       "hunks": ["lib/auth/token.mjs", "db/migrations/0042_tokens.sql", "test/token.test.mjs"]
     },
     {
@@ -112,6 +116,8 @@ the user to message you when they are done, and on that message call
 | `chapters[].watch`     | The line or the decision you are least sure of. The user reads it before the diff.                         |
 | `chapters[].risk`      | `high`, `medium` or `low` (default). A high chapter wants a risk in the overview that points to it.        |
 | `chapters[].hunks`     | References to the hunks of this chapter.                                                                   |
+| `chapters[].focus`     | `[{at, note}]`: the places to read, up to five. `at` is `"path:from-to"` in lines of the new file, inside this chapter's hunks. |
+| `chapters[].skim`      | One sentence on why the chapter needs no reading line by line. Not for a high-risk chapter.                |
 | `mechanical[]`         | `{title, hunks}`: one folded line on the page with a count.                                                |
 
 ### Naming hunks
@@ -153,6 +159,35 @@ lib/server.mjs" is not: that is how git sorts a diff.
   other in that chapter's summary.
 - Write `watch` only when there is something to watch. "Looks fine" on every
   chapter teaches the user to skip the field.
+
+## What the user reads
+
+A review that opens on a new file of 200 lines gets closed. The user will not
+read every line, and you know which twenty carry the decision. Name them.
+
+- `focus` lists the key places of a chapter: where the decision is made,
+  where input is checked, where data is written, the condition that changed.
+  Up to five per chapter, 10–30 lines each. The `note` says what to check
+  there: "the token is compared in constant time", not "important code".
+- The page opens such a chapter on those places, with three lines around
+  each. Hunks of the chapter with no key place go under one fold, "The rest
+  of the chapter", and a test file longer than 30 lines shows as the list of
+  its test names.
+- `skim` marks a chapter that needs no reading by line: documentation,
+  fixtures, wiring that repeats a pattern the repo already has. Say why in
+  one sentence. A high-risk chapter is never skim.
+- A chapter with neither opens in full; a hunk longer than 60 lines opens on
+  its first 20. Lint warns when a spec of three or more chapters names no key
+  place and no skim.
+
+Nothing is hidden for good. A folded gap opens 20 lines at a time or whole,
+a hunk has "Whole hunk", "Lines around" and "Whole file" on its bar, and
+"Show the whole diff" in the rail unfolds every chapter. Every line of a
+hunk takes a comment; the file's lines outside the change do not.
+
+So don't choose places to make the change look smaller. If the risky line is
+line 3 of a 200-line file, that line is the place. A place must lie inside
+the chapter's own hunks: lint names one that does not, and the page drops it.
 
 ## What counts as mechanical
 

@@ -5,7 +5,7 @@ import { h, icon } from "../dom.js";
 import { t } from "../i18n.js";
 import { md, mdInline } from "../md.js";
 import { reviewPieces } from "../net.js";
-import { paintNotes, renderPiece } from "./hunk.js";
+import { renderPiece } from "./hunk.js";
 
 const fileList = (names, max = 3) => (names.length > max ? `${names.slice(0, max).join(", ")} ${t("cr.moreFiles", names.length - max)}` : names.join(", "));
 const sizeOf = (g) => [t("cr.pieces", g.pieces), t("cr.files", g.files), `+${g.added} −${g.removed}`].join(" · ");
@@ -13,6 +13,13 @@ const sizeOf = (g) => [t("cr.pieces", g.pieces), t("cr.files", g.files), `+${g.a
 export function createChapters(s) {
   const cards = new Map(); // chapter id → {el, num, read, body}
   const groups = new Map(); // group key → {body, state: "idle" | "loading" | "ready" | "failed"}
+
+  // A chapter with key places (or one to skim) opens on those: its other pieces wait in one folded line.
+  const quiet = (key) => {
+    const i = key.startsWith("ch:") ? s.spec.chapters.findIndex((c) => c.id === key.slice(3)) : -1;
+    return i >= 0 && (s.rv.chapters[i].focus.length > 0 || Boolean(s.spec.chapters[i].skim));
+  };
+  const others = new Map(); // group key → the fold with the chapter's other pieces
 
   async function load(key) {
     const g = groups.get(key);
@@ -22,13 +29,26 @@ export function createChapters(s) {
     try {
       const { pieces } = await reviewPieces(s.id, key);
       g.state = "ready";
-      g.body.replaceChildren(
-        ...pieces.map((p) => {
-          const el = renderPiece(s, p);
-          s.loaded.set(p.id, { piece: p, el, group: key });
-          return el;
-        }),
-      );
+      const draw = (p, folded) => {
+        const el = renderPiece(s, p, { folded });
+        s.loaded.set(p.id, { piece: p, el, group: key });
+        return el;
+      };
+      const lead = quiet(key) ? pieces.filter((p) => s.focusOf(p.id).length) : pieces;
+      const tail = pieces.filter((p) => !lead.includes(p));
+      const fold =
+        tail.length > 0 &&
+        h(
+          "details.cr-others",
+          {},
+          h("summary", {}, h("span.cr-count", {}, tail.length), h("span", {}, t(lead.length ? "cr.others" : "cr.allPieces")), h("span.what", {}, `${t("cr.files", new Set(tail.map((p) => p.file)).size)} · +${tail.reduce((a, p) => a + p.added, 0)} −${tail.reduce((a, p) => a + p.removed, 0)}`), h("span.cr-chev", { html: icon("chevron") })),
+          tail.map((p) => draw(p, true)),
+        );
+      g.body.replaceChildren(...lead.map((p) => draw(p, false)), ...(fold ? [fold] : []));
+      if (fold) {
+        others.set(key, { fold, ids: tail.map((p) => p.id) });
+        openOthers(key);
+      }
       if (!pieces.length) g.body.replaceChildren(h("div.cr-wait", {}, t("cr.noPieces")));
       // A chapter of code with no test in it: the reader should see that before the diff.
       if (key.startsWith("ch:") && pieces.length && !pieces.some((p) => p.test)) cards.get(key.slice(3))?.badges.append(h("span.badge.soft", {}, t("cr.noTests")));
@@ -37,16 +57,22 @@ export function createChapters(s) {
       g.body.replaceChildren(h("div.cr-wait", {}, t("cr.loadFailed"), h("button.btn.cr-sm", { type: "button", onclick: () => load(key) }, t("cr.retry"))));
     }
   }
+  // The fold opens by itself for the whole diff and for a piece somebody wrote on; the reader closes it.
+  function openOthers(key) {
+    const o = others.get(key);
+    if (!o) return;
+    if (s.full || o.ids.some((id) => s.notesOf(id).length || s.draft?.hunk === id)) o.fold.open = true;
+  }
 
   // The space a chapter will take, so that loading one above the screen moves the page as little as it can.
-  const reserve = (g) => `min-height: ${Math.min(2400, 90 * g.pieces + 21 * (g.added + g.removed + 6 * g.pieces))}px`;
+  const reserve = (g, key) => `min-height: ${quiet(key) ? Math.min(1400, 120 + 380 * g.focus.length) : Math.min(2400, 90 * g.pieces + 21 * Math.min(g.added + g.removed + 6 * g.pieces, 26 * g.pieces))}px`;
 
   const near = "IntersectionObserver" in window ? new IntersectionObserver((entries) => entries.forEach((e) => e.isIntersecting && (near.unobserve(e.target), load(e.target.dataset.group))), { rootMargin: "700px 0px" }) : null;
 
   const chapterCards = s.spec.chapters.map((c, i) => {
     const stat = s.rv.chapters[i];
     const key = `ch:${c.id}`;
-    const body = h("div.cr-body", { dataset: { group: key } }, h("div.cr-wait", { style: reserve(stat) }, t("cr.loading")));
+    const body = h("div.cr-body", { dataset: { group: key } }, h("div.cr-wait", { style: reserve(stat, key) }, t("cr.loading")));
     groups.set(key, { body, state: "idle" });
     const num = h("span.cr-ch-n", { "aria-hidden": "true" }, i + 1);
     const read = h("button.btn.cr-sm", { type: "button", onclick: () => s.toggleRead(c.id) });
@@ -62,6 +88,14 @@ export function createChapters(s) {
       h("div.cr-ch-head", {}, num, h("div.cr-ch-titles", {}, h("h2", { html: mdInline(c.title) }), badges)),
       c.summary && h("div.cr-ch-why.cr-md", { html: md(c.summary) }),
       c.watch && h(`div.cr-watch.${c.risk}`, {}, h("b", {}, t("cr.watch")), " ", h("span", { html: mdInline(c.watch) })),
+      c.skim && h("div.cr-skim", {}, h("b", {}, t("cr.skim")), " ", h("span", { html: mdInline(c.skim) })),
+      stat.focus.length > 0 &&
+        h(
+          "div.cr-places",
+          {},
+          h("b", {}, t("cr.places", stat.focus.length)),
+          h("ol", {}, stat.focus.map((f, k) => h("li", {}, h("button", { type: "button", onclick: () => s.goPlace(c.id, k) }, h("code", {}, `${f.file}:${f.from === f.to ? f.from : `${f.from}–${f.to}`}`), f.note && h("span", { html: mdInline(f.note) }))))),
+        ),
       body,
       h("div.cr-ch-foot", {}, read, h("span.cr-hint", {}, t("cr.readHint"))),
     );
@@ -99,24 +133,38 @@ export function createChapters(s) {
     // Read marks and everything said on the pieces already on screen.
     paint() {
       for (const [id, card] of cards) {
-        const read = Boolean(s.rv.read[id]);
+        const read = Object.hasOwn(s.rv.read, id);
         card.el.classList.toggle("read", read);
         card.num.textContent = read ? "✓" : card.index + 1;
         card.read.textContent = read ? t("cr.readDone") : t("cr.readMark");
         card.read.classList.toggle("cr-read-on", read);
         card.read.setAttribute("aria-pressed", String(read));
       }
-      for (const { piece, el: pieceEl } of s.loaded.values()) paintNotes(s, pieceEl, piece);
+      for (const { el: pieceEl } of s.loaded.values()) pieceEl.paint();
+      for (const key of others.keys()) openOthers(key);
     },
     paintPiece(id) {
       const hit = s.loaded.get(id);
-      if (hit) paintNotes(s, hit.el, hit.piece);
+      if (!hit) return;
+      hit.el.paint();
+      openOthers(hit.group);
+    },
+    // "The whole diff" went on or off: every piece on screen is drawn again, the folds follow.
+    redraw() {
+      for (const { el: pieceEl } of s.loaded.values()) pieceEl.update();
+      for (const o of others.values()) o.fold.open = s.full || o.ids.some((id) => s.notesOf(id).length || s.draft?.hunk === id);
+    },
+    // The row that opens a key place, once its chapter is on screen; the fold it may sit in is opened.
+    async place(chapter, k) {
+      await load(`ch:${chapter}`);
+      return cards.get(chapter)?.el.querySelector(`tr.cr-place[data-focus="${CSS.escape(`${chapter}:${k}`)}"]`) ?? null;
     },
     // Opens the group a piece lives in (a folded one too) and resolves once it is on screen.
     async show(key) {
       const fold = key.startsWith("ch:") ? null : groups.get(key)?.body.parentNode;
       if (fold) fold.open = true;
       await load(key);
+      openOthers(key);
     },
     stop() {
       near?.disconnect();

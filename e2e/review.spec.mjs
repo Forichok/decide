@@ -10,8 +10,12 @@ import { startDecide } from "./helpers.mjs";
 const hasGit = spawnSync("git", ["--version"]).status === 0;
 const lines = (n, over = {}) => `${Array.from({ length: n }, (_, i) => over[i + 1] ?? `line ${i + 1}`).join("\n")}\n`;
 
+const testFile = (names) =>
+  `import test from "node:test";\n${names.map((n) => `test("${n}", () => {\n${Array.from({ length: 11 }, (_, i) => `  check(${i});`).join("\n")}\n});`).join("\n")}\n`;
+
 // main: a.mjs, a module, a logo, notes, a script. feature: two lines of a.mjs rewritten (two hunks), the
 // module renamed, the logo redrawn, a line added to notes, the script made executable, a test added.
+// guide, also off main: a new file of 90 lines, one line of a.mjs, a test file of three tests (40 lines).
 function fixtureRepo(dir) {
   const env = { ...process.env, GIT_CONFIG_GLOBAL: process.platform === "win32" ? "NUL" : "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
   for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete env[k];
@@ -39,6 +43,13 @@ function fixtureRepo(dir) {
   write("test/a.test.mjs", 'import test from "node:test";\ntest("a", () => {});\n');
   git("add", "-A");
   git("commit", "-q", "-m", "the change");
+  git("checkout", "-q", "-b", "guide", "main");
+  write("lib/big.mjs", lines(90));
+  write("lib/a.mjs", lines(60, { 30: "line thirty" }));
+  write("test/big.test.mjs", testFile(["opens", "folds", "keeps a comment"]));
+  git("add", "-A");
+  git("commit", "-q", "-m", "the guided change");
+  git("checkout", "-q", "feature");
 }
 
 const SPEC = {
@@ -101,10 +112,13 @@ test("a review: overview, a chapter, a comment of each kind, a question, the ver
   await expect(a.locator("tr.cr-line.del td.t")).toHaveText("line 3");
   await expect(a.locator("tr.cr-line.add td.t")).toHaveText("line three");
 
-  // The hunk laid into its file: every line of a.mjs, the hunk's own still the only ones that take a comment.
-  await a.locator(".cr-tool").first().click();
-  await expect(a.locator("tr.far")).toHaveCount(54);
-  await a.locator(".cr-tool").first().click();
+  // The hunk laid into its file: every line of a.mjs, the file's other hunk with its own marks, the
+  // hunk's own lines still the only ones that take a comment.
+  await a.getByRole("button", { name: "Whole file", exact: true }).click();
+  await expect(a.locator("tr.far")).toHaveCount(55);
+  await expect(a.locator("tr.far.del td.t")).toHaveText("line 50");
+  await expect(a.locator("tr.far.add td.t")).toHaveText("line fifty");
+  await a.getByRole("button", { name: "Only the change", exact: true }).click();
   await expect(a.locator("tr.far")).toHaveCount(0);
 
   // ---- one comment of each kind
@@ -179,4 +193,95 @@ test("a review: overview, a chapter, a comment of each kind, a question, the ver
   expect(result.comments[2].reply).toContain("parser");
   expect(result.digest).toContain("Verdict: RETURNED");
   expect(result.digest).toContain("Keep the digit: the parser reads it.");
+});
+
+// A change too long to read by line: the agent names the place to read, the page folds the rest, and
+// every folded line is one click away: by the gap, by the hunk, around it, the whole file, the whole diff.
+const GUIDE = {
+  title: "The guided change",
+  summary: "A new module and one line of a.mjs.",
+  chapters: [
+    { id: "core", title: "The module", summary: "Ninety lines, six of them matter.", hunks: ["lib/"], focus: [{ at: "lib/big.mjs:40-45", note: "The loop." }] },
+    { id: "checks", title: "The tests", summary: "Three tests.", hunks: ["test/"], skim: "Names only." },
+  ],
+};
+
+test("a review with key places: the rest is folded and opens by the gap, the hunk, the file and the whole diff", async ({ page }) => {
+  test.skip(!hasGit, "git is not installed");
+  const opened = await d.must("POST", "/api/rounds", { project: d.project, spec: GUIDE, mode: "review", open: false, head: "guide" });
+  expect(opened.review).toMatchObject({ total: 3, sorted: 3 });
+  await page.goto(`${d.origin}/?lang=en#r=${opened.id}`);
+  await expect(page.locator("#cr-overview .cr-how")).toContainText("1 place");
+
+  // ---- the chapter opens on the key place, three lines around it, the rest behind two gaps
+  const core = page.locator("#cr-ch-core");
+  await core.scrollIntoViewIfNeeded();
+  const big = core.locator('.cr-hunk:has(.cr-path:text-is("lib/big.mjs"))');
+  await expect(big.locator("tr.cr-line")).toHaveCount(12);
+  await expect(big.locator("tr.cr-line.focus")).toHaveCount(6);
+  await expect(big.locator("tr.cr-gap")).toHaveCount(2);
+  await expect(big.locator("tr.cr-place")).toContainText("The loop.");
+  await expect(core.locator(".cr-places button")).toHaveCount(1);
+  await core.locator(".cr-places button").click();
+  await expect(big.locator("tr.cr-place")).toBeInViewport();
+
+  // A gap opens by twenty lines; a new file is one hunk, so "Whole file" is the whole hunk.
+  await big.locator("tr.cr-gap").first().getByRole("button", { name: "↑ 20 more" }).click();
+  await expect(big.locator("tr.cr-line")).toHaveCount(32);
+  await big.getByRole("button", { name: "Whole file", exact: true }).click();
+  await expect(big.locator("tr.cr-line")).toHaveCount(90);
+  await expect(big.locator("tr.cr-gap")).toHaveCount(0);
+  await expect(big.getByRole("button", { name: "Lines around" })).toHaveCount(0);
+  await big.getByRole("button", { name: "Fold", exact: true }).click();
+  await expect(big.locator("tr.cr-line")).toHaveCount(12);
+
+  // ---- the chapter's other hunk sits under one fold, itself folded
+  const others = core.locator("details.cr-others");
+  await expect(others.locator(".cr-count")).toHaveText("1");
+  const a = others.locator('.cr-hunk:has(.cr-path:text-is("lib/a.mjs"))');
+  await expect(a).toBeHidden();
+  await others.locator("summary").click();
+  await expect(a.locator("tr.cr-line")).toHaveCount(0);
+  await a.locator("tr.cr-gap button").click();
+  await expect(a.locator("tr.cr-line")).toHaveCount(8);
+  await a.getByRole("button", { name: "Lines around", exact: true }).click();
+  await expect(a.locator("tr.far")).toHaveCount(40);
+  await a.getByRole("button", { name: "Whole file", exact: true }).click();
+  await expect(a.locator("tr.far")).toHaveCount(53);
+  await a.getByRole("button", { name: "Only the change", exact: true }).click();
+  await expect(a.locator("tr.far")).toHaveCount(0);
+
+  // ---- a second click on the line being commented keeps what was typed
+  const box = page.locator(".cr-compose");
+  const line = a.locator('tr.cr-line[data-key="new:30"] td.t');
+  await line.click();
+  await box.locator("textarea").fill("Why thirty?");
+  await line.click();
+  await expect(box.locator("textarea")).toHaveValue("Why thirty?");
+  await expect(box.locator("textarea")).toBeFocused();
+  await box.locator(".btn.primary").click();
+  await expect(a.locator('tr.cr-note[data-key="new:30"] .cr-cm.fix .cr-cm-text')).toHaveText("Why thirty?");
+
+  // ---- a chapter to skim: a long test file is the list of its tests
+  const checks = page.locator("#cr-ch-checks");
+  await checks.scrollIntoViewIfNeeded();
+  await expect(checks.locator(".cr-skim")).toContainText("Names only.");
+  await checks.locator("details.cr-others summary").click();
+  const tests = checks.locator(".cr-hunk");
+  await expect(tests.locator(".cr-tests li")).toHaveText(["opens", "folds", "keeps a comment"]);
+  await expect(tests.locator("tr.cr-line")).toHaveCount(0);
+  await tests.locator(".cr-tests button").nth(1).click();
+  await expect(tests.locator('tr.cr-line[data-key="new:15"]')).toBeVisible();
+
+  // ---- the whole diff at once, and back
+  const full = page.locator("button.cr-full");
+  await expect(full).toHaveAttribute("aria-pressed", "false");
+  await full.click();
+  await expect(full).toHaveAttribute("aria-pressed", "true");
+  await expect(big.locator("tr.cr-line")).toHaveCount(90);
+  await expect(page.locator("tr.cr-gap")).toHaveCount(0);
+  await expect(tests.locator("tr.cr-line")).toHaveCount(40);
+  await full.click();
+  await expect(big.locator("tr.cr-line")).toHaveCount(12);
+  await expect(a.locator('tr.cr-note[data-key="new:30"]'), "a line with a comment stays open").toBeVisible();
 });

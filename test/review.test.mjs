@@ -390,6 +390,18 @@ test("the spec the skill shows passes its own lint", () => {
 
 // ---------- the digest ----------
 
+test("the digest marks a commented line by what it is in the diff, not by its side", () => {
+  const { spec } = normalizeReview(SPEC);
+  const built = buildReview(spec, PATCH);
+  const review = { comments: [{ id: "c1", kind: "fix", hunk: "h1", file: "lib/a.mjs", line: 1, side: "new", code: "line 1", text: "Untouched, but wrong." }], read: {} };
+  const kinds = [];
+  const lineKind = (hunk, side, line) => (kinds.push([hunk, side, line]), "ctx");
+  const result = reviewResult({ base: { title: "t" }, spec, meta: {}, placed: built.placed, review, dialog: [], payload: { verdict: "return" }, lineKind });
+  assert.deepEqual(kinds, [["h1", "new", 1]]);
+  assert.equal(result.comments[0].change, "ctx");
+  assert.match(result.digest, /lib\/a\.mjs:1 · chapter «The top of a\.mjs»\n {5}line 1\n {3}Untouched, but wrong\./);
+});
+
 test("the verdict digest: every comment by kind, with its file, line and code", () => {
   const { spec } = normalizeReview(SPEC);
   const built = buildReview(spec, PATCH);

@@ -17,6 +17,8 @@ const seconds = (n) => (typeof n === "number" ? (n >= 60 ? t("cr.minSec", Math.f
 export function renderTitle(s) {
   const snap = s.rv.snapshot;
   const presence = h("span.chip.static.cr-presence");
+  // "Newer exists": the branch got a commit after the snapshot was taken.
+  const newer = h("span.chip.static.warn.cr-newer", { hidden: true, title: t("cr.newerTitle") });
   const el = [
     h("h1.cr-title", { html: mdInline(s.spec.title) }),
     h(
@@ -27,6 +29,7 @@ export function renderTitle(s) {
       h("span.chip.static", {}, t("cr.files", snap.stats.files), " ", h("span.cr-add", {}, `+${snap.stats.added}`), " ", h("span.cr-del", {}, `−${snap.stats.removed}`)),
       clock(snap.at) && h("span.chip.static", {}, t("cr.snapshotAt", clock(snap.at))),
       snap.dirty && h("span.chip.static.warn", { title: t("cr.dirtyTitle") }, t("cr.dirty")),
+      newer,
       presence,
     ),
   ];
@@ -35,6 +38,8 @@ export function renderTitle(s) {
     paint() {
       presence.classList.toggle("away", !s.listening);
       presence.textContent = t(s.listening ? "cr.live" : "cr.away");
+      newer.hidden = !s.rv.newer;
+      newer.textContent = s.rv.newer ? t("cr.newer", short(s.rv.newer.head)) : "";
     },
   };
 }
@@ -63,6 +68,7 @@ export function renderOverview(s) {
     { id: "cr-overview", tabindex: "-1", dataset: { stop: "overview" } },
     h("div.cr-ch-head", {}, h("div.cr-ch-titles", {}, h("h2", {}, t("cr.overview"))), h("span.cr-said", {}, t("cr.said"))),
     h("div.cr-lead.cr-md", { html: md(spec.summary) }),
+    s.guided && h("p.cr-how", {}, t("cr.how", rv.chapters.reduce((n, c) => n + c.focus.length, 0))),
     h("h3.cr-sub", {}, t("cr.risks")),
     risks.length ? h("ul.cr-risks", {}, risks) : h("p.cr-none", {}, t("cr.noRisks")),
     h("h3.cr-sub", {}, t("cr.checks"), h("small", {}, t("cr.checksNote"))),
@@ -87,6 +93,7 @@ export function renderRail(s) {
     return el;
   };
   const folds = spec.mechanical.length + (rv.rest.pieces ? 1 : 0);
+  const full = h("button.cr-full", { type: "button", onclick: () => s.setFull(!s.full) });
   const el = h(
     "div.cr-rail",
     {},
@@ -96,18 +103,21 @@ export function renderRail(s) {
     folds > 0 && h("div.sep"),
     spec.mechanical.length > 0 && item("mech", "⋯", t("cr.railMech", rv.mechanical.reduce((n, m) => n + m.pieces, 0)), null, () => s.goFolds()),
     rv.rest.pieces > 0 && item("rest", "?", t("cr.railRest", rv.rest.pieces), null, () => s.goFolds("rest")),
+    full,
     h(`p.cr-sorted${rv.sorted < rv.total ? ".short" : ""}`, {}, t("cr.sortedA"), " ", h("b", {}, t("cr.of", rv.sorted, rv.total)), " ", t("cr.sortedB")),
   );
   return {
     el,
     paint() {
       const said = s.byChapter();
+      full.textContent = t(s.full ? "cr.fullOff" : "cr.fullOn");
+      full.setAttribute("aria-pressed", String(s.full));
       for (const [stop, node] of items) {
         node.classList.toggle("on", stop === s.current);
         const id = stop.startsWith("ch:") ? stop.slice(3) : null;
         const i = spec.chapters.findIndex((c) => c.id === id);
         if (i < 0) continue;
-        const read = Boolean(s.rv.read[id]);
+        const read = Object.hasOwn(s.rv.read, id);
         node.classList.toggle("read", read);
         node.querySelector(".n").textContent = read ? "✓" : i + 1;
         const n = said.get(id) || 0;
@@ -139,8 +149,9 @@ export function renderBar(s) {
     el,
     paint() {
       const { spec, rv } = s;
-      pills.replaceChildren(...spec.chapters.map((c) => h(`i${rv.read[c.id] ? ".done" : ""}`)));
-      line.textContent = t("cr.readOf", spec.chapters.filter((c) => rv.read[c.id]).length, spec.chapters.length);
+      const read = (c) => Object.hasOwn(rv.read, c.id);
+      pills.replaceChildren(...spec.chapters.map((c) => h(`i${read(c) ? ".done" : ""}`)));
+      line.textContent = t("cr.readOf", spec.chapters.filter(read).length, spec.chapters.length);
       const n = s.counts();
       const checks = s.checks();
       const said = n.fix + n.nit + n.question ? t("cr.said.some", n.fix + n.nit + n.question, [n.fix && t("cr.n.fix", n.fix), n.question && t("cr.n.question", n.question), n.nit && t("cr.n.nit", n.nit)].filter(Boolean).join(", ")) : t("cr.said.none");
