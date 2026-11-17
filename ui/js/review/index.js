@@ -97,8 +97,43 @@ export function mountReview(round, env) {
   const rail = renderRail(s);
   const bar = renderBar(s);
   const chapters = createChapters(s);
-  $("#toc").replaceChildren(rail.el);
+  const chapterButton = h("button.chip.cr-chapters-button", { type: "button", "aria-expanded": "false", "aria-controls": "cr-chapters-menu" }, t("cr.rail"));
+  const chapterMenu = h("div.cr-chapters-menu.glass", { id: "cr-chapters-menu", hidden: true });
+  const chapterNav = h("div.cr-chapters-nav", {}, chapterButton, chapterMenu);
+  const closeChapters = () => {
+    chapterMenu.hidden = true;
+    chapterButton.setAttribute("aria-expanded", "false");
+  };
+  chapterButton.addEventListener("click", () => {
+    chapterMenu.hidden = !chapterMenu.hidden;
+    chapterButton.setAttribute("aria-expanded", String(!chapterMenu.hidden));
+    if (!chapterMenu.hidden) rail.el.querySelector("button")?.focus();
+  });
+  chapterMenu.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopPropagation();
+    closeChapters();
+    chapterButton.focus();
+  });
+  chapterMenu.addEventListener("click", (e) => { if (e.target.closest(".cr-rail-item")) closeChapters(); });
+  const onOutsideClick = (e) => {
+    if (!chapterNav.contains(e.target)) closeChapters();
+  };
+  document.addEventListener("click", onOutsideClick);
+  chapterNav.addEventListener("focusout", (e) => {
+    if (!chapterNav.contains(e.relatedTarget)) closeChapters();
+  });
+  const narrow = matchMedia("(max-width: 1179px)");
+  const moveRail = () => {
+    closeChapters();
+    (narrow.matches ? chapterMenu : $("#toc")).replaceChildren(rail.el);
+  };
+  narrow.addEventListener("change", moveRail);
+  moveRail();
   $("#main").replaceChildren(h("div.cr-view", {}, eyebrow({ ...env, help: openKeys }), title.el, renderOverview(s), chapters.el, bar.el));
+  const topBar = document.querySelector(".cr-view .eyebrow");
+  topBar.append(chapterNav);
   window.scrollTo({ top: 0, behavior: "instant" });
 
   s.paint = () => {
@@ -111,22 +146,33 @@ export function mountReview(round, env) {
   // ---- moving around
   const stops = () => [...document.querySelectorAll(".cr-view [data-stop]")];
   const stopEl = (id) => stops().find((el) => el.dataset.stop === id);
-  s.go = (id) => {
+  let jump = 0;
+  s.go = async (id) => {
+    const ticket = ++jump;
+    await chapters.prepare(id);
+    if (ticket !== jump) return;
     const el = stopEl(id);
     if (!el) return;
-    el.scrollIntoView({ behavior: reduced.matches ? "auto" : "smooth", block: "start" });
+    s.current = id;
+    el.scrollIntoView({ behavior: "instant", block: "start" });
     el.focus?.({ preventScroll: true });
+    rail.paint();
   };
-  // To a key place: its chapter is loaded, the row that names it comes to the middle of the screen.
   s.goPlace = async (chapter, k) => {
+    const ticket = ++jump;
+    await chapters.prepare(`ch:${chapter}`);
     const row = await chapters.place(chapter, k);
-    if (!row) return;
-    row.scrollIntoView({ behavior: reduced.matches ? "auto" : "smooth", block: "center" });
+    if (!row || ticket !== jump) return;
+    s.current = `ch:${chapter}`;
+    row.scrollIntoView({ behavior: "instant", block: "center" });
     row.classList.remove("flash");
     requestAnimationFrame(() => row.classList.add("flash"));
+    rail.paint();
   };
   // The whole diff, nothing folded, or back to the key places. The chapter being read stays in place.
-  s.setFull = (on) => {
+  s.progress = () => rail.paint();
+  s.setFull = async (on) => {
+    if (s.fullLoading) return;
     const anchor = stopEl(s.current);
     const top = anchor?.getBoundingClientRect().top;
     s.full = on;
@@ -134,12 +180,20 @@ export function mountReview(round, env) {
       if (on) sessionStorage.setItem(FULL, "1");
       else sessionStorage.removeItem(FULL);
     } catch {}
-    chapters.redraw();
+    s.fullLoading = on;
+    rail.paint();
+    const ready = await chapters.redraw();
+    s.fullLoading = false;
+    if (on && !ready) {
+      s.full = false;
+      try { sessionStorage.removeItem(FULL); } catch {}
+    }
     rail.paint();
     const now = anchor?.getBoundingClientRect().top;
     if (top !== undefined && now !== top) scrollBy({ top: now - top, behavior: "instant" });
   };
-  s.goFolds = (key) => {
+  s.goFolds = async (key) => {
+    await chapters.prepare(`ch:${s.spec.chapters.at(-1)?.id}`);
     const el = key ? stopEl(key) : document.getElementById("cr-folds");
     el?.scrollIntoView({ behavior: reduced.matches ? "auto" : "smooth", block: "start" });
   };
@@ -285,6 +339,7 @@ export function mountReview(round, env) {
       const red = [checks.failed && t("cr.n.failed", checks.failed), checks.missing && t("cr.n.missing", checks.missing)].filter(Boolean).join(", ");
       alerts.replaceChildren(
         ...[
+          approving && s.rv.newer && h("div.cr-alert", { dataset: { alert: "newer" } }, t("cr.alert.newer", s.rv.snapshot.head.slice(0, 7), s.rv.newer.head.slice(0, 7))),
           approving && red && h("div.cr-alert", { dataset: { alert: "checks" } }, h("b", {}, t("cr.alert.checks")), " ", t("cr.alert.checksText", red)),
           approving && !checks.total && h("div.cr-alert", { dataset: { alert: "checks" } }, h("b", {}, t("cr.alert.noChecks")), " ", t("cr.alert.noChecksText")),
           approving && n.fix > 0 && h("div.cr-alert", { dataset: { alert: "fix" } }, h("b", {}, t("cr.alert.fix", n.fix)), " ", t("cr.alert.fixText")),
@@ -323,6 +378,7 @@ export function mountReview(round, env) {
         "div.cr-verdict",
         {},
         h("h2.modal-title", {}, t("cr.verdictTitle")),
+        h("p.cr-verdict-commit", {}, t("cr.commit", s.rv.snapshot.head.slice(0, 7), s.rv.snapshot.headRef || "HEAD")),
         seg,
         text,
         alerts,
@@ -347,6 +403,12 @@ export function mountReview(round, env) {
 
   // ---- keys: J/K and R come through main.js; Esc here closes an empty box
   const onKey = (e) => {
+    if (e.key === "Escape" && !chapterMenu.hidden && !modalOpen()) {
+      e.preventDefault();
+      closeChapters();
+      chapterButton.focus();
+      return;
+    }
     if (e.key !== "Escape" || modalOpen() || e.target.closest?.("input, textarea")) return;
     if (s.draft && !(s.draft.text || "").trim()) closeBox();
   };
@@ -373,6 +435,7 @@ export function mountReview(round, env) {
     if (s.draft.group) chapters.show(s.draft.group).then(() => s.box?.scrollIntoView({ block: "center" }));
   }
   s.paint();
+  if (s.full) s.setFull(true);
 
   return {
     id: round.id,
@@ -396,8 +459,11 @@ export function mountReview(round, env) {
     finish: () => (modalOpen() ? null : s.verdict(suggested())),
     stop() {
       document.removeEventListener("keydown", onKey);
+      document.removeEventListener("click", onOutsideClick);
       document.removeEventListener("visibilitychange", onShow);
       removeEventListener("scroll", onScroll);
+      jump++;
+      narrow.removeEventListener("change", moveRail);
       chapters.stop();
       document.body.classList.remove("review-mode");
       $("#toc").replaceChildren();

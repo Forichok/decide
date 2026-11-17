@@ -49,6 +49,10 @@ function fixtureRepo(dir) {
   write("test/big.test.mjs", testFile(["opens", "folds", "keeps a comment"]));
   git("add", "-A");
   git("commit", "-q", "-m", "the guided change");
+  git("checkout", "-q", "-b", "tall", "main");
+  for (let c = 0; c < 9; c++) for (let f = 0; f < 6; f++) write(`chapter-${c}/file-${f}.mjs`, lines(60));
+  git("add", "-A");
+  git("commit", "-q", "-m", "tall fixture");
   git("checkout", "-q", "feature");
 }
 
@@ -213,6 +217,10 @@ test("a review with key places: the rest is folded and opens by the gap, the hun
   await page.goto(`${d.origin}/?lang=en#r=${opened.id}`);
   await expect(page.locator("#cr-overview .cr-how")).toContainText("1 place");
 
+  await expect(page.locator("#cr-overview .cr-risk")).toContainText("The loop.");
+  await page.locator("#cr-overview button.cr-risk").click();
+  await expect(page.locator("#cr-ch-core tr.cr-place")).toBeInViewport();
+
   // ---- the chapter opens on the key place, three lines around it, the rest behind two gaps
   const core = page.locator("#cr-ch-core");
   await core.scrollIntoViewIfNeeded();
@@ -309,4 +317,149 @@ test("a review with key places: the rest is folded and opens by the gap, the hun
   await full.click();
   await expect(big.locator("tr.cr-line")).toHaveCount(12);
   await expect(a.locator('tr.cr-note[data-key="new:30"]'), "a line with a comment stays open").toBeVisible();
+});
+
+
+const TALL = {
+  title: "Tall review", summary: "Many chapters.",
+  chapters: Array.from({ length: 9 }, (_, i) => ({ id: `c${i}`, title: `Chapter ${i}`, hunks: [`chapter-${i}/`], focus: [{ at: `chapter-${i}/file-0.mjs:30`, kind: "risk", note: `Risk ${i}` }] })),
+};
+
+test("whole diff loads every chapter, mechanical group and the rest before Fold back", async ({ page }) => {
+  const opened = await d.must("POST", "/api/rounds", { project: d.project, spec: SPEC, mode: "review", open: false });
+  let releaseRest;
+  const restGate = new Promise((resolve) => { releaseRest = resolve; });
+  await page.route("**/pieces?**", async (route) => {
+    if (new URL(route.request().url()).searchParams.get("group") === "rest") await restGate;
+    await route.continue();
+  });
+  await page.goto(`${d.origin}/?lang=en#r=${opened.id}`);
+  await page.locator("button.cr-full").click();
+  await expect(page.locator("button.cr-full")).toHaveText(`Loaded ${opened.review.total - 1} of ${opened.review.total} pieces`);
+  await expect(page.locator("button.cr-full")).toBeDisabled();
+  releaseRest();
+  await expect(page.locator("button.cr-full")).toHaveText("Fold back");
+  await expect(page.locator(".cr-hunk")).toHaveCount(opened.review.total);
+  await expect(page.locator("details.cr-fold:not([open]), details.cr-others:not([open])")).toHaveCount(0);
+  await expect(page.locator("tr.cr-gap")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText("no tests in this chapter");
+});
+
+for (const [narrow, theme] of [[false, "light"], [true, "light"], [true, "dark"]]) test(`chapter navigation settles on the target (narrow=${narrow}, theme=${theme})`, async ({ page }) => {
+  await page.emulateMedia({ colorScheme: theme });
+  await page.setViewportSize({ width: narrow ? 1100 : 1280, height: 800 });
+  const opened = await d.must("POST", "/api/rounds", { project: d.project, spec: TALL, mode: "review", open: false, head: "tall" });
+  await page.route("**/pieces?**", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    await route.continue();
+  });
+  await page.goto(`${d.origin}/?lang=en#r=${opened.id}`);
+  const menu = page.getByRole("button", { name: "Chapters", exact: true });
+  if (narrow) {
+    await expect(menu).toBeVisible();
+    await menu.focus();
+    await menu.press("Enter");
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveAttribute("aria-expanded", "false");
+    await expect(menu).toBeFocused();
+    await menu.press("Space");
+    await page.locator("#cr-overview .cr-how").click();
+    await expect(menu).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator(".cr-chapters-menu")).toBeHidden();
+    await menu.click();
+    await page.keyboard.press("Shift+Tab");
+    await expect(menu).toBeFocused();
+    await expect(menu).toHaveAttribute("aria-expanded", "true");
+    await page.keyboard.press("Shift+Tab");
+    await expect(menu).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator(".cr-chapters-menu")).toBeHidden();
+    await menu.click();
+    await page.locator(".cr-chapters-menu button").last().focus();
+    await page.keyboard.press("Tab");
+    await expect(menu).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator(".cr-chapters-menu")).toBeHidden();
+    await menu.click();
+  } else await expect(menu).toBeHidden();
+  await page.locator(".cr-rail-item").filter({ hasText: "Chapter 6" }).click();
+  if (narrow) await expect(menu).toHaveAttribute("aria-expanded", "false");
+  const target = page.locator("#cr-ch-c6");
+  await expect.poll(() => target.evaluate((el) => el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(0);
+  await expect.poll(() => target.evaluate((el) => el.getBoundingClientRect().top)).toBeLessThan(100);
+  await page.waitForTimeout(600);
+  expect(await target.evaluate((el) => el.getBoundingClientRect().top)).toBeLessThan(100);
+  await page.keyboard.press("j");
+  await expect(page.locator("#cr-ch-c7")).toBeInViewport();
+  await page.keyboard.press("k");
+  await expect(target).toBeInViewport();
+  await target.locator(".cr-places button").click();
+  await expect(target.locator("tr.cr-place")).toBeInViewport();
+  if (narrow) await menu.click();
+  await page.locator("button.cr-full").click();
+  await expect(page.locator("button.cr-full")).toHaveText("Fold back");
+  await expect(page.locator(".cr-hunk")).toHaveCount(opened.review.total);
+});
+
+test("verdict identifies the snapshot, warns on both approvals and reports collection as a fact", async ({ page }) => {
+  const opened = await d.must("POST", "/api/rounds", { project: d.project, spec: SPEC, mode: "review", open: false });
+  const before = await d.round(opened.id);
+  const sha = before.review.snapshot.head.slice(0, 7);
+  const newer = spawnSync("git", ["-c", "user.name=decide-test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-qm", "after opening"], { cwd: d.project });
+  expect(newer.status).toBe(0);
+  const head = spawnSync("git", ["rev-parse", "HEAD"], { cwd: d.project, encoding: "utf8" }).stdout.trim().slice(0, 7);
+  await page.goto(`${d.origin}/?lang=en#r=${opened.id}`);
+  await page.locator('.cr-bar [data-verdict="approve"]').click();
+  const modal = page.locator(".cr-verdict");
+  await expect(modal).toContainText(sha);
+  await expect(modal).toContainText("HEAD");
+  for (const verdict of ["approve", "nits"]) {
+    await modal.locator(`[data-verdict="${verdict}"]`).click();
+    await expect(modal.locator('[data-alert="newer"]')).toContainText(head);
+    await expect(modal.locator('[data-alert="newer"]')).toContainText(sha);
+  }
+  await modal.locator(".btn.primary").click();
+  await expect(page.locator(".done-sub")).toContainText("No agent has collected");
+  await expect(page.locator(".done-sub")).toContainText("Your comments are kept with the round.");
+  await expect(page.locator(".cr-done-recovery")).toHaveCount(0);
+  await expect(page.locator(".paste-line code")).toContainText(opened.id);
+  await expect(page.locator(".paste-line button")).toBeVisible();
+  await expect(page.locator(".cr-sum-commit")).toContainText(sha);
+  await takeKind(opened.id, "final");
+  await expect(page.locator(".done-sub")).toContainText("were delivered to the agent");
+  await expect(page.locator(".cr-done-recovery")).toHaveText(`If nothing follows, tell the agent in its chat to collect round ${opened.id}.`);
+  await expect(page.locator(".paste-line")).toHaveCount(0);
+  await page.goto(`${d.origin}/?lang=ru#r=${opened.id}`);
+  await expect(page.locator(".cr-done-recovery")).toHaveText(`Если продолжения нет, попросите агента в его чате забрать раунд ${opened.id}.`);
+});
+
+
+test("a far key-place jump settles after earlier chapters load", async ({ page }) => {
+  const opened = await d.must("POST", "/api/rounds", { project: d.project, spec: TALL, mode: "review", open: false, head: "tall" });
+  await page.route("**/pieces?**", async (route) => {
+    const group = new URL(route.request().url()).searchParams.get("group");
+    await new Promise((resolve) => setTimeout(resolve, group === "ch:c6" ? 10 : 300));
+    await route.continue();
+  });
+  await page.goto(`${d.origin}/?lang=en#r=${opened.id}`);
+  await page.locator("#cr-overview button.cr-risk").filter({ hasText: "Risk 6" }).click();
+  const row = page.locator("#cr-ch-c6 tr.cr-place");
+  await expect(row).toBeInViewport();
+  await page.waitForTimeout(600);
+  await expect(row).toBeInViewport();
+});
+
+
+test("Russian full-diff progress uses the page's word for pieces", async () => {
+  const { default: ru } = await import("../ui/js/lang/ru.js");
+  for (const [total, word] of [[1, "куска"], [2, "кусков"], [5, "кусков"], [11, "кусков"], [21, "куска"], [22, "кусков"]]) {
+    expect(ru["cr.fullLoading"](0, total)).toBe(`Загружено 0 из ${total} ${word}`);
+  }
+});
+
+
+test("review recovery asks for collection without repeating comment storage", async () => {
+  const { default: en } = await import("../ui/js/lang/en.js");
+  const { default: ru } = await import("../ui/js/lang/ru.js");
+  expect(en["cr.done.recovery"]("round-1")).toBe("If nothing follows, tell the agent in its chat to collect round round-1.");
+  expect(ru["cr.done.recovery"]("round-1")).toBe("Если продолжения нет, попросите агента в его чате забрать раунд round-1.");
 });

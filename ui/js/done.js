@@ -63,6 +63,7 @@ function reviewCard(result) {
     "section.sum",
     {},
     h("h3.sum-h", {}, t("cr.done.title")),
+    result.range?.head && h("p.cr-sum-commit", {}, t("cr.commit", result.range.head.slice(0, 7), result.range.headRef || "HEAD")),
     result.verdict && h(`span.cr-sum-verdict.${result.verdict}`, {}, t(`cr.done.${result.verdict}`)),
     h("p.cr-sum-line", {}, t("cr.done.read", result.read?.length ?? 0, (result.read?.length ?? 0) + (result.unread?.length ?? 0))),
     result.note && h("div.sum-comment", {}, h("div.sum-label", {}, t("cr.done.note")), h("p", {}, result.note)),
@@ -92,9 +93,9 @@ export function renderDone(result, env) {
   const cancelled = result?.cancelled || result?.dismissed;
   const next = env.nextRound;
   const { delivered = true, listening = false } = env.delivery || {};
-  const state = cancelled ? "cancelled" : env.offline ? "file" : delivered ? "sent" : listening ? "handing" : "saved";
-  const ring = { cancelled: ".cancel", sent: "", handing: ".handing", saved: ".saved", file: "" }[state];
   const reviewed = result?.mode === "review";
+  const state = cancelled ? "cancelled" : env.offline ? "file" : delivered ? "sent" : reviewed ? "saved" : listening ? "handing" : "saved";
+  const ring = { cancelled: ".cancel", sent: "", handing: ".handing", saved: ".saved", file: "" }[state];
   const line = state === "saved" && pasteLine(env.currentId || result?.round || "");
   const action = env.offline
     ? h(
@@ -126,6 +127,7 @@ export function renderDone(result, env) {
       h(`div.ring${ring}`, { html: icon(cancelled ? "x" : state === "sent" ? "check" : state === "saved" ? "alert" : "arrow") }),
       h("h2", {}, t(reviewed && REVIEW_STATES.includes(state) ? `cr.done.${state}` : `done.${state}`)),
       h("p.done-sub", {}, state === "file" ? t("done.fileSub", result.file) : t(reviewed && REVIEW_STATES.includes(state) ? `cr.done.${state}Sub` : `done.${state}Sub`)),
+      reviewed && state === "sent" && h("p.cr-done-recovery", {}, t("cr.done.recovery", env.currentId || result.round)),
       line &&
         h(
           "div.paste-line.block",

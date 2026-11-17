@@ -5,6 +5,7 @@
 import { h } from "../dom.js";
 import { t } from "../i18n.js";
 import { md, mdInline } from "../md.js";
+import { collectRisks } from "./risks.js";
 
 export const checkState = (c) => (Number.isInteger(c.exit) ? (c.exit === 0 ? "ok" : "failed") : "missing");
 const short = (sha) => String(sha || "").slice(0, 7);
@@ -47,10 +48,10 @@ export function renderTitle(s) {
 export function renderOverview(s) {
   const { spec, rv } = s;
   const number = (id) => spec.chapters.findIndex((c) => c.id === id) + 1;
-  const risks = spec.risks.map((r) => {
+  const risks = collectRisks(spec, rv.chapters).map((r) => {
     const n = number(r.chapter);
     const inner = [h(`span.badge.cr-${r.level}`, {}, t(`cr.risk.${r.level}`)), h("span.what", {}, h("span", { html: mdInline(r.what) }), r.why && h("span.why", { html: mdInline(r.why) })), n > 0 && h("span.go", {}, t("cr.goChapter", n))];
-    return h("li", {}, n > 0 ? h("button.cr-risk", { type: "button", onclick: () => s.go(`ch:${r.chapter}`) }, inner) : h("div.cr-risk", {}, inner));
+    return h("li", {}, n > 0 ? h("button.cr-risk", { type: "button", onclick: () => Number.isInteger(r.place) ? s.goPlace(r.chapter, r.place) : s.go(`ch:${r.chapter}`) }, inner) : h("div.cr-risk", {}, inner));
   });
   const checks = spec.checks.map((c) => {
     const st = checkState(c);
@@ -110,7 +111,8 @@ export function renderRail(s) {
     el,
     paint() {
       const said = s.byChapter();
-      full.textContent = t(s.full ? "cr.fullOff" : "cr.fullOn");
+      full.textContent = s.fullLoading ? t("cr.fullLoading", s.loaded.size, rv.total) : t(s.full ? "cr.fullOff" : "cr.fullOn");
+      full.disabled = Boolean(s.fullLoading);
       full.setAttribute("aria-pressed", String(s.full));
       for (const [stop, node] of items) {
         node.classList.toggle("on", stop === s.current);

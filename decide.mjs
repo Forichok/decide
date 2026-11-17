@@ -24,6 +24,8 @@
 //   node decide.mjs --lint <x.questions.json> | --stop
 //   node decide.mjs review <x.review.json> [--base ref] [--head ref] [--no-open]   a code review of a branch
 //   node decide.mjs serve [--port n]                  run the home's server (started on demand)
+//   wait <round> [--live] [--timeout-sec n]: stop after n seconds; without it, keep waiting.
+//   Exit codes: 0 result; 1 lint/stop refused; 2 error; 3 live item; 4 wait timed out.
 //   Every command also has a name: ask swipe wait push explain screenshot history supersede adr export
 //   import lint stop open notice rules patch review, as in `node decide.mjs wait <round> --live`, `node decide.mjs open <round>`.
 //   Every command takes --project <dir> (default: the current directory).

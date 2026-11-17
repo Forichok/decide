@@ -243,8 +243,13 @@ nothing: that stays under the repository's own rules, and you ask as you
 would have without the review.
 
 The full result is in the JSON that `wait` names: the verdict, the note, the
-range of commits, and every comment with its file, line, side and the code on
-that line.
+snapshot head SHA and ref, the range of commits, and every comment with its file, line, side and the code on
+that line. An approval covers only that snapshot commit. If the branch has
+moved, the verdict names both commits.
+
+`Full JSON:` points to the round's own `answers.json`, which later rounds do
+not replace. The file next to the spec is a convenience copy; the next round
+of that spec overwrites it. An explicit `--out` still selects that copy's path.
 
 ## With the CLI
 
@@ -260,3 +265,9 @@ node <plugin>/decide.mjs explain <round> --question <id> --text "…" --project 
 
 `wait` exits with code 3 when the user asked a question (the output has a
 `DECIDE ask:` line) and with 0 on the verdict.
+
+For a bounded CLI wait, pass `--timeout-sec n`. After n seconds without an
+item, it prints how to wait again and exits 4. Without the flag it keeps
+waiting. Exit codes are 0 for a result, 1 for lint errors or a refused stop,
+2 for an error, 3 for a live item, and 4 for a wait timeout. MCP waits still
+use a timeout between 5 and 840 seconds.

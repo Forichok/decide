@@ -437,7 +437,7 @@ test("the verdict digest: every comment by kind, with its file, line and code", 
   assert.equal(
     result.digest,
     [
-      "Verdict: RETURNED. Comments: 1 to fix, 2 nits, 2 questions (1 not answered). Chapters read: 1 of 2 (not read: «The tail and the rename»). 3 of 8 hunks were in no chapter.",
+      "Verdict: RETURNED at aaaaaaa (HEAD). Comments: 1 to fix, 2 nits, 2 questions (1 not answered). Chapters read: 1 of 2 (not read: «The tail and the rename»). 3 of 8 hunks were in no chapter.",
       "The reviewer's note:\n> Close, but not yet.",
       "To fix (1):\n1. lib/a.mjs:3 · chapter «The top of a.mjs»\n   + line two and a half\n   Drop this line.\n   It repeats the one above.",
       "Nits (2):\n1. lib/a.mjs:41 (old side) · chapter «The tail and the rename»\n   - line 41\n   Say why in the commit.\n2. logo.png\n   The old one was sharper.",
@@ -445,11 +445,11 @@ test("the verdict digest: every comment by kind, with its file, line and code", 
     ].join("\n\n"),
   );
   const text = formatReviewResult(result, "/tmp/x.answers.json");
-  assert.match(text, /^Review «Review mode: the core» is finished\./);
+  assert.match(text, /^Verdict: RETURNED at aaaaaaa \(HEAD\)/);
   assert.match(text, /Full JSON: \/tmp\/x\.answers\.json\n\nThe change was returned\. Fix what is under "To fix"/);
 
   const approved = reviewResult({ base: { title: spec.title }, spec, meta, placed: built.placed, review: { comments: [], read: { top: true, tail: true } }, dialog: [], payload: { verdict: "approve" } });
-  assert.equal(approved.digest, "Verdict: APPROVED. No comments. Chapters read: 2 of 2. Approved with checks not green: 1 failed, 1 not run. 3 of 8 hunks were in no chapter.");
+  assert.equal(approved.digest, "Verdict: APPROVED at aaaaaaa (HEAD). No comments. Chapters read: 2 of 2. Approved with checks not green: 1 failed, 1 not run. 3 of 8 hunks were in no chapter.");
   assert.match(formatReviewResult(approved, "x"), /the page merged nothing\.$/);
   assert.equal(reviewResult({ base: { title: "t" }, spec, meta, placed: built.placed, review, dialog, payload: { verdict: "nits" } }).verdict, "nits");
   assert.deepEqual(reviewResult({ base: { title: "t" }, spec, meta, placed: built.placed, review, dialog, payload: { cancelled: true } }), { title: "t", cancelled: true });
@@ -773,8 +773,8 @@ test("MCP: review → comments, a question, read marks → the verdict with ever
   const sent = await post("submit", { verdict: "return", note: "Line three first." });
   assert.equal(sent.status, 200, JSON.stringify(sent.body));
   const verdict = text(await call("wait", { project: dir, round, timeoutSec: 5 }));
-  assert.match(verdict, /^Review «The fixture change» is finished\./);
-  assert.match(verdict, /Verdict: RETURNED\. Comments: 1 to fix, 1 nit, 1 question\. Chapters read: 1 of 2 \(not read: «Line fifty»\)\. 2 of 7 hunks were in no chapter\./);
+  assert.match(verdict, /^Verdict: RETURNED at /);
+  assert.match(verdict, /Verdict: RETURNED at [0-9a-f]{7} \(HEAD\)\. Comments: 1 to fix, 1 nit, 1 question\. Chapters read: 1 of 2 \(not read: «Line fifty»\)\. 2 of 7 hunks were in no chapter\./);
   assert.match(verdict, /The reviewer's note:\n> Line three first\./);
   assert.match(verdict, /To fix \(1\):\n1\. lib\/a\.mjs:3 · chapter «Line three»\n   \+ line three\n   Keep the digit: the parser reads it\./);
   assert.match(verdict, /Nits \(1\):\n1\. lib\/a\.mjs:50 \(old side\) · chapter «Line fifty»\n   - line 50\n   Say why in the commit message\./);
@@ -848,7 +848,58 @@ test("a review survives a server restart: the snapshot, the comments, the read m
   assert.match(whole.text, /^line 1\nline 2\nline three\n/, "the file as it was at the reviewed commit, not as it is now");
   const sent = await post(second.port, "submit", { verdict: "nits" });
   assert.equal(sent.status, 200);
-  assert.match((await sent.json()).result.digest, /^Verdict: APPROVED WITH NITS\. Comments: 1 to fix, 1 question \(1 not answered\)\. Chapters read: 1 of 2/);
+  assert.match((await sent.json()).result.digest, /^Verdict: APPROVED WITH NITS at [0-9a-f]{7} \(HEAD\)\. Comments: 1 to fix, 1 question \(1 not answered\)\. Chapters read: 1 of 2/);
   // A verdict nobody collected announces itself like any answered round.
   assert.deepEqual(uncollected(back.dataDir, { graceMs: 0 }).map((r) => [r.id, r.title]), [[id, "The fixture change"]]);
+});
+
+test("overview collects risk places without duplicating a listed place", async () => {
+  const { collectRisks } = await import("../ui/js/review/risks.js");
+  const spec = { risks: [{ level: "high", what: "listed", chapter: "a", at: "a.mjs:3" }], chapters: [] };
+  const chapters = [{ id: "a", focus: [{ file: "a.mjs", from: 3, to: 3, kind: "risk", note: "duplicate" }, { file: "a.mjs", from: 9, to: 10, kind: "risk", note: "collected" }, { kind: "why", note: "not a risk" }] }];
+  assert.deepEqual(collectRisks(spec, chapters), [...spec.risks, { level: "high", what: "collected", chapter: "a", place: 1 }]);
+  assert.equal(spec.risks.length, 1);
+});
+
+test("verdict digest names the snapshot and a newer head", () => {
+  const spec = { chapters: [], checks: [] };
+  const result = reviewResult({ base: {}, spec, meta: { head: "1234567890", headRef: "feature", newer: { head: "abcdef0123" } }, placed: { where: {}, sorted: 0, total: 0 }, review: { read: {}, comments: [] }, dialog: [], payload: { verdict: "approve" } });
+  assert.match(result.digest, /^Verdict: APPROVED at 1234567 \(feature\)/);
+  assert.match(result.digest, /\n.*abcdef0.*1234567.*approval covers only/i);
+  assert.deepEqual(result.range.newer, { head: "abcdef0123" });
+});
+
+test("review result addresses retain both verdicts; wait checks branch movement after submission", { skip: !hasGit }, async (t) => {
+  const { formatResult } = await import("../lib/prepare.mjs");
+  const repo = await reviewRepo(t);
+  const server = await spawnServer(t, homeOf(repo.dir));
+  const origin = `http://127.0.0.1:${server.port}`;
+  const copy = path.join(repo.dir, "same.answers.json");
+  const post = async (route, body, agent = false) => {
+    const response = await fetch(`${origin}/api/${route}`, { method: "POST", headers: agent ? asAgent(server.port) : asPage(server.port), body: JSON.stringify(body) });
+    assert.equal(response.status, 200);
+    return response.json();
+  };
+  const finish = async (verdict) => {
+    const { id } = await post("rounds", { project: repo.dir, spec: REPO_SPEC, mode: "review", open: false, outPath: copy, specFile: path.join(repo.dir, "same.json") }, true);
+    await post(`rounds/${id}/submit`, { verdict, note: `note for ${verdict}` });
+    const response = await fetch(`${origin}/api/rounds/${id}/next?timeout=1000`, { headers: asAgent(server.port) });
+    const item = await response.json();
+    const text = formatResult(item.payload, item.payload.file);
+    return { id, address: text.match(/Full JSON: (.+)/)[1], text };
+  };
+  const first = await finish("return");
+  const second = await finish("approve");
+  for (const [result, verdict] of [[first, "return"], [second, "approve"]]) {
+    const saved = JSON.parse(readFileSync(result.address));
+    assert.equal(saved.round, result.id);
+    assert.equal(saved.verdict, verdict);
+    assert.equal(saved.note, `note for ${verdict}`);
+    assert.match(result.text, /Full JSON: .*\nConvenience copy: .*next round.*overwrites/);
+  }
+  repo.git("commit", "--allow-empty", "-qm", "after verdict");
+  const head = repo.git("rev-parse", "HEAD");
+  const item = await (await fetch(`${origin}/api/rounds/${second.id}/next?timeout=1000`, { headers: asAgent(server.port) })).json();
+  assert.match(item.payload.digest, new RegExp(`Branch head ${head.slice(0, 7)} differs from snapshot ${repo.head.slice(0, 7)}`));
+  assert.deepEqual(JSON.parse(readFileSync(second.address)).range.newer, { head });
 });

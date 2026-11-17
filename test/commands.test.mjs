@@ -757,3 +757,49 @@ test("in words: the page's words reach wait, the patch tool answers with knobs, 
   assert.match(await served.text(), /data-decide-bridge/, "the swapped-in mockup gets the knobs bridge");
   await assert.rejects(call(home, "patch", { project: dir, round: posted.id, ops: [{ knobs: { question: "card", preview: "m/gone.html" } }] }), /missing file/);
 });
+
+for (const live of [false, true]) test(`CLI wait timeout bounds a pending round (live=${live})`, async (t) => {
+  const { dir, home } = await scratch(t);
+  const server = await spawnServer(t, home);
+  const opened = await fetch(`http://127.0.0.1:${server.port}/api/rounds`, { method: "POST", headers: asAgent(server.port), body: JSON.stringify({ project: dir, spec, open: false }) }).then((r) => r.json());
+  const started = Date.now();
+  const child = spawn(process.execPath, [enginePath, "wait", opened.id, "--timeout-sec", "1", ...(live ? ["--live"] : [])], { env: envOf(dir, { BROWSER: "none", DECIDE_PORT: String(server.port) }) });
+  t.after(() => child.kill());
+  const output = collect(child);
+  const timer = setTimeout(() => child.kill(), 4000);
+  const code = await exitOf(child);
+  clearTimeout(timer);
+  assert.equal(code, 4, output.stdout);
+  assert.ok(Date.now() - started < 3500);
+  assert.match(output.stdout, /Still waiting[\s\S]*wait/);
+});
+
+test("Full JSON addresses survive a second round of the same spec", async (t) => {
+  const { dir, home } = await scratch(t);
+  const file = path.join(dir, "same.questions.json");
+  writeFileSync(file, JSON.stringify(spec));
+  const first = await call(home, "ask", { project: dir, specPath: file, open: false });
+  const id1 = first.text.match(/Round (\S+)/)[1];
+  const server = JSON.parse(readFileSync(path.join(home, "daemon.json")));
+  const finish = (id, color) => fetch(`http://127.0.0.1:${server.port}/api/rounds/${id}/submit`, { method: "POST", headers: asPage(server.port), body: JSON.stringify({ answers: { color: { selected: [color] } } }) });
+  await finish(id1, "pink");
+  const result1 = await call(home, "wait", { round: id1 });
+  const second = await call(home, "ask", { project: dir, specPath: file, open: false });
+  const id2 = second.text.match(/Round (\S+)/)[1];
+  await finish(id2, "blue");
+  const result2 = await call(home, "wait", { round: id2 });
+  for (const [id, result] of [[id1, result1], [id2, result2]]) {
+    const address = result.text.match(/Full JSON: (.+)/)[1];
+    assert.equal(JSON.parse(readFileSync(address)).round, id);
+    assert.match(result.text, /Convenience copy: .*next round.*overwrites/);
+  }
+});
+
+test("CLI timeout includes finding the server", async (t) => {
+  const { home } = await scratch(t);
+  const result = await Promise.race([
+    call(home, "wait", { round: "pending", timeoutSec: 0.05 }, { cli: true, say: () => {}, server: () => new Promise(() => {}) }),
+    sleep(500).then(() => ({ exit: null })),
+  ]);
+  assert.equal(result.exit, 4);
+});

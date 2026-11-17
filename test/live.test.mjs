@@ -141,7 +141,7 @@ test("MCP server: ask → wait → explain → wait → history over stdio", asy
   const done = text(await call("wait", { project: dir, round, timeoutSec: 10 }));
   assert.match(done, /\[color\] Какой цвет кнопки\? → Синий \(against the recommendation: Розовый\)/);
   const answersPath = done.match(/Full JSON: (.+)/)[1];
-  assert.match(answersPath, /[\\/]rounds[\\/].+-цвет-кнопки\.answers\.json$/, "inline specs keep their answers in the project data dir");
+  assert.match(answersPath, /[\\/]rounds[\\/][^\\/]+[\\/]answers\.json$/, "Full JSON names the round’s stable answers file");
   assert.equal((await readJson(answersPath)).answers.color.selected[0], "blue");
   assert.match(text(await call("history", { project: dir })), /Цвет кнопки/);
 });

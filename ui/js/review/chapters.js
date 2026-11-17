@@ -21,9 +21,15 @@ export function createChapters(s) {
   };
   const others = new Map(); // group key → the fold with the chapter's other pieces
 
-  async function load(key) {
+  function load(key) {
     const g = groups.get(key);
-    if (!g || g.state === "loading" || g.state === "ready") return;
+    if (!g || g.state === "ready") return Promise.resolve();
+    if (g.pending) return g.pending;
+    g.pending = loadGroup(key, g).finally(() => { g.pending = null; });
+    return g.pending;
+  }
+
+  async function loadGroup(key, g) {
     g.state = "loading";
     g.body.replaceChildren(h("div.cr-wait", {}, t("cr.loading")));
     try {
@@ -50,11 +56,11 @@ export function createChapters(s) {
         openOthers(key);
       }
       if (!pieces.length) g.body.replaceChildren(h("div.cr-wait", {}, t("cr.noPieces")));
-      // A chapter of code with no test in it: the reader should see that before the diff.
-      if (key.startsWith("ch:") && pieces.length && !pieces.some((p) => p.test)) cards.get(key.slice(3))?.badges.append(h("span.badge.soft", {}, t("cr.noTests")));
     } catch {
       g.state = "failed";
       g.body.replaceChildren(h("div.cr-wait", {}, t("cr.loadFailed"), h("button.btn.cr-sm", { type: "button", onclick: () => load(key) }, t("cr.retry"))));
+    } finally {
+      s.progress?.();
     }
   }
   // The fold opens by itself for the whole diff and for a piece somebody wrote on; the reader closes it.
@@ -150,9 +156,23 @@ export function createChapters(s) {
       openOthers(hit.group);
     },
     // "The whole diff" went on or off: every piece on screen is drawn again, the folds follow.
-    redraw() {
+    async redraw() {
+      if (s.full) {
+        for (const [key, g] of groups) if (!key.startsWith("ch:")) g.body.parentNode.open = true;
+        await Promise.all([...groups.keys()].map(load));
+      }
+
       for (const { el: pieceEl } of s.loaded.values()) pieceEl.update();
       for (const o of others.values()) o.fold.open = s.full || o.ids.some((id) => s.notesOf(id).length || s.draft?.hunk === id);
+      if (!s.full) for (const [key, g] of groups) if (!key.startsWith("ch:")) g.body.parentNode.open = false;
+      return [...groups.values()].every((g) => g.state === "ready");
+    },
+    // Load every chapter above the destination before measuring its scroll position.
+    async prepare(key) {
+      const keys = [...groups.keys()];
+      const end = keys.indexOf(key);
+      if (end < 0) return;
+      await Promise.all(keys.slice(0, end + 1).filter((k) => k.startsWith("ch:")).map(load));
     },
     // The row that opens a key place, once its chapter is on screen; the fold it may sit in is opened.
     async place(chapter, k) {
