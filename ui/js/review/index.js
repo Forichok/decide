@@ -136,7 +136,11 @@ export function mountReview(round, env) {
   };
   narrow.addEventListener("change", moveRail);
   moveRail();
-  $("#main").replaceChildren(h("div.cr-view", {}, eyebrow({ ...env, help: openKeys }), title.el, renderOverview(s), chapters.el, bar.el));
+  const overview = renderOverview(s);
+  overview.append(h("p.cr-thread-hint", {}, h("button.link-btn", {
+    type: "button", onclick: () => document.querySelector(".round-thread-button")?.click(),
+  }, t("thread.reviewLink"))));
+  $("#main").replaceChildren(h("div.cr-view", {}, eyebrow({ ...env, help: openKeys }), title.el, overview, chapters.el, bar.el));
   const topBar = document.querySelector(".cr-view .eyebrow");
   topBar.append(chapterNav);
   window.scrollTo({ top: 0, behavior: "instant" });

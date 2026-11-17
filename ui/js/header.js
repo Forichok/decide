@@ -1,6 +1,7 @@
 // header.js — round header (title, meta, intro, recap, context), tabs for
 // parallel rounds, the project's decision journal, and the done / idle screens.
 
+import { roundThreadButton } from "./round-thread.js";
 import { roundActions } from "./actions.js";
 import { h, icon } from "./dom.js";
 import { lang, t } from "./i18n.js";
@@ -97,6 +98,7 @@ export function eyebrow(env) {
     env.journal && h("button.icon-btn.jr-btn", { type: "button", title: t("journal.open"), "aria-label": t("journal.open"), html: icon("history"), onclick: env.journal }),
     h("a.icon-btn.gh", { href: REPO, ...out, title: t("brand.title"), "aria-label": t("brand.title"), html: icon("github") }),
     h("button.icon-btn.keys-btn", { type: "button", title: t("keys.button"), "aria-label": t("keys.label"), html: icon("keyboard"), onclick: env.help }),
+    !env.offline && env.currentId && roundThreadButton(env.currentId),
     env.settings && h("button.icon-btn.settings-btn", { type: "button", title: t("settings4.open"), "aria-label": t("settings4.open"), html: icon("settings"), onclick: env.settings }),
     h("button.icon-btn.theme", { type: "button", title: t("theme.button"), "aria-label": t("theme.label"), html: icon(env.isDark() ? "sun" : "moon"), onclick: env.toggleTheme }),
   );

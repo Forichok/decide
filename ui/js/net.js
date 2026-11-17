@@ -123,6 +123,11 @@ export const swipeCard = (id, body) =>
 export const digDeeper = (id, note) =>
   fetch(`/api/rounds/${id}/deeper`, { method: "POST", headers: WRITE, body: JSON.stringify({ note }) }).then(json);
 
+// Round messages are durable even when the current waiter takes no live events.
+export const getThread = (id) => fetch(`/api/rounds/${id}/thread`, { cache: "no-store" }).then(json);
+export const sendMessage = (id, body) => post(`/api/rounds/${id}/message`, body);
+export const pickMessage = (id, body) => post(`/api/rounds/${id}/message-pick`, body);
+
 export const askAgent = (id, question, text) =>
   fetch(`/api/rounds/${id}/ask`, { method: "POST", headers: WRITE, body: JSON.stringify({ question, text }) }).then(json);
 
@@ -155,10 +160,10 @@ export function listen(onState, onStatus, onDialog, onDeck) {
     else if (serverStart !== startedAt) reloadPending = true;
     if (reloadPending) reloadWhenSafe();
   });
-  es.addEventListener("state", (e) => onState(JSON.parse(e.data)));
+  es.addEventListener("state", (e) => { const data = JSON.parse(e.data); onState(data); dispatch("state", data); });
   es.addEventListener("dialog", (e) => onDialog(JSON.parse(e.data)));
   es.addEventListener("deck", (e) => onDeck(JSON.parse(e.data)));
-  for (const name of ["round", "inbox", "handover"]) es.addEventListener(name, (e) => dispatch(name, e.data ? JSON.parse(e.data) : null));
+  for (const name of ["round", "inbox", "handover", "thread"]) es.addEventListener(name, (e) => dispatch(name, e.data ? JSON.parse(e.data) : null));
   let broken = false;
   es.onopen = () => {
     told = null;

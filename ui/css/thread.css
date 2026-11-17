@@ -1,0 +1,42 @@
+/* Wave 3: the round conversation, shared by all three modes. */
+.round-thread-button { position: relative; flex-shrink: 0; gap: 8px; }
+.round-thread-unread { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.round-thread-unread[hidden] { display: none; }
+.modal:has(.round-thread-panel) { padding: 0; overflow: hidden; }
+.round-thread-panel { display: flex; flex-direction: column; max-height: 84dvh; min-height: min(560px, 80dvh); }
+.round-thread-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px 8px; }
+.round-thread-head .modal-title { margin: 0; }
+.round-thread-presence { margin: 0; padding: 4px 24px 14px; font-size: 13px; color: var(--tx-mut); }
+.round-thread-presence.away { color: var(--warn); }
+.round-thread-log { flex: 1; min-height: 80px; overflow: auto; overscroll-behavior: contain; padding: 12px 24px; display: flex; flex-direction: column; gap: 14px; border-block: 1px solid var(--line); }
+.round-thread-log .msg { flex-shrink: 0; min-width: 0; width: 100%; margin: 0; }
+.round-thread-log .msg.me { background: var(--accent-soft); }
+.round-thread-log .msg-text { overflow-wrap: anywhere; }
+.round-thread-log .msg.me .msg-text { white-space: pre-wrap; }
+.round-thread-log .msg-who { display: flex; justify-content: space-between; gap: 12px; }
+.round-thread-log time { font-size: 11px; font-weight: 400; color: var(--tx-dim); }
+.round-thread-status { margin: 8px 0 0; font-size: 12px; color: var(--tx-dim); }
+.round-thread-status[data-status="answered"] { color: var(--ok); }
+.round-thread-empty { margin: auto; padding: 24px 0; color: var(--tx-dim); text-align: center; font-size: 14px; }
+.round-thread-composer { padding: 16px 24px 20px; }
+.round-thread-composer[hidden] { display: none; }
+.round-thread-input { width: 100%; resize: vertical; min-height: 80px; max-height: 180px; }
+.round-thread-send { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 8px; }
+.round-thread-send > span { color: var(--tx-dim); font-size: 12px; }
+.round-thread-error { margin: 0; padding-inline: 24px; color: var(--danger); font-size: 13px; }
+.round-thread-error:empty { display: none; }
+.round-thread-error:not(:empty) { padding-block: 8px; }
+.round-thread-choice { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+.round-thread-choice p { margin: 0 0 10px; }
+.round-thread-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.round-thread-options .btn { white-space: normal; text-align: left; border-color: var(--line-strong); background: var(--surface-solid); }
+.round-thread-options .btn:enabled:is(:hover, :focus-visible) { border-color: var(--accent-line); background: var(--surface-2); }
+.round-thread-options .btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-tx); opacity: 1; }
+@media (max-width: 640px) {
+  .eyebrow:has(.round-thread-button) { flex-wrap: wrap; border-radius: var(--r-lg); }
+  .round-thread-head, .round-thread-presence, .round-thread-log, .round-thread-composer { padding-inline: 16px; }
+  .round-thread-button { max-width: 150px; white-space: normal; line-height: 1.2; }
+  .round-thread-send > span { max-width: 180px; }
+}
+
+.cr-thread-hint { margin: 16px 0 0; font-size: 13px; }

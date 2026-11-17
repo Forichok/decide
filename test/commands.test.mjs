@@ -114,10 +114,10 @@ test("tools/list has the eleven 2.1 tools plus lint, stop, rules, patch, review 
   const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x));
   for (const old of surface.tools) {
     const now = tools.find((t) => t.name === old.name);
-    assert.deepEqual(now.inputSchema.required ?? [], old.inputSchema.required ?? [], `${old.name}: required`);
+    assert.deepEqual(now.inputSchema.required ?? [], old.name === "explain" ? ["round", "text"] : old.inputSchema.required ?? [], `${old.name}: required`);
     // 3.0 added one parameter to export, last: outside (a file outside the project).
     // 3.0 also added push's reason and keepAnswers (push runs through the patch engine).
-    const added = old.name === "export" ? ["outside"] : old.name === "explain" ? ["patch"] : old.name === "push" ? ["reason", "keepAnswers"] : [];
+    const added = old.name === "export" ? ["outside"] : old.name === "explain" ? ["patch", "choice"] : old.name === "push" ? ["reason", "keepAnswers"] : [];
     assert.deepEqual(Object.keys(now.inputSchema.properties), [...Object.keys(old.inputSchema.properties), ...added], `${old.name}: parameter names, in order`);
     if (old.name === "ask" || old.name === "swipe") {
       assert.ok(now.description.startsWith(old.description), `${old.name}: description starts as before`);
@@ -129,13 +129,15 @@ test("tools/list has the eleven 2.1 tools plus lint, stop, rules, patch, review 
       assert.equal(now.inputSchema.properties.spec.type, "object");
       assert.ok(now.inputSchema.properties.spec.description.startsWith(old.inputSchema.properties.spec.description.slice(0, 20)));
     } else {
-      assert.equal(now.description, old.description, `${old.name}: description`);
+      if (old.name === "explain") assert.equal(now.description, "Reply under an item, or omit question for the round dialog. Use askId to answer a message; omit it to write first. Accepts markdown, all media and a two-button choice.");
+      else if (old.name === "wait") assert.equal(now.description, old.description.replace("or a question the user asked you (answer it with explain, then wait again),", "or a question the user asked you (answer it with explain, then wait again), or a round message (follow its instructions),"));
+      else assert.equal(now.description, old.description, `${old.name}: description`);
       const { outside: _added, ...kept } = now.inputSchema.properties;
       // 3.0 added explain's optional patch.
-      const { patch: _patch, ...keptExplain } = now.inputSchema.properties;
+      const { patch: _patch, choice: _choice, ...keptExplain } = now.inputSchema.properties;
       const { reason: _reason, keepAnswers: _keep, ...keptPush } = now.inputSchema.properties;
       const props = old.name === "export" ? kept : old.name === "explain" ? keptExplain : old.name === "push" ? keptPush : now.inputSchema.properties;
-      assert.equal(canon({ ...now.inputSchema, properties: props }), canon(old.inputSchema), `${old.name}: schema`);
+      assert.equal(canon({ ...now.inputSchema, properties: props, ...(old.name === "explain" ? { required: old.inputSchema.required } : {}) }), canon(old.inputSchema), `${old.name}: schema`);
     }
   }
 });

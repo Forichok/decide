@@ -477,6 +477,13 @@ you about the current task. See [Swipe interview](#swipe-interview).
 
 ## How it works
 
+“Write to the agent” in the top bar opens a conversation about the whole
+round in questions, swipe and review modes. Messages are saved even when
+the agent is away. Replies can include visuals and a two-button question;
+the conversation stays in the answers file and final digest. In reviews,
+requested code changes go into the working tree for the next round; the
+open page keeps its commit snapshot.
+
 The plugin ships an MCP server with these tools: `ask` opens a round,
 `swipe` opens a card interview, `wait` blocks until you answer or ask
 something, `push` updates the deck and brief of a card interview, `explain`

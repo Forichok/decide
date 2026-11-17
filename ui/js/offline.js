@@ -180,3 +180,8 @@ export const reviewComment = gone;
 export const reviewUncomment = gone;
 export const reviewRead = gone;
 export const reviewAsk = noAgent;
+
+// Exported pages never mount the round conversation button.
+export const getThread = async () => ({ thread: [], listening: false });
+export const sendMessage = () => fail("No agent in an exported page");
+export const pickMessage = () => fail("No agent in an exported page");

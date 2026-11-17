@@ -20,6 +20,32 @@ in it, so commit before you call `review`.
 Use plain `/decide` to explore alternatives before implementation. In a review,
 ask yes/no questions about behaviour already present in the change.
 
+## The round conversation
+
+“Write to the agent” in the top bar opens a conversation about the whole
+round. `wait` returns a `message` with its id and the user's words. Reply
+with `explain {project, round, askId: <message id>, text}` and **omit
+question**. Text accepts markdown and every media kind a card accepts.
+Omit `askId` too when you want to write first.
+
+If the user asks you to redo something, do it at once in the working
+tree, then say what changed in the dialog. For a complaint or doubt,
+propose a solution and ask whether to settle it in the dialog or as a
+card/question in the round. Then do what they pick. A reply can offer
+`choice: {text: "Where?", options: ["Here in the dialog", "As a card"]}`;
+the pick comes through `wait` as a new message.
+
+Messages stay queued when no agent listens. The final answers JSON has
+`thread`; the digest's “The conversation” section marks requests without
+a reply as `NOT answered`. Item-level questions stay under their own item.
+With CLI `--live`, a message prints `DECIDE message:` and exits with the
+same code as a question. Without `--live`, it comes with the final result.
+Exported offline pages have no conversation button.
+
+In a review, the page keeps its commit snapshot. Make explicitly requested
+changes in the working tree and say what you did and that it will be in
+the next review round. Never say that the open review page changed.
+
 ## Arguments
 
 | After `/decide:review`   | Do                                                      |
@@ -60,9 +86,10 @@ Always pass `project`, the absolute path of the project you work in.
      questions and whether you answered them.
 6. Act on the verdict (below).
 
-**Don't end your turn while the review is open**, and don't change code
-before the verdict: the user is reading a snapshot, and a commit under their
-hands makes the comments point at lines that moved. If you must stop, tell
+**Don't end your turn while the review is open.** Wait for the verdict
+before changing code unless the user explicitly requests a change in the
+round conversation. Their page keeps its original snapshot; requested
+changes belong to the next review round. If you must stop, tell
 the user to message you when they are done, and on that message call
 `wait {project, round, timeoutSec: 5}` first.
 

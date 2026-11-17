@@ -26,6 +26,32 @@ Don't use it for a single yes/no that fits in one chat line, or for facts you
 can check yourself in code, docs, git history or a running app. Asking the
 user what the code already says wastes their time.
 
+## The round conversation
+
+“Write to the agent” in the top bar opens a conversation about the whole
+round. `wait` returns a `message` with its id and the user's words. Reply
+with `explain {project, round, askId: <message id>, text}` and **omit
+question**. Text accepts markdown and every media kind a card accepts.
+Omit `askId` too when you want to write first.
+
+If the user asks you to redo something, do it at once with `patch` or
+`push`, then say what changed in the dialog. For a complaint or doubt,
+propose a solution and ask whether to settle it in the dialog or as a
+card/question in the round. Then do what they pick. A reply can offer
+`choice: {text: "Where?", options: ["Here in the dialog", "As a card"]}`;
+the pick comes through `wait` as a new message.
+
+Messages stay queued when no agent listens. The final answers JSON has
+`thread`; the digest's “The conversation” section marks requests without
+a reply as `NOT answered`. Item-level questions stay under their own item.
+With CLI `--live`, a message prints `DECIDE message:` and exits with the
+same code as a question. Without `--live`, it comes with the final result.
+Exported offline pages have no conversation button.
+
+In a review, the page keeps its commit snapshot. Make explicitly requested
+changes in the working tree and say what you did and that it will be in
+the next review round. Never say that the open review page changed.
+
 ## Arguments
 
 | After `/decide` or `$decide` | Do                                             |
