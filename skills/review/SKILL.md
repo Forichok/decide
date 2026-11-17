@@ -118,6 +118,7 @@ the user to message you when they are done, and on that message call
 | `chapters[].hunks`     | References to the hunks of this chapter.                                                                   |
 | `chapters[].focus`     | `[{at, note, kind}]`: the places to read, up to five. `at` is `"path:from-to"` in lines of the new file, inside this chapter's hunks. `kind` is optional: `risk`, `decision` or `check`. |
 | `chapters[].skim`      | One sentence on why the chapter needs no reading line by line. Not for a high-risk chapter.                |
+| `mechanicalWhy`        | Why mechanical groups hold more than one third of all added and removed lines. One or two sentences; required above that share. |
 | `mechanical[]`         | `{title, hunks}`: one folded line on the page with a count.                                                |
 
 ### Naming hunks
@@ -194,7 +195,7 @@ hunk takes a comment; the file's lines outside the change do not.
 
 So don't choose places to make the change look smaller. If the risky line is
 line 3 of a 200-line file, that line is the place. A place must lie inside
-the chapter's own hunks: lint names one that does not, and the page drops it.
+the chapter's own hunks: lint refuses a place that touches none of them. A place that extends beyond them stays, with a warning naming the lines shown.
 
 ## What counts as mechanical
 
@@ -210,6 +211,17 @@ Not mechanical, however small: a changed default, a changed condition, a
 dependency added or upgraded across a major version, a config value, a
 migration, anything in auth or money, a deleted test. If a rename hunk also
 changes behaviour, it belongs to a chapter.
+
+If mechanical groups hold more than one third of the snapshot's added and
+removed lines, give the reason in `mechanicalWhy`. Lint refuses the review
+without it. With a reason, lint still warns about the share. The page labels
+the share and reason as the agent's account. Move edits that change behaviour
+into chapters rather than using this field to excuse them.
+
+Chapter marks mean "Viewed". Piece coverage records which changes reached the
+viewport with their changed lines unfolded. Neither mark claims the user read
+or understood the code. Approvals warn about pieces opened only in part or
+not opened, and the verdict includes those counts and files.
 
 ## Writing the overview
 

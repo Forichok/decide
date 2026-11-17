@@ -300,6 +300,14 @@ export function renderPiece(s, piece, { folded = false } = {}) {
     s.compose({ hunk: piece.id, line: Number(line), side, kind: "fix" });
   });
 
+  el.coverageState = () => {
+    if (!isHunk) return "opened";
+    const changed = lines.filter((l) => l.t === "add" || l.t === "del").length;
+    // Count rendered rows: a full-diff request can be pending while s.full is already true.
+    const shown = tbody.querySelectorAll("tr.cr-line.add, tr.cr-line.del").length;
+    return shown === changed ? "opened" : shown ? "part" : null;
+  };
+  el.unfold = () => { st.all = true; update(); };
   el.update = update;
   // What was said changed: the notes are laid again, and a line that got one while folded is unfolded.
   el.paint = () => {

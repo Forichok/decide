@@ -5,6 +5,7 @@ import { h, icon } from "../dom.js";
 import { t } from "../i18n.js";
 import { md, mdInline } from "../md.js";
 import { reviewPieces } from "../net.js";
+import { mechanicalLine } from "./overview.js";
 import { renderPiece } from "./hunk.js";
 
 const fileList = (names, max = 3) => (names.length > max ? `${names.slice(0, max).join(", ")} ${t("cr.moreFiles", names.length - max)}` : names.join(", "));
@@ -117,7 +118,7 @@ export function createChapters(s) {
     const el = h(
       `details.cr-fold.glass${cls}`,
       { dataset: { stop: key } },
-      h("summary", {}, h("span.cr-count", {}, stat.pieces), h("span", { html: title }), h("span.what", {}, sizeOf(stat)), h("span.cr-chev", { html: icon("chevron") })),
+      h("summary", {}, h("span.cr-count", {}, stat.pieces), h("span", { html: title }), h("span.what", {}, sizeOf(stat)), h("span.cr-chev", { html: icon("chevron") }), key.startsWith("mech:") && h("span.cr-mechanical-account", {}, mechanicalLine(s))),
       body,
     );
     el.addEventListener("toggle", () => el.open && load(key));
@@ -178,6 +179,15 @@ export function createChapters(s) {
     async place(chapter, k) {
       await load(`ch:${chapter}`);
       return cards.get(chapter)?.el.querySelector(`tr.cr-place[data-focus="${CSS.escape(`${chapter}:${k}`)}"]`) ?? null;
+    },
+    async piece(id, key) {
+      await this.prepare(key);
+      await this.show(key);
+      const other = others.get(key);
+      if (other?.ids.includes(id)) other.fold.open = true;
+      const hit = s.loaded.get(id);
+      hit?.el.unfold();
+      return hit?.el;
     },
     // Opens the group a piece lives in (a folded one too) and resolves once it is on screen.
     async show(key) {

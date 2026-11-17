@@ -27,7 +27,7 @@ function summaryCard(spec, result, env = {}) {
     return h("section.sum", {}, h("h3.sum-h", {}, t("sum.brief")), h("ul.done-brief", {}, result.brief.map((b) => h(`li.sw-item.k-${b.kind}`, {}, b.text))));
   }
   if (!result || result.cancelled) return null;
-  if (result.mode === "review") return reviewCard(result);
+  if (result.mode === "review") return reviewCard(result, env);
   const s = spec ? summarize(spec, result, words()) : { rows: [], comment: result.comment || "", leftOut: [], commentFiles: [] };
   const rows = s.rows.map((r) =>
     h(
@@ -56,7 +56,7 @@ function summaryCard(spec, result, env = {}) {
 }
 
 // A code review's result: the verdict, how much was read, and every comment where it was left.
-function reviewCard(result) {
+function reviewCard(result, env) {
   const where = (c) => `${c.file || c.hunk}${Number.isInteger(c.line) ? `:${c.line}` : ""}`;
   const comments = result.comments || [];
   return h(
@@ -80,7 +80,7 @@ function reviewCard(result) {
           ),
         ),
       ),
-    result.digest && h("details.sum-raw", {}, h("summary", {}, t("sum.raw")), h("pre.done-digest", {}, result.digest)),
+    result.digest && h("details.sum-raw", {}, h("summary", {}, t(env.delivery?.delivered === false ? "cr.done.rawPending" : "sum.raw")), h("pre.done-digest", {}, result.digest)),
   );
 }
 

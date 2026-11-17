@@ -123,8 +123,8 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 .cr-others[open] > summary { border-bottom: 1px solid var(--line); border-radius: var(--r-md) var(--r-md) 0 0; }
 .cr-others > .cr-hunk { margin: 12px; }
 .cr-how { margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); color: var(--tx-mut); font-size: 14px; text-wrap: pretty; }
-.cr-full { display: block; width: calc(100% - 20px); margin: 14px 10px 0; padding: 7px 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: none; color: var(--tx-mut); font-size: 12.5px; font-weight: 620; cursor: pointer; }
-.cr-full:hover { color: var(--tx); background: var(--surface-3); }
+.cr-full, .cr-files { display: block; width: calc(100% - 20px); margin: 14px 10px 0; padding: 7px 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: none; color: var(--tx-mut); font-size: 12.5px; font-weight: 620; cursor: pointer; }
+.cr-full:hover, .cr-files:hover { color: var(--tx); background: var(--surface-3); }
 .cr-full[aria-pressed="true"] { color: var(--accent-tx); border-color: var(--accent); }
 .cr-ch-foot { display: flex; align-items: center; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
 .cr-hint { color: var(--tx-dim); font-size: 13px; }
@@ -290,3 +290,21 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 @media (max-width: 1179px) { body.review-mode .toc { display: none; } }
 .cr-verdict-commit, .cr-sum-commit { font-family: var(--mono); font-size: 13px; }
 .cr-done-recovery { color: var(--tx-mut); font-size: 14px; line-height: 1.5; }
+
+/* Files stay a flat list, including in the narrow chapter menu. */
+.cr-files { text-align: left; margin-top: 8px; }
+.cr-progress, .cr-mechanical-account { color: var(--tx-mut); font-size: 13px; line-height: 1.5; }
+.cr-mechanical-account { padding: 8px 16px; }
+.modal:has(.cr-file-list) { width: min(720px, 92vw); }
+.cr-file-list ul { list-style: none; padding: 0; max-height: 60vh; overflow-y: auto; }
+.cr-file-list li + li { border-top: 1px solid var(--line); }
+.cr-file-list li button { display: flex; flex-direction: column; gap: 4px; width: 100%; min-width: 0; text-align: left; padding: 10px 12px; border: 0; border-radius: 8px; background: none; color: var(--tx); cursor: pointer; }
+.cr-file-list li button:hover { background: var(--surface-2); }
+.cr-file-list li button:focus-visible { outline-offset: -2px; }
+.cr-file-list code { max-width: 100%; overflow-wrap: anywhere; word-break: normal; }
+.cr-file-meta { color: var(--tx-mut); font-size: 12.5px; line-height: 1.4; }
+
+.cr-fold > summary .cr-mechanical-account { flex-basis: 100%; padding: 0; font-weight: 400; }
+
+.cr-progress { margin: 12px 10px; }
+.cr-progress > span { display: block; }

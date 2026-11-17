@@ -5,6 +5,7 @@
 import { h } from "../dom.js";
 import { t } from "../i18n.js";
 import { md, mdInline } from "../md.js";
+import { coverageCounts } from "./coverage.js";
 import { collectRisks } from "./risks.js";
 
 export const checkState = (c) => (Number.isInteger(c.exit) ? (c.exit === 0 ? "ok" : "failed") : "missing");
@@ -68,6 +69,7 @@ export function renderOverview(s) {
     "section.cr-card.cr-overview.glass",
     { id: "cr-overview", tabindex: "-1", dataset: { stop: "overview" } },
     h("div.cr-ch-head", {}, h("div.cr-ch-titles", {}, h("h2", {}, t("cr.overview"))), h("span.cr-said", {}, t("cr.said"))),
+    spec.mechanical.length > 0 && h("p.cr-mechanical-account", {}, mechanicalLine(s)),
     h("div.cr-lead.cr-md", { html: md(spec.summary) }),
     s.guided && h("p.cr-how", {}, t("cr.how", rv.chapters.reduce((n, c) => n + c.focus.length, 0))),
     h("h3.cr-sub", {}, t("cr.risks")),
@@ -94,6 +96,7 @@ export function renderRail(s) {
     return el;
   };
   const folds = spec.mechanical.length + (rv.rest.pieces ? 1 : 0);
+  const progress = h("p.cr-progress");
   const full = h("button.cr-full", { type: "button", onclick: () => s.setFull(!s.full) });
   const el = h(
     "div.cr-rail",
@@ -105,12 +108,19 @@ export function renderRail(s) {
     spec.mechanical.length > 0 && item("mech", "⋯", t("cr.railMech", rv.mechanical.reduce((n, m) => n + m.pieces, 0)), null, () => s.goFolds()),
     rv.rest.pieces > 0 && item("rest", "?", t("cr.railRest", rv.rest.pieces), null, () => s.goFolds("rest")),
     full,
+    h("button.cr-files", { type: "button", onclick: () => s.openFiles() }, t("cr.fileList")),
+    progress,
     h(`p.cr-sorted${rv.sorted < rv.total ? ".short" : ""}`, {}, t("cr.sortedA"), " ", h("b", {}, t("cr.of", rv.sorted, rv.total)), " ", t("cr.sortedB")),
   );
   return {
     el,
     paint() {
       const said = s.byChapter();
+      const c = coverageCounts(s);
+      progress.replaceChildren(
+        h("span", {}, t("cr.coverage.viewed", spec.chapters.filter((c) => Object.hasOwn(s.rv.read, c.id)).length, spec.chapters.length)),
+        h("span", {}, t("cr.coverage.short", c.opened, c.total, c.part)),
+      );
       full.textContent = s.fullLoading ? t("cr.fullLoading", s.loaded.size, rv.total) : t(s.full ? "cr.fullOff" : "cr.fullOn");
       full.disabled = Boolean(s.fullLoading);
       full.setAttribute("aria-pressed", String(s.full));
@@ -161,4 +171,10 @@ export function renderBar(s) {
       sub.replaceChildren(said, red ? " · " : "", red ? h("span.warn", {}, t("cr.checksRed", red)) : !checks.total ? h("span.warn", {}, ` · ${t("cr.checksNone")}`) : "");
     },
   };
+}
+
+export function mechanicalLine(s) {
+  const m = s.rv.mechanicalShare;
+  if (!m) return "";
+  return t("cr.mechanicalAccount", m.files, m.added, m.removed, m.percent) + (s.spec.mechanicalWhy ? ` ${t("cr.mechanicalReason", s.spec.mechanicalWhy)}` : "");
 }

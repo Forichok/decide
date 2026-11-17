@@ -342,7 +342,7 @@ test("the spec lint: key places and skim", () => {
   assert.deepEqual(errorsOf(bad.issues).slice(0, 4), [
     'chapters[0].focus[0]: a key place is an object: {at: "path:from-to", note, kind}',
     'chapters[0].focus[1]: at is "path:from-to" or "path:line", lines of the new file; got "lib/a.mjs"',
-    'chapters[0].focus[2]: at is "path:from-to" or "path:line", lines of the new file; got "lib/a.mjs:9-3"',
+    'chapters[0].focus[2]: "lib/a.mjs:9-3": the end is before the start',
     'chapters[0].focus[3]: at is "path:from-to" or "path:line", lines of the new file; got "lib/a.mjs:0"',
   ]);
   assert.match(errorsOf(bad.issues)[4], /^chapters\[0\]\.focus\[4\]: .*why/);
@@ -400,7 +400,7 @@ test("the digest marks a commented line by what it is in the diff, not by its si
   const review = { comments: [{ id: "c1", kind: "fix", hunk: "h1", file: "lib/a.mjs", line: 1, side: "new", code: "line 1", text: "Untouched, but wrong." }], read: {} };
   const kinds = [];
   const lineKind = (hunk, side, line) => (kinds.push([hunk, side, line]), "ctx");
-  const result = reviewResult({ base: { title: "t" }, spec, meta: {}, placed: built.placed, review, dialog: [], payload: { verdict: "return" }, lineKind });
+  const result = reviewResult({ base: { title: "t" }, spec, meta: {}, placed: built.placed, pieces: built.pieces, review, dialog: [], payload: { verdict: "return" }, lineKind });
   assert.deepEqual(kinds, [["h1", "new", 1]]);
   assert.equal(result.comments[0].change, "ctx");
   assert.match(result.digest, /lib\/a\.mjs:1 · chapter «The top of a\.mjs»\n {5}line 1\n {3}Untouched, but wrong\./);
@@ -423,7 +423,7 @@ test("the verdict digest: every comment by kind, with its file, line and code", 
     { id: "a2", qid: "h5", ask: "Is the newline lost on purpose?", file: "notes.txt" },
     { id: "a3", qid: "h1", reply: { text: "an explanation nobody asked for" } },
   ];
-  const result = reviewResult({ base: { title: spec.title, mode: "review" }, spec, meta, placed: built.placed, review, dialog, payload: { verdict: "return", note: " Close, but not yet. " } });
+  const result = reviewResult({ base: { title: spec.title, mode: "review" }, spec, meta, placed: built.placed, pieces: built.pieces, review, dialog, payload: { verdict: "return", note: " Close, but not yet. " } });
   assert.deepEqual([result.verdict, result.note, result.read, result.unread, result.sorted, result.total], ["return", "Close, but not yet.", ["top"], ["tail"], 5, 8]);
   assert.deepEqual(result.checks, { failed: 1, missing: 1, total: 3 });
   assert.deepEqual(result.range, meta);
@@ -437,7 +437,7 @@ test("the verdict digest: every comment by kind, with its file, line and code", 
   assert.equal(
     result.digest,
     [
-      "Verdict: RETURNED at aaaaaaa (HEAD). Comments: 1 to fix, 2 nits, 2 questions (1 not answered). Chapters read: 1 of 2 (not read: «The tail and the rename»). 3 of 8 hunks were in no chapter.",
+      "Verdict: RETURNED at aaaaaaa (HEAD). Comments: 1 to fix, 2 nits, 2 questions (1 not answered). Chapters viewed: 1 of 2 (not viewed: «The tail and the rename»). Opened 0 of 8 pieces; in part 0; not opened 8 (lib/a.mjs, lib/new-name.mjs, logo.png, notes.txt, run.sh and 2 more). 3 of 8 hunks were in no chapter.",
       "The reviewer's note:\n> Close, but not yet.",
       "To fix (1):\n1. lib/a.mjs:3 · chapter «The top of a.mjs»\n   + line two and a half\n   Drop this line.\n   It repeats the one above.",
       "Nits (2):\n1. lib/a.mjs:41 (old side) · chapter «The tail and the rename»\n   - line 41\n   Say why in the commit.\n2. logo.png\n   The old one was sharper.",
@@ -448,11 +448,11 @@ test("the verdict digest: every comment by kind, with its file, line and code", 
   assert.match(text, /^Verdict: RETURNED at aaaaaaa \(HEAD\)/);
   assert.match(text, /Full JSON: \/tmp\/x\.answers\.json\n\nThe change was returned\. Fix what is under "To fix"/);
 
-  const approved = reviewResult({ base: { title: spec.title }, spec, meta, placed: built.placed, review: { comments: [], read: { top: true, tail: true } }, dialog: [], payload: { verdict: "approve" } });
-  assert.equal(approved.digest, "Verdict: APPROVED at aaaaaaa (HEAD). No comments. Chapters read: 2 of 2. Approved with checks not green: 1 failed, 1 not run. 3 of 8 hunks were in no chapter.");
+  const approved = reviewResult({ base: { title: spec.title }, spec, meta, placed: built.placed, pieces: built.pieces, review: { comments: [], read: { top: true, tail: true } }, dialog: [], payload: { verdict: "approve" } });
+  assert.equal(approved.digest, "Verdict: APPROVED at aaaaaaa (HEAD). No comments. Chapters viewed: 2 of 2. Approved with checks not green: 1 failed, 1 not run. Opened 0 of 8 pieces; in part 0; not opened 8 (lib/a.mjs, lib/new-name.mjs, logo.png, notes.txt, run.sh and 2 more). 3 of 8 hunks were in no chapter.");
   assert.match(formatReviewResult(approved, "x"), /the page merged nothing\.$/);
-  assert.equal(reviewResult({ base: { title: "t" }, spec, meta, placed: built.placed, review, dialog, payload: { verdict: "nits" } }).verdict, "nits");
-  assert.deepEqual(reviewResult({ base: { title: "t" }, spec, meta, placed: built.placed, review, dialog, payload: { cancelled: true } }), { title: "t", cancelled: true });
+  assert.equal(reviewResult({ base: { title: "t" }, spec, meta, placed: built.placed, pieces: built.pieces, review, dialog, payload: { verdict: "nits" } }).verdict, "nits");
+  assert.deepEqual(reviewResult({ base: { title: "t" }, spec, meta, placed: built.placed, pieces: built.pieces, review, dialog, payload: { cancelled: true } }), { title: "t", cancelled: true });
 });
 
 // ---------- git: the refusals ----------
@@ -606,9 +606,9 @@ test("the snapshot is the branch against its base, and is read back from the rou
   assert.deepEqual(errorsOf(focused.issues), []);
   const laid = buildReview(focused.spec, back.patch);
   assert.deepEqual(reviewIndex(focused.spec, back.meta, laid).chapters.map((c) => c.focus), [[{ file: "lib/a.mjs", from: 3, to: 3, note: "the parser reads this", kind: "risk", pieces: ["h1"] }], []]);
-  assert.deepEqual(warnsOf(laid.issues).filter((w) => w.includes("focus")), [
-    'chapters[0] (top).focus[1]: "lib/a.mjs:50" is not in this chapter: those lines are in chapter "tail"; the place is not shown',
-    'chapters[0] (top).focus[2]: "lib/a.mjs:20-22" names no changed lines of this diff (lines of the new file, inside a hunk); the place is not shown',
+  assert.deepEqual(errorsOf(laid.issues).filter((w) => w.includes("focus")), [
+    'chapters[0] (top).focus[1]: "lib/a.mjs:50" is not in this chapter: those lines are in chapter "tail"; move the place or the hunk',
+    'chapters[0] (top).focus[2]: "lib/a.mjs:20-22" names no changed lines of this diff (lines of the new file, inside a hunk); this chapter has new-file lines 1-6; move the place or the hunk',
   ]);
   assert.deepEqual(warnsOf(built.issues), ['chapters: 2 hunks in no chapter: the page shows them under "The rest" (notes.txt, run.sh)']);
   const top = groupPieces(spec, built, "ch:top");
@@ -774,7 +774,7 @@ test("MCP: review → comments, a question, read marks → the verdict with ever
   assert.equal(sent.status, 200, JSON.stringify(sent.body));
   const verdict = text(await call("wait", { project: dir, round, timeoutSec: 5 }));
   assert.match(verdict, /^Verdict: RETURNED at /);
-  assert.match(verdict, /Verdict: RETURNED at [0-9a-f]{7} \(HEAD\)\. Comments: 1 to fix, 1 nit, 1 question\. Chapters read: 1 of 2 \(not read: «Line fifty»\)\. 2 of 7 hunks were in no chapter\./);
+  assert.match(verdict, /Verdict: RETURNED at [0-9a-f]{7} \(HEAD\)\. Comments: 1 to fix, 1 nit, 1 question\. Chapters viewed: 1 of 2 \(not viewed: «Line fifty»\)\. Opened 0 of 7 pieces; in part 0; not opened 7 \(lib\/a\.mjs, lib\/new-name\.mjs, logo\.png, notes\.txt, run\.sh and 1 more\)\. 2 of 7 hunks were in no chapter\./);
   assert.match(verdict, /The reviewer's note:\n> Line three first\./);
   assert.match(verdict, /To fix \(1\):\n1\. lib\/a\.mjs:3 · chapter «Line three»\n   \+ line three\n   Keep the digit: the parser reads it\./);
   assert.match(verdict, /Nits \(1\):\n1\. lib\/a\.mjs:50 \(old side\) · chapter «Line fifty»\n   - line 50\n   Say why in the commit message\./);
@@ -814,12 +814,21 @@ test("a review survives a server restart: the snapshot, the comments, the read m
   assert.equal((await post(first.port, "comment", { hunk: "h1", line: 3, side: "new", kind: "fix", text: "Keep the digit." })).status, 200);
   assert.equal((await post(first.port, "read", { chapter: "top", read: true })).status, 200);
   assert.equal((await post(first.port, "ask", { question: "h2", text: "Why fifty?", line: 50, side: "new" })).status, 200);
+  assert.equal((await post(first.port, "coverage", { pieces: { h1: "part", h2: "opened" } })).status, 200);
+  assert.equal((await post(first.port, "coverage", { pieces: { h2: "part" } })).status, 200);
+  assert.equal((await post(first.port, "coverage", { pieces: { nope: "opened" } })).status, 400);
+  assert.equal((await post(first.port, "coverage", { pieces: { h1: "read" } })).status, 400);
   // A page cannot open a review, and an agent's spec with errors opens nothing.
   assert.equal((await fetch(`${at(first.port)}/api/rounds`, { method: "POST", headers: asPage(first.port), body: JSON.stringify({ project: repo.dir, spec: REPO_SPEC, mode: "review", open: false }) })).status, 403);
   const refused = await fetch(`${at(first.port)}/api/rounds`, { method: "POST", headers: asAgent(first.port), body: JSON.stringify({ project: repo.dir, spec: { chapters: [{ id: "a" }] }, mode: "review", open: false }) });
   assert.equal(refused.status, 422);
   assert.match(JSON.stringify((await refused.json()).issues), /needs a title/);
 
+  const stored = await (await fetch(`${at(first.port)}/api/rounds/${id}`)).json();
+  const specFile = path.join(stored.dataDir, "rounds", id, "spec.json");
+  const previous = JSON.parse(readFileSync(specFile, "utf8"));
+  previous.chapters[0].focus = [{ at: "lib/a.mjs:9999", note: "A place dropped by the previous version." }];
+  writeFileSync(specFile, JSON.stringify(previous));
   first.child.kill();
   await exitOf(first.child);
   // The branch moves on after the review was opened: the review still shows what was reviewed.
@@ -841,6 +850,8 @@ test("a review survives a server restart: the snapshot, the comments, the read m
   assert.equal((await fetch(`${at(second.port)}/api/rounds/${id}/draft`, { method: "PUT", headers: asPage(second.port), body: JSON.stringify({ answers: {} }) })).status < 500, true);
   assert.deepEqual(back.review.comments.map((c) => [c.hunk, c.line, c.kind, c.code, c.text]), [["h1", 3, "fix", "line three", "Keep the digit."]]);
   assert.deepEqual(Object.keys(back.review.read), ["top"]);
+  assert.deepEqual(back.review.coverage, { h1: "part", h2: "opened" });
+  assert.deepEqual(back.review.chapters[0].focus, [], "a stored round with an old dropped place still opens");
   assert.deepEqual(back.dialog.map((d) => [d.qid, d.ask, d.file, d.line, d.code]), [["h2", "Why fifty?", "lib/a.mjs", 50, "line fifty"]]);
   const group = await (await fetch(`${at(second.port)}/api/rounds/${id}/pieces?group=ch:tail`)).json();
   assert.deepEqual(group.pieces.map((p) => [p.id, p.newStart]), [["h2", 47]]);
@@ -848,7 +859,8 @@ test("a review survives a server restart: the snapshot, the comments, the read m
   assert.match(whole.text, /^line 1\nline 2\nline three\n/, "the file as it was at the reviewed commit, not as it is now");
   const sent = await post(second.port, "submit", { verdict: "nits" });
   assert.equal(sent.status, 200);
-  assert.match((await sent.json()).result.digest, /^Verdict: APPROVED WITH NITS at [0-9a-f]{7} \(HEAD\)\. Comments: 1 to fix, 1 question \(1 not answered\)\. Chapters read: 1 of 2/);
+  assert.match((await sent.json()).result.digest, /^Verdict: APPROVED WITH NITS at [0-9a-f]{7} \(HEAD\)\. Comments: 1 to fix, 1 question \(1 not answered\)\. Chapters viewed: 1 of 2/);
+  assert.equal((await post(second.port, "coverage", { pieces: { h1: "opened" } })).status, 409);
   // A verdict nobody collected announces itself like any answered round.
   assert.deepEqual(uncollected(back.dataDir, { graceMs: 0 }).map((r) => [r.id, r.title]), [[id, "The fixture change"]]);
 });
@@ -902,4 +914,35 @@ test("review result addresses retain both verdicts; wait checks branch movement 
   const item = await (await fetch(`${origin}/api/rounds/${second.id}/next?timeout=1000`, { headers: asAgent(server.port) })).json();
   assert.match(item.payload.digest, new RegExp(`Branch head ${head.slice(0, 7)} differs from snapshot ${repo.head.slice(0, 7)}`));
   assert.deepEqual(JSON.parse(readFileSync(second.address)).range.newer, { head });
+});
+
+test("lint refuses lost focus and unexplained mechanical shares; owner pins remain lint: ok", { skip: !hasGit }, async (context) => {
+  const repo = await reviewRepo(context);
+  const lint = (await import('../lib/commands/lint.mjs')).default;
+  const run = (spec) => lint.run({ spec }, { project: { top: repo.dir } });
+  const one = { title: 'All changes', summary: 'The fixture change.', checks: [{ command: 'node --test', exit: 0 }], chapters: [{ id: 'all', title: 'Everything', summary: 'The fixture change.', hunks: ['**'] }] };
+  // Owner decision of 2026-11-17: one chapter and all-risk key places are both valid choices.
+  for (const focus of [[], [{ at: 'lib/a.mjs:3', note: 'The parser.', kind: 'risk' }, { at: 'lib/a.mjs:50', note: 'The tail.', kind: 'risk' }]]) {
+    const result = await run({ ...one, chapters: [{ ...one.chapters[0], focus }] });
+    assert.deepEqual(result, { text: 'decide lint: ok', exit: 0 });
+  }
+  for (const [at, message] of [['lib/a.mjs:50', /chapter "tail"; move the place or the hunk/], ['lib/a.mjs:9999', /this chapter has new-file lines 1-6/]]) {
+    const spec = { ...REPO_SPEC, chapters: [{ ...REPO_SPEC.chapters[0], focus: [{ at, note: 'Check.' }] }, REPO_SPEC.chapters[1]] };
+    const result = await run(spec);
+    assert.equal(result.exit, 1);
+    assert.match(result.text, /1 errors/);
+    assert.match(result.text, message);
+    const server = await spawnServer(context, homeOf(await scratchDir(context)));
+    const response = await fetch(`http://127.0.0.1:${server.port}/api/rounds`, { method: 'POST', headers: asAgent(server.port), body: JSON.stringify({ project: repo.dir, mode: 'review', spec, open: false }) });
+    assert.equal(response.status, 422);
+    assert.match(JSON.stringify((await response.json()).issues), /move the place or the hunk/);
+  }
+  const mechanical = { ...one, chapters: [{ ...one.chapters[0], hunks: ['test/'] }], mechanical: [{ title: 'Generated output', hunks: ['**'] }] };
+  const refused = await run(mechanical);
+  assert.equal(refused.exit, 1);
+  assert.match(refused.text, /mechanical groups hold \d+ of \d+ changed lines \(\d+%\).*mechanicalWhy/);
+  const reason = await run({ ...mechanical, mechanicalWhy: 'The generator changed its output.' });
+  assert.equal(reason.exit, 0);
+  assert.match(reason.text, /warn +mechanical: mechanical groups hold/);
+  assert.match(reason.text, /decide lint: ok$/);
 });

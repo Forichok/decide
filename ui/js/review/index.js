@@ -12,6 +12,7 @@ import { eyebrow } from "../header.js";
 import { modalOpen, openModal, toast } from "../overlays.js";
 import { getRound, holdReload, reviewAsk, reviewComment, reviewRead, reviewUncomment, submitRound } from "../net.js";
 import { createChapters } from "./chapters.js";
+import { trackCoverage, showFiles, coverageWarning } from "./coverage.js";
 import { composer } from "./hunk.js";
 import { checkState, renderBar, renderOverview, renderRail, renderTitle } from "./overview.js";
 
@@ -39,6 +40,8 @@ export function mountReview(round, env) {
     sending: false,
     full: false, // the whole diff: nothing folded
   };
+
+  s.openFiles = () => showFiles(s);
 
   // ---- key places: piece id → the places of its chapter that fall on it
   const places = new Map();
@@ -158,6 +161,16 @@ export function mountReview(round, env) {
     el.focus?.({ preventScroll: true });
     rail.paint();
   };
+  s.goPiece = async (id, key) => {
+    const ticket = ++jump;
+    const el = await chapters.piece(id, key);
+    if (!el || ticket !== jump) return;
+    s.current = key;
+    el.setAttribute("tabindex", "-1");
+    el.scrollIntoView({ behavior: "instant", block: "start" });
+    el.focus({ preventScroll: true });
+    s.paint();
+  };
   s.goPlace = async (chapter, k) => {
     const ticket = ++jump;
     await chapters.prepare(`ch:${chapter}`);
@@ -227,7 +240,9 @@ export function mountReview(round, env) {
   function setReview(review, seq = 0) {
     if (seq && seq < s.seq) return;
     s.seq = Math.max(s.seq, seq);
-    s.rv = { ...s.rv, comments: review.comments ?? s.rv.comments, read: review.read ?? s.rv.read, ...(review.newer !== undefined ? { newer: review.newer } : {}) };
+    const coverage = { ...s.rv.coverage };
+    for (const [id, value] of Object.entries(review.coverage ?? {})) if (coverage[id] !== "opened") coverage[id] = value;
+    s.rv = { ...s.rv, comments: review.comments ?? s.rv.comments, read: review.read ?? s.rv.read, coverage, ...(review.newer !== undefined ? { newer: review.newer } : {}) };
     s.paint();
   }
   const failed = (e) => {
@@ -339,6 +354,7 @@ export function mountReview(round, env) {
       const red = [checks.failed && t("cr.n.failed", checks.failed), checks.missing && t("cr.n.missing", checks.missing)].filter(Boolean).join(", ");
       alerts.replaceChildren(
         ...[
+          approving && coverageWarning(s, () => { close(); s.openFiles(); }),
           approving && s.rv.newer && h("div.cr-alert", { dataset: { alert: "newer" } }, t("cr.alert.newer", s.rv.snapshot.head.slice(0, 7), s.rv.newer.head.slice(0, 7))),
           approving && red && h("div.cr-alert", { dataset: { alert: "checks" } }, h("b", {}, t("cr.alert.checks")), " ", t("cr.alert.checksText", red)),
           approving && !checks.total && h("div.cr-alert", { dataset: { alert: "checks" } }, h("b", {}, t("cr.alert.noChecks")), " ", t("cr.alert.noChecksText")),
@@ -353,6 +369,7 @@ export function mountReview(round, env) {
       if (busy) return;
       busy = true;
       try {
+        await coverage.flush();
         const res = await submitRound(round.id, { verdict, ...(s.note.trim() ? { note: s.note.trim() } : {}) });
         s.note = "";
         s.persist();
@@ -434,6 +451,7 @@ export function mountReview(round, env) {
     s.box = composer(s);
     if (s.draft.group) chapters.show(s.draft.group).then(() => s.box?.scrollIntoView({ block: "center" }));
   }
+  const coverage = trackCoverage(s, failed);
   s.paint();
   if (s.full) s.setFull(true);
 
@@ -458,6 +476,7 @@ export function mountReview(round, env) {
     help: openKeys,
     finish: () => (modalOpen() ? null : s.verdict(suggested())),
     stop() {
+      coverage.stop();
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("click", onOutsideClick);
       document.removeEventListener("visibilitychange", onShow);

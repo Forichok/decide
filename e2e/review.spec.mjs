@@ -98,6 +98,7 @@ test("a review: overview, a chapter, a comment of each kind, a question, the ver
   await expect(page.locator("h1.cr-title")).toHaveText("The fixture change");
   await expect(overview).toContainText("Two lines of a.mjs are rewritten");
   await expect(page.locator(".cr-meta")).toContainText("5 files");
+  await expect(overview.locator(".cr-mechanical-account")).toContainText("0% of the change.");
   await expect(overview.locator(".cr-checks tr.ok")).toContainText("node --test");
   await expect(overview.locator(".cr-checks tr.ok")).toContainText("exit 0");
   await expect(overview.locator(".cr-checks tr.missing")).toContainText("npx playwright test");
@@ -156,7 +157,7 @@ test("a review: overview, a chapter, a comment of each kind, a question, the ver
   const bar = page.locator(".cr-bar");
   await top.locator(".cr-ch-foot .btn").click();
   await expect(top).toHaveClass(/\bread\b/);
-  await expect(bar.locator(".state b")).toHaveText("1 of 2 chapters read");
+  await expect(bar.locator(".state b")).toHaveText("Chapters viewed: 1 of 2");
   await expect(bar.locator(".state small")).toContainText("3 comments");
   await expect(page.locator(".cr-rail-item.read")).toHaveCount(1);
 
@@ -359,6 +360,7 @@ for (const [narrow, theme] of [[false, "light"], [true, "light"], [true, "dark"]
     await expect(menu).toBeVisible();
     await menu.focus();
     await menu.press("Enter");
+    await expect(page.locator(".cr-chapters-menu").getByRole("button", { name: "Files", exact: true })).toBeVisible();
     await page.keyboard.press("Shift+Tab");
     await page.keyboard.press("Escape");
     await expect(menu).toHaveAttribute("aria-expanded", "false");
@@ -421,11 +423,13 @@ test("verdict identifies the snapshot, warns on both approvals and reports colle
   await expect(page.locator(".done-sub")).toContainText("No agent has collected");
   await expect(page.locator(".done-sub")).toContainText("Your comments are kept with the round.");
   await expect(page.locator(".cr-done-recovery")).toHaveCount(0);
+  await expect(page.locator(".sum-raw summary")).toHaveText("The text the agent will get");
   await expect(page.locator(".paste-line code")).toContainText(opened.id);
   await expect(page.locator(".paste-line button")).toBeVisible();
   await expect(page.locator(".cr-sum-commit")).toContainText(sha);
   await takeKind(opened.id, "final");
   await expect(page.locator(".done-sub")).toContainText("were delivered to the agent");
+  await expect(page.locator(".sum-raw summary")).toHaveText("The text the agent received");
   await expect(page.locator(".cr-done-recovery")).toHaveText(`If nothing follows, tell the agent in its chat to collect round ${opened.id}.`);
   await expect(page.locator(".paste-line")).toHaveCount(0);
   await page.goto(`${d.origin}/?lang=ru#r=${opened.id}`);
@@ -446,11 +450,21 @@ test("a far key-place jump settles after earlier chapters load", async ({ page }
   await expect(row).toBeInViewport();
   await page.waitForTimeout(600);
   await expect(row).toBeInViewport();
+  await page.locator(".cr-rail").getByRole("button", { name: "Files", exact: true }).click();
+  await page.locator(".cr-file-list").getByRole("button", { name: /chapter-8\/file-5.mjs/ }).click();
+  const piece = page.locator('.cr-hunk').filter({ has: page.locator('.cr-path:text-is("chapter-8/file-5.mjs")') });
+  await expect(piece).toBeInViewport();
+  await expect(piece.locator("tr.cr-gap")).toHaveCount(0);
+  await page.waitForTimeout(600);
+  await expect(piece).toBeInViewport();
 });
 
 
-test("Russian full-diff progress uses the page's word for pieces", async () => {
+test("Russian review strings use the page's word for pieces", async () => {
   const { default: ru } = await import("../ui/js/lang/ru.js");
+  for (const [key, value] of Object.entries(ru).filter(([key]) => key.startsWith('cr.'))) {
+    expect(String(value), key).not.toMatch(/фрагмент/i);
+  }
   for (const [total, word] of [[1, "куска"], [2, "кусков"], [5, "кусков"], [11, "кусков"], [21, "куска"], [22, "кусков"]]) {
     expect(ru["cr.fullLoading"](0, total)).toBe(`Загружено 0 из ${total} ${word}`);
   }
@@ -462,4 +476,130 @@ test("review recovery asks for collection without repeating comment storage", as
   const { default: ru } = await import("../ui/js/lang/ru.js");
   expect(en["cr.done.recovery"]("round-1")).toBe("If nothing follows, tell the agent in its chat to collect round round-1.");
   expect(ru["cr.done.recovery"]("round-1")).toBe("Если продолжения нет, попросите агента в его чате забрать раунд round-1.");
+});
+
+test('coverage distinguishes hidden, partial and opened pieces, survives reload and warns on approval', async ({ page }) => {
+  const opened = await d.must('POST', '/api/rounds', { project: d.project, spec: GUIDE, mode: 'review', open: false, head: 'guide' });
+  await page.goto(`${d.origin}/?lang=en#r=${opened.id}`);
+  await page.locator('#cr-overview button.cr-risk').click();
+  const big = page.locator('.cr-hunk').filter({ has: page.locator('.cr-path:text-is("lib/big.mjs")') });
+  await expect(big).toBeInViewport();
+  await expect.poll(async () => (await d.round(opened.id)).review.coverage).toEqual({ h2: 'part' });
+  await page.reload();
+  await expect.poll(async () => (await d.round(opened.id)).review.coverage).toEqual({ h2: 'part' });
+  await page.locator('.cr-rail').getByRole('button', { name: 'Files', exact: true }).click();
+  const files = page.locator('.cr-file-list');
+  await expect(files.locator('li')).toHaveCount(3);
+  await expect(files.getByRole('button', { name: 'Close', exact: true })).toBeVisible();
+  const firstFile = files.locator('li button').first();
+  await expect(firstFile.locator(':scope > code')).toHaveCount(1);
+  await expect(firstFile.locator('code wbr')).toHaveCount(1);
+  await expect(firstFile.locator(':scope > span')).toHaveCount(1);
+  await expect(firstFile).toContainText('○ Not opened · +1 −1 · 1 hunk');
+  await expect(firstFile).toBeFocused();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Shift+Tab');
+  expect(await firstFile.evaluate((el) => parseFloat(getComputedStyle(el).outlineOffset))).toBeLessThan(0);
+  await expect(files.locator('.cr-coverage-summary')).toHaveText('Opened 0 of 3 pieces · 1 in part · 2 not opened');
+  await files.getByRole('button', { name: /lib\/a.mjs/ }).click();
+  const a = page.locator('.cr-hunk').filter({ has: page.locator('.cr-path:text-is("lib/a.mjs")') });
+  await expect(a).toBeInViewport();
+  await expect(a.locator('tr.cr-gap')).toHaveCount(0);
+  await expect.poll(async () => (await d.round(opened.id)).review.coverage).toMatchObject({ h1: 'opened', h2: 'part' });
+  await page.locator('.cr-bar [data-verdict="approve"]').click();
+  await expect(page.locator('[data-alert="coverage"]')).toContainText('Opened 1 of 3 pieces · 1 in part · 1 not opened');
+  await expect(page.locator('[data-alert="coverage"] li')).toHaveText([
+    'The module: in part 1 (lib/big.mjs)',
+    'The tests: not opened 1 (test/big.test.mjs)',
+  ]);
+  await expect(page.locator('.cr-progress > span')).toHaveText(['Viewed chapters: 0 of 2', 'Opened pieces: 1 of 3, in part 1']);
+  await page.locator('.cr-verdict [data-verdict="nits"]').click();
+  await expect(page.locator('[data-alert="coverage"]')).toBeVisible();
+  await page.locator('.cr-verdict [data-verdict="return"]').click();
+  await expect(page.locator('[data-alert="coverage"]')).toHaveCount(0);
+  await page.locator('.cr-verdict [data-verdict="approve"]').click();
+  await page.locator('[data-alert="coverage"]').getByRole('button', { name: 'Files', exact: true }).click();
+  await expect(files).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(files).toHaveCount(0);
+  await page.locator('#cr-overview button.cr-risk').click();
+  await big.getByRole('button', { name: 'Whole file', exact: true }).click();
+  await expect.poll(async () => (await d.round(opened.id)).review.coverage.h2).toBe('opened');
+  await big.getByRole('button', { name: 'Fold', exact: true }).click();
+  await page.reload();
+  await expect.poll(async () => (await d.round(opened.id)).review.coverage.h2).toBe('opened');
+  await page.locator('.cr-bar [data-verdict="approve"]').click();
+  await page.locator('.cr-verdict .btn.primary').click();
+  await expect(page.locator('.done-view')).toBeVisible();
+  const result = (await d.round(opened.id)).result;
+  expect(result.coverage).toMatchObject({ total: 3, opened: 2, part: 0, unopened: 1 });
+  expect(result.digest).toContain('Opened 2 of 3 pieces; in part 0; not opened 1 (test/big.test.mjs).');
+});
+
+test('mechanical share and its reason are the agent account in the overview and folded header', async ({ page }) => {
+  const spec = { ...GUIDE, chapters: [GUIDE.chapters[1]], mechanical: [{ title: 'Generated modules', hunks: ['lib/'] }], mechanicalWhy: 'The generator changed its output.' };
+  const opened = await d.must('POST', '/api/rounds', { project: d.project, spec, mode: 'review', open: false, head: 'guide' });
+  const round = await d.round(opened.id);
+  const share = round.review.mechanicalShare;
+  await page.goto(`${d.origin}/?lang=en#r=${opened.id}`);
+  const expected = `Mechanical, by the agent's account: ${share.files} files, +${share.added} −${share.removed}, ${share.percent}% of the change. Reason: The generator changed its output.`;
+  await expect(page.locator('#cr-overview .cr-mechanical-account')).toHaveText(expected);
+  await expect(page.locator('.cr-fold summary .cr-mechanical-account')).toHaveText(expected);
+  await expect(page.locator('.cr-fold')).not.toHaveAttribute('open');
+  await page.locator('.cr-rail').getByRole('button', { name: 'Files', exact: true }).click();
+  await expect(page.locator('.cr-file-list li').filter({ hasText: 'lib/big.mjs' })).toContainText('in mechanical: Generated modules');
+  await expect(page.locator('.cr-file-list li').filter({ hasText: 'lib/big.mjs' })).toContainText('Not opened');
+});
+
+test('requesting the whole diff does not count rows that have not unfolded yet', async ({ page }) => {
+  const opened = await d.must('POST', '/api/rounds', { project: d.project, spec: GUIDE, mode: 'review', open: false, head: 'guide' });
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  await page.route('**/pieces?**', async (route) => {
+    if (new URL(route.request().url()).searchParams.get('group') === 'ch:checks') await held;
+    await route.continue();
+  });
+  try {
+    await page.goto(`${d.origin}/?lang=en#r=${opened.id}`);
+    await page.locator('#cr-overview button.cr-risk').click();
+    await expect.poll(async () => (await d.round(opened.id)).review.coverage.h2).toBe('part');
+    await page.locator('.cr-full').click();
+    const big = page.locator('.cr-hunk').filter({ has: page.locator('.cr-path:text-is("lib/big.mjs")') });
+    await expect(big.locator('tr.cr-gap')).toHaveCount(2);
+    // Two debounce intervals pass while the request is held and its rows remain folded.
+    await page.waitForTimeout(500);
+    expect((await d.round(opened.id)).review.coverage.h2).toBe('part');
+    release();
+    await expect(big.locator('tr.cr-gap')).toHaveCount(0);
+    await big.scrollIntoViewIfNeeded();
+    await expect.poll(async () => (await d.round(opened.id)).review.coverage.h2).toBe('opened');
+  } finally { release(); }
+});
+
+
+test('approval coverage warnings bound groups and file names in both languages', async ({ page }) => {
+  const spec = { ...TALL, chapters: TALL.chapters.slice(0, 7), mechanical: [{ title: 'Generated', hunks: ['chapter-7/'] }], mechanicalWhy: 'Generated files.' };
+  const opened = await d.must('POST', '/api/rounds', { project: d.project, spec, mode: 'review', open: false, head: 'tall' });
+  for (const lang of ['en', 'ru']) {
+    await page.goto(`${d.origin}/?lang=${lang}#r=${opened.id}`);
+    await page.locator('.cr-bar [data-verdict="approve"]').click();
+    const warning = page.locator('[data-alert="coverage"]');
+    const rows = warning.locator('li');
+    await expect(rows).toHaveCount(7);
+    await expect(rows.first()).toContainText(lang === 'en' ? ': not opened 6 (' : ': не открыто 6 (');
+    await expect(rows.first()).toContainText(lang === 'en' ? 'and 3 more' : 'и ещё 3');
+    await expect(rows.first()).not.toContainText(lang === 'en' ? 'in part' : 'частично');
+    await expect(rows.last()).toHaveText(lang === 'en' ? 'and 3 more: see Files' : 'и ещё 3: см. Файлы');
+    await rows.last().getByRole('button', { name: lang === 'en' ? 'Files' : 'Файлы', exact: true }).click();
+    const files = page.locator('.cr-file-list');
+    await expect(files).toBeVisible();
+    await expect.poll(() => files.locator('..').evaluate((el) => el.getBoundingClientRect().width)).toBe(720); // the dialog scales in
+    await page.setViewportSize({ width: 375, height: 900 });
+    expect(await files.locator('..').evaluate((el) => el.getBoundingClientRect().width)).toBeLessThanOrEqual(375 * 0.92);
+    const path = files.locator('li code').first();
+    expect(await path.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await files.getByRole('button', { name: lang === 'en' ? 'Close' : 'Закрыть', exact: true }).click();
+    await expect(files).toHaveCount(0);
+  }
 });
