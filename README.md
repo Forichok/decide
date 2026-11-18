@@ -115,6 +115,48 @@ the result.
    with text, a screenshot, a diagram or code.
 4. Press Done. The tab closes, and the agent gets your answers and carries on.
 
+## Code review
+
+Ask your agent for `/decide:review` to read a committed change by chapter, leave
+line comments and give a verdict. On large or risky changes, independent
+reviewers run before the page opens. Change when they run and who reviews
+in [Settings](#settings).
+
+When the agent comes back after a return, you see only what changed since
+and its reply to each of your comments. Mark each reply Accepted or Not fixed
+in the overview or at the changed line.
+
+## Settings
+
+Open the gear next to the theme button on any page. Back returns to the round
+or page you left. Choose **Everywhere** or **In this project** at the top.
+Changing an option reveals its Save button. Switching scopes keeps your draft,
+and a failed save keeps it available for retry.
+
+Choose how much to ask everywhere, then give a project its own choice if needed.
+“Same as everywhere” clears that project’s override. Global choices live in
+`<DECIDE_HOME>/settings.json` (`~/.decide/settings.json` by default); the project’s
+`<dataDir>/settings.json` holds its overrides. Existing project files keep their
+meaning. Missing values use the built-in defaults. Rules made from answers
+belong to the project and stay in its `rules.json`.
+
+Reviewer settings follow the same scopes. A project inherits or replaces the
+whole reviewer block, including the ordered role list. The default is to review
+large or risky changes, with 200 changed lines counting as large. The three
+starting roles check bugs, security and data, and what the checks prove. Open
+**Review threshold and team** to change the size threshold or edit the roles.
+You can add, remove or reorder up to eight roles. An empty model means the agent’s default. A model the agent cannot start
+causes that role to be skipped and named in the review overview.
+
+Agents can read the effective choices, their sources and rules with
+`decide rules --project /path/to/project`; add `--json` for machine-readable
+output. The MCP `rules` tool accepts `json: true` for the same output.
+
+Theme is saved in this browser only: light, dark or as the system. The gear page
+and the top-bar theme button change the same preference. Language is not saved:
+`?lang=en` or `?lang=ru` overrides the browser’s language for page controls;
+questions keep the language in which they were written.
+
 ## Screens
 
 The page follows your system theme and your browser's language (English or
@@ -448,6 +490,13 @@ you about the current task. See [Swipe interview](#swipe-interview).
 
 ## How it works
 
+“Write to the agent” in the top bar opens a conversation about the whole
+round in questions, swipe and review modes. Messages are saved even when
+the agent is away. Replies can include visuals and a two-button question;
+the conversation stays in the answers file and final digest. In reviews,
+requested code changes go into the working tree for the next round; the
+open page keeps its commit snapshot.
+
 The plugin ships an MCP server with these tools: `ask` opens a round,
 `swipe` opens a card interview, `wait` blocks until you answer or ask
 something, `push` updates the deck and brief of a card interview, `explain`
@@ -455,7 +504,8 @@ puts the agent's answer on the page, `screenshot` captures a running page or
 a simulator, `history` searches past decisions, `supersede` marks one as no
 longer holding, `adr` writes one into the repo, `export` and `import`
 carry a round to someone else and back, `lint` checks a spec without opening a
-page, `patch` changes an open round, and `stop` stops the server. Agents without MCP can run the same
+page, `outline` lists a review snapshot with line numbers and a spec skeleton,
+`patch` changes an open round, and `stop` stops the server. Agents without MCP can run the same
 engine as a CLI (`node decide.mjs --help`).
 
 One server serves every project's page on 127.0.0.1:47474. It starts on

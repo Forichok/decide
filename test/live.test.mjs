@@ -116,7 +116,7 @@ test("MCP server: ask → wait → explain → wait → history over stdio", asy
   assert.deepEqual([init.result.protocolVersion, init.result.serverInfo.name, init.result.serverInfo.version], ["2025-06-18", "decide", VERSION]);
   assert.match(init.result.instructions, /wait/);
   const tools = (await rpc("tools/list", {})).result.tools.map((t) => t.name);
-  assert.deepEqual(tools, ["ask", "swipe", "wait", "push", "explain", "screenshot", "history", "supersede", "adr", "export", "import", "lint", "stop", "rules", "patch"]);
+  assert.deepEqual(tools, ["ask", "swipe", "wait", "push", "explain", "screenshot", "history", "supersede", "adr", "export", "import", "lint", "stop", "rules", "patch", "review", "outline"]);
   assert.equal((await rpc("nope", {})).error.code, -32601);
 
   const lost = await call("history", {});
@@ -141,7 +141,7 @@ test("MCP server: ask → wait → explain → wait → history over stdio", asy
   const done = text(await call("wait", { project: dir, round, timeoutSec: 10 }));
   assert.match(done, /\[color\] Какой цвет кнопки\? → Синий \(against the recommendation: Розовый\)/);
   const answersPath = done.match(/Full JSON: (.+)/)[1];
-  assert.match(answersPath, /[\\/]rounds[\\/].+-цвет-кнопки\.answers\.json$/, "inline specs keep their answers in the project data dir");
+  assert.match(answersPath, /[\\/]rounds[\\/][^\\/]+[\\/]answers\.json$/, "Full JSON names the round’s stable answers file");
   assert.equal((await readJson(answersPath)).answers.color.selected[0], "blue");
   assert.match(text(await call("history", { project: dir })), /Цвет кнопки/);
 });

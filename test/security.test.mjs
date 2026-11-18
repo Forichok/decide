@@ -27,6 +27,7 @@ import path from "node:path";
 import test from "node:test";
 import { mkdir } from "node:fs/promises";
 import { PAGE_CSP, ASSET_CSP, guard } from "../lib/http.mjs";
+import { pageUrl } from "../lib/review/access.mjs";
 import { startServer } from "../lib/server.mjs";
 import { createRoots, fnv1a } from "../lib/assets.mjs";
 import { prepareSpec } from "../lib/prepare.mjs";
@@ -114,6 +115,28 @@ test("guard: a change needs a same-origin Origin or the token; a wrong token is 
   assert.equal(verdict(guardOf(req("POST", "/api/rounds/1-abcdef/submit", { "x-decide-token": "short" }))), 403, "wrong length");
   assert.equal(verdict(guardOf(req("POST", "/api/rounds/1-abcdef/submit", { origin: own, "x-decide-token": "x".repeat(32) }))), 403, "wrong token beside a good Origin");
   assert.equal(verdict(guardOf(req("GET", "/api/state", { "x-decide-token": "x".repeat(32) }))), 403, "wrong token on a read");
+});
+
+test("whole review files require an owner credential", () => {
+  const file = "/api/rounds/1-fixture/file?path=notes.txt&side=new";
+  for (const headers of [{}, { origin: "http://127.0.0.1:5000" }, { "x-decide-review-key": "invalid" }]) {
+    assert.equal(verdict(guardOf(req("GET", file, headers))), 403);
+  }
+  assert.equal(verdict(guardOf(req("GET", file, { "x-decide-token": opts.token }))), "ok");
+  const keyFor = (scope, field) => {
+    const link = new URL(pageUrl(opts.port, "1-fixture", opts.token, scope));
+    assert.equal(link.search, "");
+    const key = new URLSearchParams(link.hash.slice(1)).get(field);
+    assert.ok(key && key !== opts.token);
+    return key;
+  };
+  const review = { "x-decide-review-key": keyFor("1-fixture", "files") };
+  const home = { "x-decide-home-files": keyFor("*", "homeFiles") };
+  assert.equal(verdict(guardOf(req("GET", file, review))), "ok");
+  assert.equal(verdict(guardOf(req("GET", file, home))), "ok");
+  assert.equal(verdict(guardOf(req("GET", "/api/rounds/2-fixture/file", review))), 403);
+  assert.equal(verdict(guardOf(req("POST", "/api/rounds", home))), 403);
+  assert.equal(verdict(guardOf(req("POST", "/api/rounds", review))), 403);
 });
 
 test("guard: the routes only an agent calls take the token and nothing else, and a held wait counts as a change", () => {

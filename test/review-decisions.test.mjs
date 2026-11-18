@@ -1,0 +1,54 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { normalizeReview } from '../lib/review/spec.mjs';
+import { reviewResult } from '../lib/review/digest.mjs';
+import { replay, reviewView } from '../lib/store/state.mjs';
+const raw = () => ({ title: 'Discount', summary: 'A cap.', chapters: [{ id: 'cap', title: 'Cap', summary: 'Limit discounts.', hunks: ['a.js'], focus: [{ at: 'a.js:1-2', note: 'The cap.', kind: 'decision', question: 'Is a silent cap acceptable?', options: ['Accept', 'Change'] }] }], risks: [{ what: 'Surprise', checkedBy: 'Covered by cap.test.mjs' }], acceptance: { changed: 'Discounts stop at 50%.', where: 'Checkout', steps: ['Apply 60%'], expect: '50% applied' } });
+test('review fields retain decision questions, checks and acceptance; reminders only warn', () => {
+  const { spec, issues } = normalizeReview(raw());
+  assert.equal(issues.filter(i => i.level === 'error').length, 0);
+  assert.equal(spec.chapters[0].focus[0].question, 'Is a silent cap acceptable?');
+  assert.deepEqual(spec.chapters[0].focus[0].options, ['Accept', 'Change']);
+  assert.equal(spec.risks[0].checkedBy, 'Covered by cap.test.mjs');
+  assert.deepEqual(spec.acceptance, raw().acceptance);
+  const old = raw(); delete old.acceptance; delete old.risks[0].checkedBy;
+  old.chapters[0].focus.push({ at: 'a.js:3', kind: 'risk' }, { at: 'a.js:4', kind: 'decision' }, { at: 'a.js:5', question: 'Ignored?', options: ['A', 'B'] });
+  const warnings = normalizeReview(old).issues.filter(i => i.level === 'warn');
+  assert.equal(warnings.filter(i => /say which check covers it/.test(i.message)).length, 2);
+  assert.ok(warnings.some(i => /add `question`/.test(i.message)));
+  assert.ok(warnings.some(i => /ignored/.test(i.message)));
+  assert.ok(warnings.some(i => i.where === 'acceptance' && /nothing changes from outside/i.test(i.message)));
+});
+test('decision events replay last write, clear, and open old rounds conservatively', () => {
+  const meta = { id: 'r', mode: 'review' };
+  const events = ['yes', 'no', null].map((answer, i) => ({ type: 'decision', chapter: 'cap', place: 'a.js:1-2', answer, seq: i + 1 }));
+  assert.equal(reviewView(replay(meta, raw(), events.slice(0, 1))).decisions.cap['a.js:1-2'], 'yes');
+  assert.equal(reviewView(replay(meta, raw(), events.slice(0, 2))).decisions.cap['a.js:1-2'], 'no');
+  assert.equal(reviewView(replay(meta, raw(), events)).decisions.cap?.['a.js:1-2'], undefined);
+  assert.deepEqual(reviewView(replay(meta, raw(), [])).decisions, {});
+});
+test('answers and digest include decisions before fixes, without changing risk claims', () => {
+  const { spec } = normalizeReview(raw());
+  const input = { base: {}, spec, meta: {}, placed: { where: {}, sorted: 0, total: 0 }, review: { comments: [{ id: 'c', kind: 'fix', hunk: 'h1', text: 'Fix it' }], read: {}, decisions: { cap: { 'a.js:1-2': 'no' } } }, dialog: [] };
+  const result = reviewResult(input);
+  assert.deepEqual(result.decisions, [{ id: 'd1', chapter: 'cap', at: 'a.js:1-2', question: 'Is a silent cap acceptable?', answer: 'no', label: 'Change' }]);
+  assert.ok(result.digest.indexOf('Decisions') < result.digest.indexOf('To fix'));
+  assert.match(result.digest, /a.js:1-2.*\n.*Is a silent cap acceptable\?.*Change/);
+  assert.match(result.digest, /answered "no".*fix/);
+  input.review.decisions = {};
+  assert.match(reviewResult(input).digest, /NOT answered/);
+  input.spec.chapters[0].focus[0].options = undefined;
+  input.spec.lang = 'en';
+  const state = replay({ id: 'r', mode: 'review' }, raw(), [{ type: 'decision', seq: 1, chapter: 'cap', place: 'a.js:1-2', answer: 'yes', lang: 'ru' }]);
+  input.review = reviewView(state);
+  assert.equal(reviewResult(input).decisions[0].label, 'Да', 'the result keeps the language of the clicked default label');
+});
+test('review schema and tool docs describe the new fields, with exactly two option labels', async () => {
+  const { reviewSchema, reviewLines } = await import('../lib/registry/docs.mjs');
+  const schema = reviewSchema();
+  assert.equal(schema.properties.acceptance.properties.steps.items.type.includes('string'), true);
+  assert.equal(schema.$defs.focus.properties.options.minItems, 2);
+  assert.equal(schema.$defs.focus.properties.options.maxItems, 2);
+  assert.ok(schema.$defs.risk.properties.checkedBy);
+  for (const field of ['acceptance', 'checkedBy', 'question', 'options']) assert.ok(reviewLines().includes(field));
+});

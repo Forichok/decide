@@ -1,0 +1,577 @@
+<!doctype html>
+<!-- Mockup for /decide:review, step 0 of docs/plans/2026-11-17-review.md.
+     One scroll: the overview, then chapters. Content is a real change of this repo
+     (e484cae..75fbf48, the 3.0 polish pass); the check results are made up to show all three states.
+     Self-contained: no network, no build. data-start="ch2" on <html> opens it at the chapter. -->
+<html lang="ru" data-start="">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>decide · ревью (макет)</title>
+    <style>
+      :root {
+        --bg: #f6f5f3; --surface-2: #f3f2ef; --surface-3: #ebe9e5; --surface-solid: #ffffff;
+        --line: rgba(20, 16, 12, 0.08); --line-strong: rgba(20, 16, 12, 0.16);
+        --tx: #17161a; --tx-mut: #55525c; --tx-dim: #66626c;
+        --accent: #d6245f; --accent-tx: #b81c52; --accent-soft: rgba(214, 36, 95, 0.08); --accent-line: rgba(214, 36, 95, 0.45); --on-accent: #fff;
+        --ok: #076a4b; --ok-soft: rgba(15, 154, 110, 0.1);
+        --warn: #875106; --warn-soft: rgba(192, 122, 12, 0.12);
+        --danger: #b02828; --danger-soft: rgba(210, 59, 59, 0.1);
+        --info: #1f58c0; --info-soft: rgba(47, 111, 228, 0.1);
+        --glass-bg: rgba(255, 255, 255, 0.62); --glass-bg-strong: rgba(255, 255, 255, 0.86); --glass-blur: blur(24px) saturate(1.7);
+        --glass-edge: rgba(255, 255, 255, 0.75); --glass-hl: rgba(255, 255, 255, 0.9);
+        --glass-shadow: 0 1px 2px rgba(20, 16, 12, 0.05), 0 8px 24px -10px rgba(20, 16, 12, 0.14), 0 28px 56px -28px rgba(20, 16, 12, 0.18);
+        --shadow-3: 0 4px 10px rgba(20, 16, 12, 0.06), 0 28px 64px -20px rgba(20, 16, 12, 0.38);
+        --scrim: rgba(18, 16, 20, 0.5);
+        --field-1: rgba(226, 51, 110, 0.1); --field-2: rgba(122, 79, 214, 0.08); --field-3: rgba(47, 111, 228, 0.07);
+        --font: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+        --mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+        color-scheme: light;
+      }
+      :root[data-theme="dark"] {
+        --bg: #0c0c10; --surface-2: #1b1b21; --surface-3: #23232b; --surface-solid: #17171d;
+        --line: rgba(255, 255, 255, 0.08); --line-strong: rgba(255, 255, 255, 0.16);
+        --tx: #ececf1; --tx-mut: #a9a9b5; --tx-dim: #9494a1;
+        --accent: #ff5d8f; --accent-tx: #ff7aa3; --accent-soft: rgba(255, 93, 143, 0.13); --accent-line: rgba(255, 93, 143, 0.5); --on-accent: #1a0710;
+        --ok: #3ad3a0; --ok-soft: rgba(58, 211, 160, 0.12);
+        --warn: #f2b155; --warn-soft: rgba(242, 177, 85, 0.13);
+        --danger: #ff6b6b; --danger-soft: rgba(255, 107, 107, 0.12);
+        --info: #6aa2ff; --info-soft: rgba(106, 162, 255, 0.12);
+        --glass-bg: rgba(30, 30, 38, 0.6); --glass-bg-strong: rgba(26, 26, 34, 0.82); --glass-blur: blur(24px) saturate(1.6);
+        --glass-edge: rgba(255, 255, 255, 0.14); --glass-hl: rgba(255, 255, 255, 0.12);
+        --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -10px rgba(0, 0, 0, 0.55), 0 28px 56px -28px rgba(0, 0, 0, 0.6);
+        --shadow-3: 0 4px 10px rgba(0, 0, 0, 0.35), 0 30px 80px -20px rgba(0, 0, 0, 0.85);
+        --scrim: rgba(4, 4, 6, 0.72);
+        --field-1: rgba(255, 93, 143, 0.16); --field-2: rgba(122, 90, 220, 0.14); --field-3: rgba(50, 120, 230, 0.12);
+        color-scheme: dark;
+      }
+      *, *::before, *::after { box-sizing: border-box; }
+      html { scroll-behavior: smooth; scroll-padding-top: 20px; }
+      body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--tx); font: 15px/1.6 var(--font); -webkit-font-smoothing: antialiased; padding-bottom: 150px; }
+      body::before {
+        content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+        background: radial-gradient(900px 560px at 88% -6%, var(--field-1), transparent 70%), radial-gradient(760px 520px at -6% 28%, var(--field-2), transparent 70%), radial-gradient(900px 600px at 70% 112%, var(--field-3), transparent 70%);
+      }
+      button, textarea { font: inherit; color: inherit; }
+      button { cursor: pointer; }
+      :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      [hidden] { display: none !important; }
+      .glass { background: var(--glass-bg); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); border: 1px solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-hl), var(--glass-shadow); }
+
+      .layout { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: center; gap: 40px; padding: 0 16px; }
+      @media (min-width: 1180px) { .layout { grid-template-columns: 250px minmax(0, 920px); } }
+      main { width: 100%; max-width: 920px; margin: 0 auto; padding-top: 28px; }
+
+      /* rail: the chapters, by the order of the idea */
+      .rail { display: none; }
+      @media (min-width: 1180px) { .rail { display: block; position: sticky; top: 0; align-self: start; max-height: 100vh; overflow: auto; padding: 96px 0 40px; } }
+      .rail h2 { font-size: 13px; font-weight: 650; color: var(--tx-mut); margin: 0 0 8px 10px; }
+      .rail a { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; align-items: start; padding: 7px 10px; border-radius: 10px; color: var(--tx-mut); text-decoration: none; font-size: 13.5px; line-height: 1.35; }
+      .rail a:hover { color: var(--tx); background: var(--surface-3); }
+      .rail a.on { color: var(--tx); font-weight: 620; background: var(--glass-bg); box-shadow: inset 0 1px 0 var(--glass-hl), var(--glass-shadow); }
+      .rail .n { font: 600 12px/1.6 var(--mono); color: var(--tx-dim); text-align: center; }
+      .rail a.read .n { color: var(--ok); }
+      .rail .sep { height: 1px; background: var(--line); margin: 10px; }
+      .rail .sorted { margin: 14px 10px 0; font-size: 12.5px; color: var(--tx-dim); line-height: 1.45; }
+      .rail .sorted b { color: var(--tx-mut); font-weight: 620; }
+      .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: var(--line-strong); }
+      .dot.high { background: var(--danger); } .dot.mid { background: var(--warn); }
+
+      /* header */
+      .eyebrow { display: flex; align-items: center; gap: 10px; font-weight: 650; color: var(--tx-mut); margin-bottom: 28px; padding: 6px 8px 6px 14px; border-radius: 999px; }
+      .eyebrow svg { width: 20px; height: 20px; }
+      .eyebrow .spacer { flex: 1; }
+      .eyebrow .mock { font-size: 12px; font-weight: 600; color: var(--warn); background: var(--warn-soft); padding: 2px 9px; border-radius: 999px; }
+      .icon-btn { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 999px; border: 0; background: transparent; color: var(--tx-mut); }
+      .icon-btn:hover { background: var(--surface-3); color: var(--tx); }
+      h1 { font-size: clamp(1.75rem, 1.2rem + 2vw, 2.25rem); line-height: 1.12; letter-spacing: -0.03em; font-weight: 720; margin: 0 0 14px; text-wrap: balance; }
+      .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 26px; }
+      .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; background: var(--surface-3); color: var(--tx-mut); font-size: 13px; font-weight: 560; white-space: nowrap; }
+      .chip code, .mono { font-family: var(--mono); font-size: 12px; }
+      .chip .add { color: var(--ok); font-weight: 700; } .chip .del { color: var(--danger); font-weight: 700; }
+
+      .card { border-radius: 22px; padding: 30px 32px 24px; margin-top: 24px; scroll-margin-top: 20px; }
+      @media (max-width: 620px) { .card { padding: 22px 16px 16px; border-radius: 20px; } }
+      .card h2 { font-size: 20px; line-height: 1.3; font-weight: 680; letter-spacing: -0.02em; margin: 0; text-wrap: pretty; }
+      .said { font-size: 12px; font-weight: 600; color: var(--tx-dim); background: var(--surface-2); padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+      .lead { font-size: 17px; color: var(--tx); margin: 14px 0 0; text-wrap: pretty; }
+      .lead + .lead { color: var(--tx-mut); font-size: 15px; margin-top: 8px; }
+      .sub { font-size: 13px; font-weight: 650; color: var(--tx); margin: 26px 0 10px; display: flex; align-items: center; gap: 10px; }
+      .sub small { font-weight: 500; color: var(--tx-dim); font-size: 12.5px; }
+
+      /* risks: each jumps to its chapter */
+      .risks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+      .risk { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; width: 100%; text-align: left; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface-solid); }
+      .risk:hover { border-color: var(--line-strong); }
+      .risk .what { font-weight: 600; line-height: 1.4; }
+      .risk .why { display: block; font-weight: 400; color: var(--tx-mut); font-size: 13.5px; }
+      .risk .go { color: var(--tx-mut); font-size: 13px; font-weight: 600; white-space: nowrap; }
+      .risk:hover .go { color: var(--accent-tx); }
+      .badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 620; line-height: 1.5; white-space: nowrap; background: var(--surface-3); color: var(--tx-mut); }
+      .badge.high { background: var(--danger-soft); color: var(--danger); }
+      .badge.mid { background: var(--warn-soft); color: var(--warn); }
+      .badge.test { background: var(--info-soft); color: var(--info); }
+
+      /* checks: command, exit code, duration, as the agent ran them */
+      .checks { width: 100%; border-collapse: collapse; background: var(--surface-solid); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: table; }
+      .checks-wrap { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface-solid); }
+      .checks { border: 0; border-radius: 0; }
+      .checks td { padding: 9px 14px; border-top: 1px solid var(--line); font-size: 13.5px; vertical-align: top; }
+      .checks tr:first-child td { border-top: 0; }
+      .checks .st { width: 30px; padding-right: 0; }
+      .checks .cmd { font: 12.5px/1.6 var(--mono); }
+      .checks .cmd small { display: block; font: 12.5px/1.45 var(--font); color: var(--tx-mut); margin-top: 2px; }
+      .checks .code, .checks .dur { white-space: nowrap; text-align: right; color: var(--tx-mut); font: 12.5px/1.6 var(--mono); }
+      .mark { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font: 700 11px/1 var(--font); margin-top: 2px; }
+      .mark.ok { background: var(--ok-soft); color: var(--ok); }
+      .mark.bad { background: var(--danger-soft); color: var(--danger); }
+      .mark.none { background: var(--surface-3); color: var(--tx-dim); }
+      .checks tr.bad .code { color: var(--danger); font-weight: 700; }
+      .checks tr.none .code { color: var(--tx-dim); font-family: var(--font); }
+
+      .tally { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--tx-mut); }
+      .tally b { color: var(--tx); font-weight: 650; }
+      .later { margin-top: 12px; padding: 12px 14px; border: 1px dashed var(--line-strong); border-radius: 14px; color: var(--tx-dim); font-size: 13px; }
+
+      /* chapter */
+      .ch-head { display: flex; gap: 14px; align-items: flex-start; }
+      .ch-n { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font: 600 13px/1 var(--mono); color: var(--tx-dim); box-shadow: inset 0 0 0 1px var(--line-strong); margin-top: 1px; }
+      .chapter.read .ch-n { background: var(--ok); color: #fff; box-shadow: none; }
+      :root[data-theme="dark"] .chapter.read .ch-n { color: #06281d; }
+      .ch-titles { flex: 1; min-width: 0; }
+      .ch-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+      .ch-badges .files { font-size: 12.5px; color: var(--tx-dim); }
+      .ch-why { color: var(--tx-mut); margin: 14px 0 0; text-wrap: pretty; }
+      .ch-risk { margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--danger-soft); color: var(--tx); font-size: 14px; }
+      .ch-risk.mid { background: var(--warn-soft); }
+      .ch-risk b { color: var(--danger); font-weight: 650; } .ch-risk.mid b { color: var(--warn); }
+      .ch-foot { display: flex; align-items: center; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+      .ch-foot .hint { color: var(--tx-dim); font-size: 13px; }
+      .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 17px; border-radius: 999px; border: 1px solid transparent; font-size: 15px; font-weight: 620; white-space: nowrap; background: var(--surface-3); color: var(--tx); }
+      .btn:hover { background: color-mix(in srgb, var(--tx) 9%, var(--surface-3)); }
+      .btn.sm { padding: 6px 12px; font-size: 13px; }
+      .btn.primary { background: var(--accent); color: var(--on-accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 20px -10px var(--accent); }
+      .btn.primary:hover { filter: brightness(1.06); background: var(--accent); }
+      .btn.ghost { background: transparent; color: var(--tx-mut); }
+      .btn.ghost:hover { background: var(--surface-2); color: var(--tx); }
+      .btn.done { background: var(--ok-soft); color: var(--ok); }
+      .skeleton { margin-top: 18px; padding: 14px; border: 1px dashed var(--line-strong); border-radius: 14px; color: var(--tx-dim); font-size: 13px; }
+
+      /* hunk */
+      .hunk { margin-top: 18px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface-solid); }
+      .hunk-bar { display: flex; align-items: center; gap: 10px; padding: 7px 8px 7px 14px; background: var(--surface-2); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+      .hunk-bar .path { font: 600 12.5px/1.5 var(--mono); color: var(--tx); overflow-wrap: anywhere; }
+      .hunk-bar .at { font: 12px/1.5 var(--mono); color: var(--tx-dim); }
+      .hunk-bar .spacer { flex: 1; }
+      .hunk-bar .tool { border: 0; background: none; padding: 4px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--tx-mut); }
+      .hunk-bar .tool:hover { background: var(--surface-3); color: var(--tx); }
+      .diff { width: 100%; border-collapse: collapse; table-layout: fixed; font: 12.5px/1.6 var(--mono); }
+      .diff col.n { width: 42px; } .diff col.s { width: 18px; }
+      .diff td { padding: 0 8px; vertical-align: top; }
+      .diff td.n { text-align: right; color: var(--tx-dim); user-select: none; opacity: 0.85; position: relative; }
+      .diff td.s { padding: 0 2px; text-align: center; color: var(--tx-dim); user-select: none; }
+      .diff td.t { white-space: pre-wrap; overflow-wrap: anywhere; }
+      .diff tr.add td { background: var(--ok-soft); } .diff tr.add td.s { color: var(--ok); }
+      .diff tr.del td { background: var(--danger-soft); } .diff tr.del td.s { color: var(--danger); }
+      .diff tr.ctx td { color: var(--tx-mut); }
+      .diff tr.line { cursor: pointer; }
+      .diff tr.line:hover td { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--accent) 7%, transparent); }
+      .diff tr.line:hover td.n:first-child::before { content: "+"; position: absolute; left: 4px; top: 2px; width: 16px; height: 16px; border-radius: 5px; background: var(--accent); color: var(--on-accent); font: 700 13px/16px var(--font); text-align: center; opacity: 1; }
+      .diff tr.more td { padding: 3px 12px; background: var(--info-soft); }
+      .diff tr.more button { border: 0; background: none; padding: 0; color: var(--info); font: 600 12px/1.7 var(--font); }
+      .diff tr.note td { padding: 8px 12px 10px 52px; background: var(--surface-solid); font-family: var(--font); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+      @media (max-width: 620px) { .diff tr.note td { padding-left: 12px; } }
+
+      /* a comment on a line: fix, question, nit */
+      .cm { border-radius: 12px; padding: 10px 12px; background: var(--surface-2); font-size: 14px; line-height: 1.5; border-left: 3px solid var(--line-strong); }
+      .cm.fix { border-left-color: var(--danger); } .cm.ask { border-left-color: var(--info); } .cm.nit { border-left-color: var(--tx-dim); }
+      .cm-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+      .cm-top .who { font-size: 12.5px; color: var(--tx-dim); }
+      .cm-top .spacer { flex: 1; }
+      .cm-top button { border: 0; background: none; padding: 2px 6px; font-size: 12.5px; color: var(--tx-dim); border-radius: 6px; }
+      .cm-top button:hover { color: var(--tx); background: var(--surface-3); }
+      .kind { display: inline-flex; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 650; }
+      .kind.fix { background: var(--danger-soft); color: var(--danger); }
+      .kind.ask { background: var(--info-soft); color: var(--info); }
+      .kind.nit { background: var(--surface-3); color: var(--tx-mut); }
+      .reply { margin-top: 8px; padding: 9px 12px; border-radius: 10px; background: var(--info-soft); font-size: 14px; }
+      .reply .from { display: block; font-size: 12px; font-weight: 650; color: var(--info); margin-bottom: 2px; }
+      .compose { display: grid; gap: 8px; }
+      .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface-3); gap: 2px; width: max-content; max-width: 100%; }
+      .seg button { border: 0; background: none; padding: 5px 13px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--tx-mut); }
+      .seg button[aria-pressed="true"] { background: var(--surface-solid); color: var(--tx); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+      .compose textarea { width: 100%; min-height: 62px; resize: vertical; border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 10px; background: var(--surface-solid); font-size: 14px; line-height: 1.5; }
+      .compose .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .compose .row .hint { color: var(--tx-dim); font-size: 12.5px; }
+
+      /* folded lines: mechanical edits and the rest */
+      .fold { margin-top: 16px; border-radius: 16px; padding: 0; }
+      .fold summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 14px 20px; cursor: pointer; font-weight: 620; flex-wrap: wrap; }
+      .fold summary::-webkit-details-marker { display: none; }
+      .fold summary .count { font: 600 12px/1 var(--mono); padding: 4px 7px; border-radius: 7px; background: var(--surface-3); color: var(--tx-mut); }
+      .fold summary .what { font-weight: 400; color: var(--tx-mut); font-size: 13.5px; flex: 1 1 260px; }
+      .fold summary .chev { width: 14px; height: 14px; transition: transform 0.18s; transform: rotate(-90deg); color: var(--tx-dim); }
+      .fold[open] summary .chev { transform: none; }
+      .fold ul { margin: 0; padding: 0 20px 16px 46px; color: var(--tx-mut); font-size: 13.5px; }
+      .fold li { margin: 3px 0; }
+
+      /* bottom bar: the verdict */
+      .bar { position: fixed; left: 0; right: 0; bottom: 16px; z-index: 5; display: flex; justify-content: center; padding: 0 16px; pointer-events: none; }
+      .bar-inner { pointer-events: auto; width: 100%; max-width: 920px; border-radius: 26px; padding: 12px 14px 12px 22px; display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; background: var(--glass-bg-strong); }
+      @media (min-width: 1180px) { .bar { padding-left: 306px; } }
+      .bar .state { flex: 1 1 240px; min-width: 0; }
+      .bar .state b { font-weight: 680; }
+      .bar .state small { display: block; color: var(--tx-mut); font-size: 13px; }
+      .bar .state .warn { color: var(--warn); font-weight: 600; }
+      .pills { display: flex; gap: 4px; margin-bottom: 6px; }
+      .pills i { width: 34px; height: 5px; border-radius: 3px; background: var(--surface-3); }
+      .pills i.done { background: var(--ok); }
+      .bar .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+
+      .scrim { position: fixed; inset: 0; z-index: 10; background: var(--scrim); display: grid; place-items: center; padding: 16px; }
+      .modal { width: 100%; max-width: 520px; border-radius: 22px; padding: 26px 28px 22px; background: var(--glass-bg-strong); box-shadow: var(--shadow-3); }
+      .modal h3 { margin: 0 0 6px; font-size: 20px; letter-spacing: -0.02em; }
+      .modal p { margin: 8px 0 0; color: var(--tx-mut); }
+      .modal .alert { margin-top: 14px; padding: 10px 14px; border-radius: 12px; background: var(--warn-soft); color: var(--tx); font-size: 14px; }
+      .modal .alert b { color: var(--warn); }
+      .modal ul { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 14px; }
+      .modal li { display: flex; gap: 8px; align-items: baseline; }
+      .modal textarea { width: 100%; margin-top: 14px; min-height: 60px; border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 10px; background: var(--surface-solid); font-size: 14px; }
+      .modal .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="rail" aria-label="Главы">
+        <h2>Ревью</h2>
+        <a href="#overview" class="on"><span class="n">·</span><span>Обзор</span><span></span></a>
+        <div class="sep"></div>
+        <h2>Главы, по ходу замысла</h2>
+        <a href="#ch1" class="read"><span class="n">✓</span><span>Диалог и картинка закрываются при уходе с раунда</span><i class="dot mid"></i></a>
+        <a href="#ch2"><span class="n">2</span><span>«Увидено» не уходит в отправленный раунд</span><i class="dot high"></i></a>
+        <a href="#ch3"><span class="n">3</span><span>Экспорт берёт список стилей из index.html</span><i class="dot mid"></i></a>
+        <a href="#ch4"><span class="n">4</span><span>Цвета состояний читаются как текст</span><i class="dot"></i></a>
+        <a href="#ch5"><span class="n">5</span><span>Под пальцем не меньше 44 px</span><i class="dot"></i></a>
+        <a href="#ch6"><span class="n">6</span><span>Скрипт, который это измеряет</span><i class="dot"></i></a>
+        <div class="sep"></div>
+        <a href="#mech"><span class="n">≡</span><span>Механика</span><span class="mono">90</span></a>
+        <a href="#rest"><span class="n">…</span><span>Остальное</span><span class="mono">3</span></a>
+        <p class="sorted"><b>Разложено 151 из 154</b> кусков. Прочитано 1 из 6 глав.</p>
+      </nav>
+
+      <main>
+        <div class="eyebrow glass">
+          <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="27" cy="40" r="17" fill="var(--accent)" /><rect x="40" y="6" width="11" height="51" rx="5.5" fill="currentColor" /></svg>
+          <span>decide · ревью</span>
+          <span class="mock">макет</span>
+          <span class="spacer"></span>
+          <button class="icon-btn" id="theme" title="Светлая / тёмная" aria-label="Светлая / тёмная тема">◐</button>
+        </div>
+
+        <h1>Полировка всех экранов 3.0 и три бага, найденные по дороге</h1>
+        <div class="meta">
+          <span class="chip"><code>claude/d3-polish</code> → <code>master</code></span>
+          <span class="chip"><code>e484cae..75fbf48</code></span>
+          <span class="chip">113 файлов <span class="add">+734</span> <span class="del">−95</span></span>
+          <span class="chip">снимок от 14:02</span>
+        </div>
+
+        <section class="card glass" id="overview">
+          <div class="ch-head">
+            <div class="ch-titles"><h2>Что изменилось и зачем</h2></div>
+            <span class="said">со слов агента</span>
+          </div>
+          <p class="lead">Каждый экран 3.0 измерен скриптом на трёх ширинах и в двух темах: размер касания, контраст, кегль, обрезанный текст, кольцо фокуса. Было 82 находки, стало ноль.</p>
+          <p class="lead">По дороге нашлись три бага в поведении, они важнее самой полировки: диалог оставался поверх следующего экрана, экспортированная страница теряла стили, а в уже отправленный раунд уходил запрос и получал 409.</p>
+
+          <div class="sub">Риски <small>нажмите, чтобы перейти к главе</small></div>
+          <ul class="risks">
+            <li><button class="risk" data-go="ch2"><span class="badge high">высокий</span><span class="what">Очередь «увидено» теперь можно выбросить<span class="why">Если выбросить не у того раунда, вопросы останутся «не просмотренными» и вернутся в «проверьте».</span></span><span class="go">глава 2 →</span></button></li>
+            <li><button class="risk" data-go="ch1"><span class="badge mid">средний</span><span class="what">Смена адреса закрывает всё открытое<span class="why">Незаконченная разметка на картинке пропадёт при переходе по «Назад».</span></span><span class="go">глава 1 →</span></button></li>
+            <li><button class="risk" data-go="ch3"><span class="badge mid">средний</span><span class="what">Экспорт читает index.html регулярным выражением<span class="why">Другой порядок атрибутов в теге link, и лист молча не попадёт в файл. Тест это ловит.</span></span><span class="go">глава 3 →</span></button></li>
+          </ul>
+
+          <div class="sub">Проверки <small>как их запускал агент; страница ничего не запускает</small></div>
+          <div class="checks-wrap">
+            <table class="checks">
+              <tr><td class="st"><span class="mark ok">✓</span></td><td class="cmd">npm test</td><td class="code">код 0</td><td class="dur">41 с</td></tr>
+              <tr class="bad"><td class="st"><span class="mark bad">!</span></td><td class="cmd">npx playwright test<small>1 из 96 упал: tabs.spec.mjs:41, по словам агента, не из этой ветки</small></td><td class="code">код 1</td><td class="dur">3 мин 12 с</td></tr>
+              <tr><td class="st"><span class="mark ok">✓</span></td><td class="cmd">node scripts/ui-audit.mjs</td><td class="code">код 0</td><td class="dur">2 мин 06 с</td></tr>
+              <tr class="none"><td class="st"><span class="mark none">–</span></td><td class="cmd">npm run docs -- --check</td><td class="code">не запускалась</td><td class="dur"></td></tr>
+            </table>
+          </div>
+
+          <div class="later">Схема связей между частями и код, который не менялся, но зависит от изменённого, встанут сюда на шаге 3.</div>
+
+          <div class="tally">
+            <span><b>154</b> куска в 113 файлах</span>
+            <span><b>61</b> в шести главах</span>
+            <span><b>90</b> механических, свёрнуты</span>
+            <span><b>3</b> не разложены, лежат в «Остальном»</span>
+          </div>
+        </section>
+
+        <section class="card glass chapter read" id="ch1">
+          <div class="ch-head">
+            <span class="ch-n">✓</span>
+            <div class="ch-titles">
+              <h2>Диалог и картинка закрываются при уходе с раунда</h2>
+              <div class="ch-badges"><span class="badge mid">риск: средний</span><span class="files">3 куска · overlays.js, main.js, keys.spec.mjs</span></div>
+            </div>
+            <button class="btn sm done" data-read>✓ Прочитано</button>
+          </div>
+          <p class="ch-why">Диалог проверки и увеличенная картинка жили в отдельных слоях и не знали о смене экрана. Теперь у слоёв есть общий выход, и его зовёт каждая смена адреса.</p>
+          <div class="skeleton">Глава прочитана и свёрнута. В макете её диф не нарисован: он выглядит так же, как в главе 2.</div>
+        </section>
+
+        <section class="card glass chapter" id="ch2">
+          <div class="ch-head">
+            <span class="ch-n">2</span>
+            <div class="ch-titles">
+              <h2>«Увидено» не уходит в отправленный раунд</h2>
+              <div class="ch-badges"><span class="badge high">риск: высокий</span><span class="files">6 кусков · seen.js, round.js, swipe/index.js, main.js, keys.spec.mjs</span><span class="said">со слов агента</span></div>
+            </div>
+          </div>
+          <p class="ch-why">Страница копит отметки «вопрос увиден» и шлёт их пачкой с задержкой. Если раунд отправить раньше, пачка уходила уже в закрытый раунд, и сервер отвечал 409. Теперь закрытый раунд выбрасывает свою очередь, а открытый по-прежнему дошлёт её при уходе.</p>
+          <p class="ch-risk"><b>Где смотреть.</b> Условие в <span class="mono">showDone</span>: очередь выбрасывается только у того раунда, который сейчас получил результат. Если сравнение ошибётся, соседний раунд потеряет свои отметки.</p>
+          <div id="hunks"></div>
+          <div class="ch-foot">
+            <button class="btn" data-read>Глава прочитана</button>
+            <span class="hint">Отметка ставится на главу целиком. Замечания остаются при строках.</span>
+          </div>
+        </section>
+
+        <section class="card glass chapter" id="ch3">
+          <div class="ch-head">
+            <span class="ch-n">3</span>
+            <div class="ch-titles">
+              <h2>Экспорт берёт список стилей из index.html</h2>
+              <div class="ch-badges"><span class="badge mid">риск: средний</span><span class="files">2 куска · lib/export.mjs, test/v21.test.mjs</span></div>
+            </div>
+          </div>
+          <p class="ch-why">Список листов для экспорта вели руками, и он отстал: формы, tune, состояния и «готово» выходили без стилей. Теперь список читается из той же страницы, что и в браузере.</p>
+          <div class="skeleton">Главы 3–6 подгружаются, когда до них докручивают. В макете их диф не нарисован.</div>
+        </section>
+
+        <details class="fold glass" id="mech">
+          <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6" /></svg>Механика <span class="count">90</span><span class="what">правки без смысла для чтения: пересняты 84 снимка экранов, 6 раз кегль 11 → 12 px</span><span class="said">со слов агента</span></summary>
+          <ul>
+            <li><b>84</b> файла <span class="mono">docs/screens/*.webp</span> сняты заново тем же скриптом</li>
+            <li><b>6</b> строк в CSS: <span class="mono">11px → 12px</span> в подписях и счётчиках</li>
+            <li>Любую группу можно развернуть и прочитать как обычный диф.</li>
+          </ul>
+        </details>
+        <details class="fold glass" id="rest">
+          <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6" /></svg>Остальное <span class="count">3</span><span class="what">куски, которые агент не отнёс ни к одной главе</span></summary>
+          <ul>
+            <li><span class="mono">ui/js/lang/en.js</span> @@ 407: точка перед числом решений убрана</li>
+            <li><span class="mono">ui/js/lang/ru.js</span> @@ 414: то же</li>
+            <li><span class="mono">ui/js/settings.js</span> @@ 15: поле правила стало многострочным</li>
+          </ul>
+        </details>
+      </main>
+    </div>
+
+    <footer class="bar">
+      <div class="bar-inner glass">
+        <div class="state">
+          <div class="pills" id="pills"><i class="done"></i><i></i><i></i><i></i><i></i><i></i></div>
+          <b id="readline">Прочитана 1 из 6 глав</b>
+          <small><span id="cmline">Замечаний: 3 · исправить 1, вопрос 1, мелочь 1</span> · <span class="warn">проверки: 1 красная, 1 не запускалась</span></small>
+        </div>
+        <div class="acts">
+          <button class="btn ghost" data-verdict="return">Вернуть</button>
+          <button class="btn" data-verdict="nits">Принять с мелочами</button>
+          <button class="btn primary" data-verdict="approve">Принять</button>
+        </div>
+      </div>
+    </footer>
+
+    <div class="scrim" id="scrim" hidden>
+      <div class="modal glass" role="dialog" aria-modal="true" aria-labelledby="vt">
+        <h3 id="vt"></h3>
+        <p id="vp"></p>
+        <div class="alert" id="va" hidden><b>Проверки не зелёные.</b> <span class="mono">npx playwright test</span> завершилась с кодом 1, <span class="mono">npm run docs -- --check</span> не запускалась. Принять можно и так: решение ваше.</div>
+        <ul>
+          <li><span class="kind fix">исправить</span> 1 замечание</li>
+          <li><span class="kind ask">вопрос</span> 1, агент ответил</li>
+          <li><span class="kind nit">мелочь</span> 1</li>
+        </ul>
+        <textarea placeholder="Пара слов агенту, если нужно"></textarea>
+        <div class="row"><button class="btn ghost" id="vx">Отмена</button><button class="btn primary" id="vok"></button></div>
+      </div>
+    </div>
+
+    <script>
+      // The hunks of chapter 2, as git gives them (e484cae..75fbf48).
+      const HUNKS = [
+        {
+          path: "ui/js/seen.js", at: "@@ −33,13 +33,19 @@ seenReporter", o: 33, n: 33, more: 32,
+          lines: [
+            " ·    },", " ·    flush,", " ·    stop: flush,",
+            "+·    // The round is settled: what is still waiting has nowhere to go.",
+            "+·    drop() {", "+·      clearTimeout(timer);", "+·      timer = null;", "+·      queue = new Set();", "+·    },",
+            " ·  };", " ·}",
+          ],
+          notes: { 5: { kind: "nit", text: "queue.clear() вместо нового Set: меньше мусора, и ссылка на очередь не меняется.", edit: true } },
+        },
+        {
+          path: "ui/js/seen.js", at: "@@ −61,9 +67,10 @@ watchSeen", o: 61, n: 67, more: 6,
+          lines: [
+            " ·      }", " ·    },",
+            "-·    stop() {", "+·    stop({ settled = false } = {}) {",
+            " ·      io.disconnect();",
+            "-·      reporter.stop();", "+·      if (settled) reporter.drop();", "+·      else reporter.stop();",
+            " ·    },", " ·  };",
+          ],
+          notes: {},
+        },
+        {
+          path: "ui/js/main.js", at: "@@ −129,7 +129,8 @@ function showDone", o: 129, n: 129, more: 0,
+          lines: [
+            " ·", " ·function showDone(id, result, spec = null) {", " ·  app.spec = spec || app.round?.spec || null;",
+            "-·  app.round?.stop();",
+            "+·  // only the round being settled drops its queue: another pending round still reports what was seen",
+            "+·  app.round?.stop({ settled: app.round.id === id });",
+            " ·  app.round = null;", " ·  app.view = \"done\";", " ·  app.done = { id, result };",
+          ],
+          notes: {
+            5: { kind: "fix", text: "Если результат пришёл по соседнему раунду, пока открыт этот, app.round обнуляется, а его очередь уже отправлена. Проверьте, что экран «готово» соседнего раунда вообще должен закрывать текущий." },
+          },
+          ask: {
+            q: "Откуда showDone зовётся с чужим id? Покажите путь.",
+            a: "Из потока событий: если раунд отправили из другой вкладки, сюда приходит событие «answered» с его id. Такой вызов один, в main.js:212, и только когда этот раунд открыт на экране; для остальных раундов обновляется счётчик во вкладках. Код не трогаю, пока нет вердикта.",
+          },
+        },
+        {
+          path: "e2e/keys.spec.mjs", at: "@@ −89,3 +89,27 @@", o: 101, n: 101, more: 0, test: true,
+          lines: [
+            "+·test(\"nothing is posted to a round after it is sent: no refused request in the console\", async ({ page }) => {",
+            "+·  const id = await d.open(twoSingles());", "+·  const refused = [];",
+            "+·  page.on(\"response\", (r) => r.status() >= 400 && refused.push(`${r.status()} ${new URL(r.url()).pathname}`));",
+            "+·  await openRound(page, d, id);",
+            "+·  // the answer scrolls the next question into view, and the round is sent before the \"seen\" batch goes out",
+            "+·  await page.keyboard.press(\"1\");", "+·  await page.keyboard.press(\"Control+Enter\");",
+            "+·  await page.locator(\"#overlay .btn.primary\", { hasText: \"Send to the agent\" }).click();",
+            "+·  await expect(page.locator(\".done-card\")).toBeVisible();",
+            "+·  await page.waitForTimeout(1500);", "+·  expect(refused).toEqual([]);", "+·});",
+          ],
+          notes: { 10: { kind: "ask", text: "1500 мс здесь из-за задержки пачки? Тест не станет дёрганым на медленной машине?", reply: "Да, пачка уходит через 1200 мс (SEEN_DELAY_MS). На медленной машине тест станет только дольше, не краснее: он ждёт, что запросов не было." } },
+        },
+      ];
+      const KINDS = { fix: "исправить", ask: "вопрос", nit: "мелочь" };
+      const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+      const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+
+      function note(c) {
+        const box = el("div", `cm ${c.kind}`);
+        box.innerHTML = `<div class="cm-top"><span class="kind ${c.kind}">${KINDS[c.kind]}</span><span class="who">вы, к этой строке</span><span class="spacer"></span><button>изменить</button><button>убрать</button></div>${esc(c.text)}` + (c.reply ? `<div class="reply"><span class="from">Агент ответил</span>${esc(c.reply)}</div>` : "");
+        return box;
+      }
+      function composer(done) {
+        const box = el("div", "compose");
+        box.innerHTML = `<div class="seg" role="group" aria-label="Тип замечания"><button aria-pressed="true" data-k="fix">Исправить</button><button aria-pressed="false" data-k="ask">Вопрос</button><button aria-pressed="false" data-k="nit">Мелочь</button></div><textarea placeholder="Что не так в этой строке"></textarea><div class="row"><button class="btn sm primary">Сохранить</button><button class="btn sm ghost">Отмена</button><span class="hint">Вопрос уходит агенту сразу, остальное — с вердиктом</span></div>`;
+        box.querySelectorAll(".seg button").forEach((b) => (b.onclick = () => box.querySelectorAll(".seg button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)))));
+        const [save, cancel] = box.querySelectorAll(".row .btn");
+        cancel.onclick = () => done(null);
+        save.onclick = () => {
+          const text = box.querySelector("textarea").value.trim();
+          done(text ? { kind: box.querySelector('.seg [aria-pressed="true"]').dataset.k, text } : null);
+        };
+        return box;
+      }
+      const noteRow = (child) => { const tr = el("tr", "note"); const td = el("td"); td.colSpan = 4; td.append(child); tr.append(td); return tr; };
+
+      function hunk(h) {
+        const box = el("div", "hunk");
+        const bar = el("div", "hunk-bar", `<span class="path">${h.path}</span>${h.test ? '<span class="badge test">тест к этому коду</span>' : ""}<span class="at">${h.at}</span><span class="spacer"></span><button class="tool" data-t="file">Весь файл</button><button class="tool" data-t="ask">Спросить агента</button>`);
+        const table = el("table", "diff", '<colgroup><col class="n" /><col class="n" /><col class="s" /><col /></colgroup>');
+        const body = el("tbody");
+        let o = h.o, n = h.n;
+        if (h.more) body.append(el("tr", "more", `<td colspan="4"><button>↑ ${h.more} строк выше без изменений</button></td>`));
+        h.lines.forEach((raw, i) => {
+          const sign = raw[0], text = raw.slice(2);
+          const cls = sign === "+" ? "add" : sign === "-" ? "del" : "ctx";
+          const tr = el("tr", `line ${cls}`, `<td class="n">${sign === "+" ? "" : o}</td><td class="n">${sign === "-" ? "" : n}</td><td class="s">${sign === " " ? "" : sign === "-" ? "−" : "+"}</td><td class="t">${esc(text) || " "}</td>`);
+          if (sign !== "+") o++;
+          if (sign !== "-") n++;
+          tr.title = "Нажмите, чтобы оставить замечание к строке";
+          tr.onclick = () => {
+            if (tr.nextElementSibling?.classList.contains("draft")) return;
+            const row = noteRow(composer((c) => { if (c) { row.replaceWith(noteRow(note(c))); count(c.kind); } else row.remove(); }));
+            row.classList.add("draft");
+            tr.after(row);
+            row.querySelector("textarea").focus();
+          };
+          body.append(tr);
+          if (h.notes[i]) body.append(noteRow(note(h.notes[i])));
+        });
+        table.append(body);
+        box.append(bar, table);
+        if (h.ask) {
+          const d = el("div", "", `<div class="cm ask" style="border-radius:0;border-left-width:0;padding:12px 14px 14px"><div class="cm-top"><span class="kind ask">вопрос агенту</span><span class="who">вы, к этому куску</span></div>${esc(h.ask.q)}<div class="reply"><span class="from">Агент ответил</span>${esc(h.ask.a)}</div></div>`);
+          d.style.borderTop = "1px solid var(--line)";
+          box.append(d);
+        }
+        bar.querySelector('[data-t="file"]').onclick = (e) => { e.target.textContent = e.target.textContent === "Весь файл" ? "Только изменения" : "Весь файл"; };
+        return box;
+      }
+      document.getElementById("hunks").append(...HUNKS.map(hunk));
+
+      const tally = { fix: 1, ask: 1, nit: 1 };
+      function count(kind) {
+        tally[kind]++;
+        document.getElementById("cmline").textContent = `Замечаний: ${tally.fix + tally.ask + tally.nit} · исправить ${tally.fix}, вопрос ${tally.ask}, мелочь ${tally.nit}`;
+      }
+      function paintRead() {
+        const cards = [...document.querySelectorAll(".chapter")];
+        const read = cards.filter((c) => c.classList.contains("read")).length;
+        document.getElementById("readline").textContent = `Прочитано ${read} из 6 глав`;
+        document.querySelectorAll("#pills i").forEach((p, i) => p.classList.toggle("done", i < read));
+      }
+      document.querySelectorAll("[data-read]").forEach((b) => (b.onclick = () => {
+        const card = b.closest(".chapter");
+        const on = card.classList.toggle("read");
+        card.querySelector(".ch-n").textContent = on ? "✓" : card.id.slice(2);
+        b.textContent = on ? "✓ Прочитано" : "Глава прочитана";
+        b.classList.toggle("done", on);
+        const link = document.querySelector(`.rail a[href="#${card.id}"]`);
+        link.classList.toggle("read", on);
+        link.querySelector(".n").textContent = on ? "✓" : card.id.slice(2);
+        paintRead();
+      }));
+      document.querySelectorAll("[data-go]").forEach((b) => (b.onclick = () => document.getElementById(b.dataset.go).scrollIntoView()));
+
+      const VERDICT = {
+        approve: ["Принять изменение", "Агент получит вердикт и мелочи. Мерж остаётся за ним, по правилам репозитория.", "Принять"],
+        nits: ["Принять с мелочами", "Агент исправит мелочи и не будет ждать второго круга. Замечания «исправить» тоже уйдут ему.", "Принять с мелочами"],
+        return: ["Вернуть на доработку", "Агент исправит замечания и откроет второй круг: только изменившееся и статус каждого замечания.", "Вернуть"],
+      };
+      const scrim = document.getElementById("scrim");
+      document.querySelectorAll("[data-verdict]").forEach((b) => (b.onclick = () => {
+        const [title, text, ok] = VERDICT[b.dataset.verdict];
+        document.getElementById("vt").textContent = title;
+        document.getElementById("vp").textContent = text;
+        document.getElementById("vok").textContent = ok;
+        document.getElementById("va").hidden = b.dataset.verdict === "return";
+        scrim.hidden = false;
+      }));
+      document.getElementById("vx").onclick = document.getElementById("vok").onclick = () => (scrim.hidden = true);
+      scrim.onclick = (e) => e.target === scrim && (scrim.hidden = true);
+
+      const root = document.documentElement;
+      const want = new URLSearchParams(location.search).get("theme");
+      root.dataset.theme = want || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.getElementById("theme").onclick = () => (root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark");
+
+      // the rail follows the scroll
+      const links = [...document.querySelectorAll(".rail a")];
+      const spy = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && links.forEach((a) => a.classList.toggle("on", a.getAttribute("href") === `#${e.target.id}`))), { rootMargin: "-20% 0px -70% 0px" });
+      document.querySelectorAll("#overview, .chapter, .fold").forEach((s) => spy.observe(s));
+      const start = root.dataset.start || location.hash.slice(1);
+      if (start) { root.style.scrollBehavior = "auto"; document.getElementById(start)?.scrollIntoView(); root.style.scrollBehavior = ""; }
+      paintRead();
+    </script>
+  </body>
+</html>

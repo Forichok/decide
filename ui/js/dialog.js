@@ -89,3 +89,23 @@ function composer(q, ctx) {
     ),
   );
 }
+
+// The round conversation uses the same markdown and media as per-item explanations, without a qid.
+export function roundMessage(m, ctx, pick, pickedOption) {
+  const agent = m.from === "agent";
+  const choice = m.choice && h("div.round-thread-choice", {},
+    h("p", { html: md(m.choice.text) }),
+    h("div.round-thread-options", {}, m.choice.options.map(option => h("button.btn.sm", {
+      type: "button", "aria-pressed": String(m.picked === option), disabled: m.picked !== undefined || ctx.closed,
+      onclick: () => pick(m.id, option),
+    }, m.picked === option ? `${t("thread.picked")} ${option}` : option))),
+  );
+  return h(`article.msg.${agent ? "agent" : "me"}`, { dataset: { message: m.id, from: m.from } },
+    h("div.msg-who", {}, agent ? t("dlg.reply") : t("thread.you"), h("time", { datetime: m.at }, new Date(m.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))),
+    agent ? h("div.msg-text.rich", { html: md(m.text) }) : h("div.msg-text", {}, pickedOption === undefined ? m.text : t("thread.pickMessage", pickedOption)),
+    m.media && renderMedia(m.media, ctx, ""),
+    m.media && changesList(m.media),
+    choice,
+    !agent && h("p.round-thread-status", { role: "status", dataset: { status: m.status } }, t(`thread.${m.status}`)),
+  );
+}

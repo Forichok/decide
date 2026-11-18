@@ -22,9 +22,14 @@
 //   node decide.mjs --demo [--lang en|ru]             the feature tour
 //   node decide.mjs notice                            answers the user sent that no agent has collected
 //   node decide.mjs --lint <x.questions.json> | --stop
+//   node decide.mjs lint <x.review.json> [--previous round | --no-previous]
+//   node decide.mjs outline [--base ref] [--head ref] [--previous round | --no-previous] [--json] [--place path:from-to] [--out spec.json] [--force] [--outside]
+//   node decide.mjs review <x.review.json> [--base ref] [--head ref] [--previous round | --no-previous] [--no-open]   a code review of a branch
 //   node decide.mjs serve [--port n]                  run the home's server (started on demand)
+//   wait <round> [--live] [--timeout-sec n]: stop after n seconds; without it, keep waiting.
+//   Exit codes: 0 result; 1 lint/stop refused; 2 error; 3 live item; 4 wait timed out.
 //   Every command also has a name: ask swipe wait push explain screenshot history supersede adr export
-//   import lint stop open notice, as in `node decide.mjs wait <round> --live`, `node decide.mjs open <round>`.
+//   import lint stop open notice rules patch review, as in `node decide.mjs wait <round> --live`, `node decide.mjs open <round>`.
 //   Every command takes --project <dir> (default: the current directory).
 //
 // Zero dependencies, Node >= 20. Agent guide and spec: skills/decide/.
@@ -47,11 +52,18 @@ function flag(name) {
   return v && !v.startsWith("--") ? v : undefined;
 }
 
+function print(stream, text) {
+  // Pipes write asynchronously: process.exit must wait for the complete message.
+  return new Promise((resolve, reject) => {
+    stream.write(`${text}\n`, error => error ? reject(error) : resolve());
+  });
+}
+
 async function main() {
   if (!argv.length || has("-h") || has("--help")) {
     const lines = readFileSync(ENGINE, "utf8").split("\n");
     const usage = lines.slice(lines.indexOf("// Usage:"), lines.findIndex((l) => l.includes("Every command takes")) + 1).join("\n");
-    console.log(usage.replace(/^\/\/ ?/gm, ""));
+    await print(process.stdout, usage.replace(/^\/\/ ?/gm, ""));
     return argv.length ? 0 : 1;
   }
   if (argv[0] === "serve") {
@@ -61,10 +73,10 @@ async function main() {
     const loadBlock = Number(process.env.DECIDE_TEST_LOAD_BLOCK_MS) || 0;
     const started = await startServer({ port: Number(flag("--port")) || undefined, ...(loadBlock > 0 && { beforeLoad: () => block(loadBlock) }) });
     if (!started) {
-      console.log("decide: a server of this decide home is already running");
+      await print(process.stdout, "decide: a server of this decide home is already running");
       return 0;
     }
-    console.log(`DECIDE serving: http://127.0.0.1:${started.port}/`);
+    await print(process.stdout, `DECIDE serving: http://127.0.0.1:${started.port}/`);
     const [after, busy] = String(process.env.DECIDE_TEST_BUSY_MS || "").split(":").map(Number);
     if (busy > 0) setTimeout(() => block(busy), after || 0);
     return null;
@@ -83,7 +95,7 @@ async function main() {
   // `notice` reads the disk only and fails never: a session-start hook runs it.
   const ctx = contextFor({ project: dir }, { cli: true, noticeProject: dir, noticeDir: dir });
   const out = await runCommand(command, args, ctx);
-  if (out.text) console.log(out.text);
+  if (out.text) await print(process.stdout, out.text);
   // Printed: the CLI has what the text carries, so it is acknowledged. Failing to is not an error.
   await out.delivered?.().catch(() => {});
   return out.exit ?? 0;
@@ -91,8 +103,11 @@ async function main() {
 
 main().then(
   (code) => code !== null && process.exit(code),
-  (e) => {
-    console.error(`decide: ${e.message}`);
-    process.exit(2);
+  async (e) => {
+    try {
+      await print(process.stderr, `decide: ${e.message}`);
+    } finally {
+      process.exit(2);
+    }
   },
 );

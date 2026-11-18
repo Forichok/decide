@@ -84,10 +84,10 @@ const logOf = (home, dir, id) => {
 
 // ---- the table
 
-test("lib/tools.mjs and lib/commands.mjs are gone; the table has the sixteen commands plus 3.0 patch", () => {
+test("lib/tools.mjs and lib/commands.mjs are gone; the table has the sixteen commands plus 3.0 patch, review and outline", () => {
   assert.equal(existsSync(path.join(pluginDir, "lib/tools.mjs")), false);
   assert.equal(existsSync(path.join(pluginDir, "lib/commands.mjs")), false);
-  assert.deepEqual(names, ["ask", "swipe", "wait", "push", "explain", "screenshot", "history", "supersede", "adr", "export", "import", "lint", "stop", "open", "notice", "rules", "patch"]);
+  assert.deepEqual(names, ["ask", "swipe", "wait", "push", "explain", "screenshot", "history", "supersede", "adr", "export", "import", "lint", "stop", "open", "notice", "rules", "patch", "review", "outline"]);
   for (const c of COMMANDS) {
     assert.equal(typeof c.summary, "string", c.name);
     assert.equal(typeof c.run, "function", c.name);
@@ -108,16 +108,16 @@ test("swipe, push, lint and stop exist as MCP tools and as CLI commands; open an
   }
 });
 
-test("tools/list has the eleven 2.1 tools plus lint, stop, rules and patch, as 2.1 spelled them", () => {
+test("tools/list has the eleven 2.1 tools plus lint, stop, rules, patch, review and outline, as 2.1 spelled them", () => {
   const tools = toolList();
-  assert.deepEqual(tools.map((t) => t.name), [...surface.tools.map((t) => t.name), "lint", "stop", "rules", "patch"]);
+  assert.deepEqual(tools.map((t) => t.name), [...surface.tools.map((t) => t.name), "lint", "stop", "rules", "patch", "review", "outline"]);
   const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x));
   for (const old of surface.tools) {
     const now = tools.find((t) => t.name === old.name);
-    assert.deepEqual(now.inputSchema.required ?? [], old.inputSchema.required ?? [], `${old.name}: required`);
+    assert.deepEqual(now.inputSchema.required ?? [], old.name === "explain" ? ["round", "text"] : old.inputSchema.required ?? [], `${old.name}: required`);
     // 3.0 added one parameter to export, last: outside (a file outside the project).
     // 3.0 also added push's reason and keepAnswers (push runs through the patch engine).
-    const added = old.name === "export" ? ["outside"] : old.name === "explain" ? ["patch"] : old.name === "push" ? ["reason", "keepAnswers"] : [];
+    const added = old.name === "export" ? ["outside"] : old.name === "explain" ? ["patch", "choice"] : old.name === "push" ? ["reason", "keepAnswers"] : [];
     assert.deepEqual(Object.keys(now.inputSchema.properties), [...Object.keys(old.inputSchema.properties), ...added], `${old.name}: parameter names, in order`);
     if (old.name === "ask" || old.name === "swipe") {
       assert.ok(now.description.startsWith(old.description), `${old.name}: description starts as before`);
@@ -129,13 +129,15 @@ test("tools/list has the eleven 2.1 tools plus lint, stop, rules and patch, as 2
       assert.equal(now.inputSchema.properties.spec.type, "object");
       assert.ok(now.inputSchema.properties.spec.description.startsWith(old.inputSchema.properties.spec.description.slice(0, 20)));
     } else {
-      assert.equal(now.description, old.description, `${old.name}: description`);
+      if (old.name === "explain") assert.equal(now.description, "Reply under an item, or omit question for the round dialog. Use askId to answer a message; omit it to write first. Accepts markdown, all media and a two-button choice.");
+      else if (old.name === "wait") assert.equal(now.description, old.description.replace("or a question the user asked you (answer it with explain, then wait again),", "or a question the user asked you (answer it with explain, then wait again), or a round message (follow its instructions),"));
+      else assert.equal(now.description, old.description, `${old.name}: description`);
       const { outside: _added, ...kept } = now.inputSchema.properties;
       // 3.0 added explain's optional patch.
-      const { patch: _patch, ...keptExplain } = now.inputSchema.properties;
+      const { patch: _patch, choice: _choice, ...keptExplain } = now.inputSchema.properties;
       const { reason: _reason, keepAnswers: _keep, ...keptPush } = now.inputSchema.properties;
       const props = old.name === "export" ? kept : old.name === "explain" ? keptExplain : old.name === "push" ? keptPush : now.inputSchema.properties;
-      assert.equal(canon({ ...now.inputSchema, properties: props }), canon(old.inputSchema), `${old.name}: schema`);
+      assert.equal(canon({ ...now.inputSchema, properties: props, ...(old.name === "explain" ? { required: old.inputSchema.required } : {}) }), canon(old.inputSchema), `${old.name}: schema`);
     }
   }
 });
@@ -756,4 +758,50 @@ test("in words: the page's words reach wait, the patch tool answers with knobs, 
   assert.equal(served.status, 200);
   assert.match(await served.text(), /data-decide-bridge/, "the swapped-in mockup gets the knobs bridge");
   await assert.rejects(call(home, "patch", { project: dir, round: posted.id, ops: [{ knobs: { question: "card", preview: "m/gone.html" } }] }), /missing file/);
+});
+
+for (const live of [false, true]) test(`CLI wait timeout bounds a pending round (live=${live})`, async (t) => {
+  const { dir, home } = await scratch(t);
+  const server = await spawnServer(t, home);
+  const opened = await fetch(`http://127.0.0.1:${server.port}/api/rounds`, { method: "POST", headers: asAgent(server.port), body: JSON.stringify({ project: dir, spec, open: false }) }).then((r) => r.json());
+  const started = Date.now();
+  const child = spawn(process.execPath, [enginePath, "wait", opened.id, "--timeout-sec", "1", ...(live ? ["--live"] : [])], { env: envOf(dir, { BROWSER: "none", DECIDE_PORT: String(server.port) }) });
+  t.after(() => child.kill());
+  const output = collect(child);
+  const timer = setTimeout(() => child.kill(), 4000);
+  const code = await exitOf(child);
+  clearTimeout(timer);
+  assert.equal(code, 4, output.stdout);
+  assert.ok(Date.now() - started < 3500);
+  assert.match(output.stdout, /Still waiting[\s\S]*wait/);
+});
+
+test("Full JSON addresses survive a second round of the same spec", async (t) => {
+  const { dir, home } = await scratch(t);
+  const file = path.join(dir, "same.questions.json");
+  writeFileSync(file, JSON.stringify(spec));
+  const first = await call(home, "ask", { project: dir, specPath: file, open: false });
+  const id1 = first.text.match(/Round (\S+)/)[1];
+  const server = JSON.parse(readFileSync(path.join(home, "daemon.json")));
+  const finish = (id, color) => fetch(`http://127.0.0.1:${server.port}/api/rounds/${id}/submit`, { method: "POST", headers: asPage(server.port), body: JSON.stringify({ answers: { color: { selected: [color] } } }) });
+  await finish(id1, "pink");
+  const result1 = await call(home, "wait", { round: id1 });
+  const second = await call(home, "ask", { project: dir, specPath: file, open: false });
+  const id2 = second.text.match(/Round (\S+)/)[1];
+  await finish(id2, "blue");
+  const result2 = await call(home, "wait", { round: id2 });
+  for (const [id, result] of [[id1, result1], [id2, result2]]) {
+    const address = result.text.match(/Full JSON: (.+)/)[1];
+    assert.equal(JSON.parse(readFileSync(address)).round, id);
+    assert.match(result.text, /Convenience copy: .*next round.*overwrites/);
+  }
+});
+
+test("CLI timeout includes finding the server", async (t) => {
+  const { home } = await scratch(t);
+  const result = await Promise.race([
+    call(home, "wait", { round: "pending", timeoutSec: 0.05 }, { cli: true, say: () => {}, server: () => new Promise(() => {}) }),
+    sleep(500).then(() => ({ exit: null })),
+  ]);
+  assert.equal(result.exit, 4);
 });

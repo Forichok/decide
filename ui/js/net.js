@@ -1,6 +1,6 @@
 // net.js — API calls to the session daemon. The page proves itself by its Origin: the browser puts it on
 // every fetch that is not a GET (POST and PUT here), and the daemon only takes a write whose Origin is its
-// own. The page holds no token and makes no other kind of write.
+// own. A local owner link also grants read access to whole review files.
 
 const WRITE = { "content-type": "application/json" };
 
@@ -123,6 +123,11 @@ export const swipeCard = (id, body) =>
 export const digDeeper = (id, note) =>
   fetch(`/api/rounds/${id}/deeper`, { method: "POST", headers: WRITE, body: JSON.stringify({ note }) }).then(json);
 
+// Round messages are durable even when the current waiter takes no live events.
+export const getThread = (id) => fetch(`/api/rounds/${id}/thread`, { cache: "no-store" }).then(json);
+export const sendMessage = (id, body) => post(`/api/rounds/${id}/message`, body);
+export const pickMessage = (id, body) => post(`/api/rounds/${id}/message-pick`, body);
+
 export const askAgent = (id, question, text) =>
   fetch(`/api/rounds/${id}/ask`, { method: "POST", headers: WRITE, body: JSON.stringify({ question, text }) }).then(json);
 
@@ -155,10 +160,10 @@ export function listen(onState, onStatus, onDialog, onDeck) {
     else if (serverStart !== startedAt) reloadPending = true;
     if (reloadPending) reloadWhenSafe();
   });
-  es.addEventListener("state", (e) => onState(JSON.parse(e.data)));
+  es.addEventListener("state", (e) => { const data = JSON.parse(e.data); onState(data); dispatch("state", data); });
   es.addEventListener("dialog", (e) => onDialog(JSON.parse(e.data)));
   es.addEventListener("deck", (e) => onDeck(JSON.parse(e.data)));
-  for (const name of ["round", "inbox", "handover"]) es.addEventListener(name, (e) => dispatch(name, e.data ? JSON.parse(e.data) : null));
+  for (const name of ["round", "inbox", "handover", "thread"]) es.addEventListener(name, (e) => dispatch(name, e.data ? JSON.parse(e.data) : null));
   let broken = false;
   es.onopen = () => {
     told = null;
@@ -182,10 +187,51 @@ export const sendWords = (id, qid, text) => fetch(`/api/rounds/${id}/words`, { m
 // What the user has seen (questions that were in view, swipe cards shown): a patch then ghosts them, never drops them.
 export const markSeen = (id, ids) => fetch(`/api/rounds/${id}/seen`, { method: "POST", headers: WRITE, body: JSON.stringify({ ids }) }).then(json);
 // How much to ask, and the page's own buttons (settings.js, actions.js).
-export const getSettings = (project) => fetch(`/api/settings?${new URLSearchParams({ project })}`, { cache: "no-store" }).then(json);
-export const setLevel = (project, level) => post("/api/settings", { project, level });
+export const getSettings = (project) => fetch(`/api/settings?${new URLSearchParams(project ? { project } : {})}`, { cache: "no-store" }).then(json);
+// Keep the old call signature for exported/offline pages; a patch adds scope and clear.
+export const setLevel = (project, level) => post("/api/settings", typeof level === "string" ? { project, level } : { ...(project && { project }), ...level });
 export const addRuleTo = (project, text, mode, question = "") => post("/api/rules", { project, text, mode, question });
 export const removeRuleFrom = (project, id) => post("/api/rules", { project, remove: id });
 export const exportRoundFile = (id) => post(`/api/rounds/${id}/export`, {});
 export const saveRoundAdr = (id) => post(`/api/rounds/${id}/adr`, {});
 export const fitRound = (id, minutes) => post(`/api/rounds/${id}/fit`, { minutes });
+
+// A code review round (ui/js/review/): its diff a group at a time, one file whole, comments, read marks.
+export const reviewPieces = (id, group) => fetch(`/api/rounds/${id}/pieces?${new URLSearchParams({ group })}`, { cache: "no-store" }).then(json);
+// The address bar keeps only the round id. A returning tab or installed app can
+// recover its read access from this origin's browser storage until the daemon restarts.
+const fileKeys = new Map();
+const fileKeyName = (scope) => `decide.review-files.${scope}`;
+export function takeFileKeys() {
+  const params = new URLSearchParams(location.hash.slice(1));
+  const scope = params.has("homeFiles") ? "*" : params.get("r");
+  const field = scope === "*" ? "homeFiles" : "files";
+  if (!params.has(field)) return;
+  const key = params.get(field);
+  if (scope && /^[a-f0-9]{64}$/.test(key)) {
+    fileKeys.set(scope, key);
+    try { localStorage.setItem(fileKeyName(scope), key); } catch {}
+  }
+  params.delete(field);
+  const hash = params.toString();
+  history.replaceState(null, "", location.pathname + location.search + (hash ? `#${hash}` : ""));
+}
+
+function fileKey(scope) {
+  if (fileKeys.has(scope)) return fileKeys.get(scope);
+  try { return localStorage.getItem(fileKeyName(scope)); } catch { return null; }
+}
+
+export const reviewFile = (id, path, side) => {
+  const headers = {};
+  const home = fileKey("*");
+  const round = fileKey(id);
+  if (round) headers["x-decide-review-key"] = round;
+  if (home) headers["x-decide-home-files"] = home;
+  return fetch(`/api/rounds/${id}/file?${new URLSearchParams({ path, side })}`, { headers, cache: "no-store" }).then(json);
+};
+export const reviewComment = (id, body) => post(`/api/rounds/${id}/comment`, body);
+export const reviewUncomment = (id, comment) => post(`/api/rounds/${id}/uncomment`, { id: comment });
+export const reviewRead = (id, chapter, read) => post(`/api/rounds/${id}/read`, { chapter, read });
+// A question on a piece of the diff, on one of its lines when `line` is given: it goes to the agent at once.
+export const reviewAsk = (id, body) => post(`/api/rounds/${id}/ask`, body);

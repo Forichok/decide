@@ -9,6 +9,7 @@ import { answererName, cancelRound, download, getRound, getState, listen, offlin
 import { createStore } from "./store.js";
 import { hideBar, mountRound } from "./round.js";
 import { mountSwipe } from "./swipe/index.js";
+import { mountReview } from "./review/index.js";
 import { pasteLine, renderIdle, roundTabs, updatePresence } from "./header.js";
 import { renderDone } from "./done.js";
 import { createInbox, dismissRound, loadInbox, notifyNew } from "./inbox.js";
@@ -42,6 +43,7 @@ const app = {
   idleError: null, // why the idle screen shows, e.g. a round id that does not exist
 };
 let rail = null;
+let settingsFrom = null;
 
 // ---- theme (per-viewer convenience; storage may be unavailable)
 const THEME_KEY = "decide-theme";
@@ -55,13 +57,36 @@ const isDark = () => {
   const t = document.documentElement.dataset.theme;
   return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
 };
+function themeChoice() {
+  return document.documentElement.dataset.theme || "system";
+}
+function setTheme(next) {
+  try {
+    if (next === "system") localStorage.removeItem(THEME_KEY);
+    else localStorage.setItem(THEME_KEY, next);
+  } catch {
+    throw new Error(t("settings4.themeFailed"));
+  }
+  if (next === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = next;
+  syncTheme();
+}
+function paintTheme() {
+  for (const b of $$(".icon-btn.theme")) b.innerHTML = icon(isDark() ? "sun" : "moon");
+}
+function syncTheme(saved = true) {
+  paintTheme();
+  $("[data-theme-form]")?.dispatchEvent(new CustomEvent("decide-theme", { detail: { choice: themeChoice(), saved } }));
+}
 function toggleTheme() {
   const next = isDark() ? "light" : "dark";
-  document.documentElement.dataset.theme = next;
-  try {
-    localStorage.setItem(THEME_KEY, next);
-  } catch {}
-  for (const b of $$(".icon-btn.theme")) b.innerHTML = icon(next === "dark" ? "sun" : "moon");
+  try { setTheme(next); }
+  catch (e) {
+    // The top bar still switches the current page when browser storage is blocked.
+    document.documentElement.dataset.theme = next;
+    syncTheme(false);
+    toast(e.message);
+  }
 }
 
 function env() {
@@ -84,6 +109,10 @@ function env() {
     help: openHelp,
     isDark,
     toggleTheme,
+    themeChoice,
+    setTheme,
+    settings: offline ? null : openSettings,
+    leaveSettings,
     switchTo: (id) => openRound(id),
     journal: offline ? null : () => (location.hash = "journal"),
     offline,
@@ -123,7 +152,7 @@ function showRound(data) {
   app.done = null;
   // The header draws the round's own buttons for the round being shown, before app.round names it.
   const e = { ...env(), currentId: data.id };
-  app.round = data.mode === "swipe" ? mountSwipe(data, e) : mountRound(data, e);
+  app.round = data.mode === "swipe" ? mountSwipe(data, e) : data.mode === "review" ? mountReview(data, e) : mountRound(data, e);
   syncRail();
 }
 
@@ -221,7 +250,28 @@ function showJournal() {
   syncRail();
 }
 
+function rememberSettingsFrom() {
+  if (app.view === "settings" || app.view === "boot") return;
+  const id = app.round?.id || app.done?.id;
+  settingsFrom = { hash: id ? `#r=${id}` : app.view === "journal" ? "#journal" : "", scroll: window.scrollY };
+}
+function openSettings() {
+  if (app.view === "settings") return;
+  rememberSettingsFrom();
+  location.hash = "settings";
+}
+async function leaveSettings() {
+  net.holdReload("view", () => false);
+  const back = settingsFrom || { hash: "", scroll: 0 };
+  settingsFrom = null;
+  history.replaceState(null, "", location.pathname + location.search + back.hash);
+  if (back.hash === "#journal") showJournal();
+  else if (back.hash.startsWith("#r=")) await openRound(back.hash.slice(3));
+  else showIdle();
+  requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: back.scroll, behavior: "instant" })));
+}
 function showSettings() {
+  rememberSettingsFrom();
   disarmAdvance();
   app.round?.stop();
   app.round = null;
@@ -277,6 +327,7 @@ const closeRail = () => document.body.classList.remove("rail-open");
 function syncRail() {
   if (offline) return;
   ensureRail();
+  rail.setReview(app.view === "settings" || document.body.classList.contains("review-mode"));
   rail.set(app.inbox, app.round?.id ?? app.done?.id ?? null);
   // The header's "Rounds · n" button, where the rail is a drawer.
   for (const b of $$(".inbox-btn")) {
@@ -324,7 +375,7 @@ function onState(st) {
     const current = st.rounds.find((r) => r.id === app.round.id);
     if (!current) return openRound(app.round.id, false);
     if (current.view !== undefined) app.round.setView?.(current.view);
-    if (app.round.mode === "swipe") app.round.setListening(current.listening !== false);
+    if (app.round.setListening) app.round.setListening(current.listening !== false);
     else updatePresence(current.listening !== false);
     refreshTabs();
     return announce();
@@ -367,7 +418,8 @@ function rerenderStatic() {
 // ---- review, submit, cancel
 function review() {
   if (app.view !== "round" || app.sending) return;
-  if (app.round.mode === "swipe") return app.round.finish();
+  // A swipe deck and a code review have their own way to end.
+  if (app.round.finish) return app.round.finish();
   // An answer marked "check" must be kept or answered again before the round can go.
   const unchecked = app.round.toCheck?.() || [];
   if (unchecked.length) {
@@ -426,9 +478,11 @@ function go(qid) {
   c.classList.add("flash");
 }
 
-const swiping = () => app.round?.mode === "swipe";
+// A swipe deck and a code review draw their own screen: the question shortcuts are not theirs.
+const swiping = () => app.round?.mode === "swipe" || app.round?.mode === "review";
 
 function step(delta) {
+  if (app.round?.step) return app.round.step(delta); // a review walks its chapters
   if (swiping()) return;
   const ids = visibleIds();
   if (!ids.length) return;
@@ -453,6 +507,7 @@ function currentQuestion() {
 }
 
 function act(kind) {
+  if (kind === "rec" && app.round?.toggleRead) return app.round.toggleRead(); // R in a review: the chapter is read
   if (swiping()) return;
   const q = currentQuestion();
   if (!q) return;
@@ -537,12 +592,20 @@ function skipLink() {
 }
 
 async function boot() {
+  if (!offline) net.takeFileKeys();
   document.documentElement.lang = lang;
   skipLink();
   $("#toc").setAttribute("aria-label", t("toc"));
   $(".boot").textContent = t("boot");
   loadTheme();
-  bindKeys({ submit: review, step: (d) => app.round && step(d), nextOpen, act, help: () => swiping() || openHelp(), pick });
+  window.addEventListener("storage", (e) => {
+    if (e.key !== THEME_KEY && e.key !== null) return;
+    delete document.documentElement.dataset.theme;
+    loadTheme();
+    syncTheme();
+  });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", paintTheme);
+  bindKeys({ submit: review, step: (d) => app.round && step(d), nextOpen, act, help: () => (app.round?.help ? app.round.help() : swiping() || openHelp()), pick });
   bindDrop();
   bindFrameFocus();
   try {
@@ -555,8 +618,10 @@ async function boot() {
   app.state.rounds.forEach((r) => app.seen.add(r.id));
   if (app.connected && !offline) app.inbox = (await loadInbox(app.state)) || [];
   window.addEventListener("hashchange", () => {
+    if (!offline) net.takeFileKeys();
     if (location.hash === "#journal") return app.view !== "journal" && (closeOverlays(), showJournal());
     if (location.hash === "#settings") return app.view !== "settings" && (closeOverlays(), showSettings());
+    if (!location.hash && app.view === "settings") { settingsFrom = null; return showIdle(); }
     const id = new URLSearchParams(location.hash.slice(1)).get("r");
     if (id && id !== app.round?.id && id !== app.done?.id) {
       closeOverlays();
@@ -573,6 +638,8 @@ async function boot() {
   // 3.0 rounds that react: an agent patch, a restore or a keep moves the round's view (the store keeps answers only).
   net.onEvent("round", (d) => {
     if (d?.patch?.view !== undefined && app.view === "round" && app.round?.id === d.round) app.round.setView?.(d.patch.view);
+    // A code review: a comment or a read mark saved (here or in another tab).
+    if (d?.patch?.review && app.view === "round" && app.round?.id === d.round) app.round.setReview?.(d.patch.review, d.seq);
   });
   es.addEventListener?.("inbox", refreshInbox);
   syncRail();

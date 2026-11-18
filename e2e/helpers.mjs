@@ -181,9 +181,9 @@ export function swipeSpec() {
     title: "E2E deck",
     brief: "# Brief\n\nWe are choosing a few things.",
     cards: [
-      { id: "c1", title: "Dark mode first?", body: "Ship dark mode before light." },
-      { id: "c2", title: "Weekly digest?", body: "Send a weekly digest email." },
-      { id: "c3", title: "Offline support?", body: "Work without a network." },
+      { id: "c1", title: "Dark mode first?", body: "Ship dark mode before light.", left: "No", right: "Yes" },
+      { id: "c2", title: "Weekly digest?", body: "Send a weekly digest email.", left: "No", right: "Yes" },
+      { id: "c3", title: "Offline support?", body: "Work without a network.", left: "No", right: "Yes" },
     ],
   };
 }

@@ -923,7 +923,7 @@ test("typeLines names every type and every media kind once", async () => {
 test("npm run docs is the generator and is the only script this task added", () => {
   const pkg = JSON.parse(readFileSync(path.join(pluginDir, "package.json"), "utf8"));
   assert.equal(pkg.scripts.docs, "node lib/registry/docs.mjs --write");
-  assert.equal(pkg.version, "3.0.1");
+  assert.equal(pkg.version, "3.1.0");
 });
 
 test("nothing in the engine switches on a media kind outside the registry", () => {
@@ -999,8 +999,9 @@ test("the schema takes every shape the strict engine takes without an error", as
   assert.match(validate(specSchema(), q({ titel: "x" }), specSchema()).join("\n"), /unknown field "titel"/);
 });
 
-test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tune, rules, evidence), swipe's 7,000, tools/list pinned near its size", async () => {
-  const { specSchema, deckSchema } = await docs();
+test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tune, rules, evidence), swipe's 7,000, review's 4,250, tools/list pinned near its size", async () => {
+  const { specSchema, deckSchema, reviewSchema } = await docs();
+  assert.ok(JSON.stringify(reviewSchema()).length <= 4250, `reviewSchema ${JSON.stringify(reviewSchema()).length} bytes`);
   const size = (v) => JSON.stringify(v).length;
   assert.ok(size(specSchema()) <= 12000, `specSchema ${size(specSchema())} bytes`);
   assert.ok(size(deckSchema()) <= 7000, `deckSchema ${size(deckSchema())} bytes`);
@@ -1011,7 +1012,11 @@ test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tun
   assert.ok(size(input("swipe")) <= 7000 + 1000, `swipe inputSchema ${size(input("swipe"))} bytes`);
   assert.ok(size(input("ask")) >= size(specSchema()), "the whole input schema holds the spec schema, $defs and all");
   const whole = size({ result: { tools } });
-  assert.ok(whole <= 37_000, `tools/list ${whole} bytes: pinned near the size after Task 13's deck lines, far under 2.1.1's 11,281 plus the 2.1 ask schema growth`);
+  // Outline adds about 1,400 bytes for preparation parameters and description.
+  // 37,000 before the review tool; review (its schema, its description, the chapter lines) and lint's base/head add about 4,200; a chapter's focus and skim about 400 more.
+  // The reviewer schema and its field descriptions add about 2,000 bytes.
+  // Follow-up adds a previous round argument and the schema for replies.
+  assert.ok(whole <= 50_000, `tools/list ${whole} bytes`);
 });
 
 test("a description sits only where the name does not say it, never on a spelling or a union arm", async () => {
@@ -1284,4 +1289,63 @@ test("a round brief and dependsOn are read", () => {
   assert.deepEqual(spec.brief.map((b) => [b.kind, b.text]), [["decision", "the task"], ["open", "naming"]]);
   assert.deepEqual(spec.questions[0].dependsOn, ["b", "r-1"]);
   assert.ok(!errorsOf(issues).some((m) => /unknown field/.test(m)));
+});
+
+test('review overview explains the change before asking for decisions', async (context) => {
+  const restore = fakeDom();
+  context.after(restore);
+  document.createTextNode = (text) => Object.assign(new Node(), { text: String(text) });
+  // net.js starts a browser reload timer when imported through coverage.
+  const interval = globalThis.setInterval;
+  context.mock.method(globalThis, 'setInterval', (...args) => interval(...args).unref());
+  const { normalizeReview } = await load('lib/review/spec.mjs');
+  const { renderOverview } = await load('ui/js/review/overview.js');
+  const { spec } = normalizeReview({ title: 'Cap', summary: 'A silent discount cap.', acceptance: { changed: 'Discounts stop at 50%.', steps: ['Apply a discount', 'Check total'], expect: 'Half price' }, risks: [{ what: 'Wrong total', checkedBy: 'Totals test' }], checks: [{ command: 'node --test', exit: 0 }], chapters: [{ id: 'cap', title: 'Cap', summary: 'A cap.', hunks: ['cap.js'], focus: [{ at: 'cap.js:1', kind: 'decision', note: 'The cap', question: 'Is a silent cap acceptable?' }, { at: 'cap.js:2', kind: 'risk', note: 'Hidden limit' }] }] });
+  const s = { spec, rv: { chapters: [{ id: 'cap', focus: [{ file: 'cap.js', from: 2, to: 2, kind: 'risk', note: 'Hidden limit' }] }], decisions: {}, sorted: 1, total: 1 }, verdict() {} };
+  const tree = walkEl(renderOverview(s));
+  assert.deepEqual(tree.filter((e) => e.dataset?.section).map((e) => e.dataset.section), ['summary', 'decisions', 'risks', 'reviewers', 'acceptance', 'checks']);
+  const text = (e) => e.text ?? (e.children ?? []).map(text).join('');
+  assert.ok(tree.some((e) => text(e).includes('Checked by: Totals test')));
+  await context.test('section headings have no attribution bar; header and risk badges remain', () => {
+    const sections = tree.filter((e) => e.dataset?.section);
+    assert.equal(sections.flatMap((e) => e.children).filter((e) => e.className === 'cr-said').length, 0);
+    assert.equal(tree.filter((e) => e.className === 'cr-said').length, 3);
+  });
+  await context.test('unchecked risk uses the badge for attribution in both languages', async () => {
+    for (const [file, expected] of [['en', 'Not checked'], ['ru', 'Не проверено']]) {
+      const { default: words } = await load(`ui/js/lang/${file}.js`);
+      assert.equal(words['cr.notChecked'], expected);
+    }
+    const unchecked = tree.find((e) => e.className === 'cr-risk-check warn');
+    assert.equal(text(unchecked), "Not checked in the agent's words");
+  });
+  await context.test('acceptance renders inline code and escapes spec HTML in every field', () => {
+    const acceptance = { changed: '`review` <img>', where: '`screen` <img>', steps: ['`open` <img>', '`read` <img>'], expect: '`word` <img>' };
+    const section = walkEl(renderOverview({ ...s, spec: { ...spec, acceptance } })).find((e) => e.dataset?.section === 'acceptance');
+    const html = walkEl(section).map((e) => e.innerHTML).filter(Boolean);
+    for (const code of ['review', 'screen', 'open', 'read', 'word']) {
+      assert.ok(html.some((value) => value.includes(`<code>${code}</code> &lt;img&gt;`)), code);
+    }
+    assert.ok(html.every((value) => !value.includes('<img>')));
+  });
+  assert.ok(tree.some((e) => text(e).includes('The page does not run or verify these steps.')));
+  assert.deepEqual(tree.filter((e) => e.dataset?.answer).map((e) => text(e)), ['Yes', 'No']);
+  const emptySteps = renderOverview({ ...s, spec: { ...spec, acceptance: { changed: 'Nothing changes from outside.', steps: [] } } });
+  const acceptance = walkEl(emptySteps).find((e) => e.dataset?.section === 'acceptance');
+  assert.equal(text(acceptance).includes('0'), false, 'an empty step list displays no count');
+  const minimal = { ...s, spec: { ...spec, chapters: [{ ...spec.chapters[0], focus: [] }], acceptance: undefined } };
+  assert.deepEqual(walkEl(renderOverview(minimal)).filter((e) => e.dataset?.section).map((e) => e.dataset.section), ['summary', 'risks', 'reviewers', 'checks']);
+});
+
+test("reviewer fields in the skill and MCP schema come from the registry", async () => {
+  const { injectReviewers, reviewSchema, reviewLines } = await docs();
+  const skill = readFileSync(path.join(pluginDir, "skills/review/SKILL.md"), "utf8");
+  assert.equal(injectReviewers(skill), skill);
+  const fields = reviewSchema().properties.reviewers;
+  assert.equal(fields.additionalProperties, false);
+  assert.deepEqual(fields.properties.ran.items.required, ["role", "model", "summary", "verdict"]);
+  assert.deepEqual(fields.properties.ran.items.properties.verdict.enum, ["clean", "concerns", "blocking", null]);
+  assert.deepEqual(fields.properties.findings.items.properties.severity.enum, ["blocking", "major", "minor", null]);
+  assert.ok(fields.properties.findings.items.properties.line);
+  assert.match(reviewLines(), /Finding fields:[\s\S]*line: Trimmed text/);
 });
