@@ -84,10 +84,10 @@ const logOf = (home, dir, id) => {
 
 // ---- the table
 
-test("lib/tools.mjs and lib/commands.mjs are gone; the table has the sixteen commands plus 3.0 patch, review and outline", () => {
+test("lib/tools.mjs and lib/commands.mjs are gone; the table has the sixteen commands plus patch, review, outline and visual", () => {
   assert.equal(existsSync(path.join(pluginDir, "lib/tools.mjs")), false);
   assert.equal(existsSync(path.join(pluginDir, "lib/commands.mjs")), false);
-  assert.deepEqual(names, ["ask", "swipe", "wait", "push", "explain", "screenshot", "history", "supersede", "adr", "export", "import", "lint", "stop", "open", "notice", "rules", "patch", "review", "outline"]);
+  assert.deepEqual(names, ["ask", "swipe", "wait", "push", "explain", "screenshot", "history", "supersede", "adr", "export", "import", "lint", "stop", "open", "notice", "rules", "patch", "review", "outline", "visual"]);
   for (const c of COMMANDS) {
     assert.equal(typeof c.summary, "string", c.name);
     assert.equal(typeof c.run, "function", c.name);
@@ -96,9 +96,9 @@ test("lib/tools.mjs and lib/commands.mjs are gone; the table has the sixteen com
   }
 });
 
-test("swipe, push, lint and stop exist as MCP tools and as CLI commands; open and notice are CLI only", () => {
+test("swipe, push, lint, stop and visual exist as MCP tools and as CLI commands; open and notice are CLI only", () => {
   const tools = toolList().map((t) => t.name);
-  for (const name of ["swipe", "push", "lint", "stop"]) {
+  for (const name of ["swipe", "push", "lint", "stop", "visual"]) {
     assert.ok(tools.includes(name), `${name} is a tool`);
     assert.equal(parseArgv([name, ...(name === "push" ? ["1-abc"] : [])], { cwd: "/x" }).command, name, `${name} is a CLI command`);
   }
@@ -108,9 +108,9 @@ test("swipe, push, lint and stop exist as MCP tools and as CLI commands; open an
   }
 });
 
-test("tools/list has the eleven 2.1 tools plus lint, stop, rules, patch, review and outline, as 2.1 spelled them", () => {
+test("tools/list has the eleven 2.1 tools plus lint, stop, rules, patch, review, outline and visual", () => {
   const tools = toolList();
-  assert.deepEqual(tools.map((t) => t.name), [...surface.tools.map((t) => t.name), "lint", "stop", "rules", "patch", "review", "outline"]);
+  assert.deepEqual(tools.map((t) => t.name), [...surface.tools.map((t) => t.name), "lint", "stop", "rules", "patch", "review", "outline", "visual"]);
   const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x));
   for (const old of surface.tools) {
     const now = tools.find((t) => t.name === old.name);
@@ -453,8 +453,11 @@ test("a real MCP session: tools/list is the table's, and mcp.mjs carries no tool
   t.after(() => child.exitCode === null && child.kill());
   const output = collect(child);
   child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } })}\n${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" })}\n`);
-  for (let i = 0; i < 100 && output.stdout.split("\n").filter(Boolean).length < 2; i++) await sleep(50);
-  const list = JSON.parse(output.stdout.split("\n").filter(Boolean)[1]);
+  const completeLines = () => output.stdout.split("\n").slice(0, -1).filter(Boolean);
+  for (let i = 0; i < 100 && completeLines().length < 2; i++) await sleep(50);
+  const lines = completeLines();
+  assert.ok(lines.length >= 2, `expected two complete MCP responses: ${output.stderr}`);
+  const list = JSON.parse(lines[1]);
   assert.deepEqual(list.result.tools, JSON.parse(JSON.stringify(toolList())));
   child.stdin.end();
   assert.equal(await exitOf(child), 0);

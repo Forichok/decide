@@ -923,7 +923,7 @@ test("typeLines names every type and every media kind once", async () => {
 test("npm run docs is the generator and is the only script this task added", () => {
   const pkg = JSON.parse(readFileSync(path.join(pluginDir, "package.json"), "utf8"));
   assert.equal(pkg.scripts.docs, "node lib/registry/docs.mjs --write");
-  assert.equal(pkg.version, "3.1.1");
+  assert.equal(pkg.version, "3.2.0");
 });
 
 test("nothing in the engine switches on a media kind outside the registry", () => {
@@ -999,7 +999,7 @@ test("the schema takes every shape the strict engine takes without an error", as
   assert.match(validate(specSchema(), q({ titel: "x" }), specSchema()).join("\n"), /unknown field "titel"/);
 });
 
-test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tune, rules, evidence), swipe's 7,000, review's 4,250, tools/list pinned near its size", async () => {
+test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tune, rules, evidence), swipe's 7,000, review's 4,250, visual tool 3,400", async () => {
   const { specSchema, deckSchema, reviewSchema } = await docs();
   assert.ok(JSON.stringify(reviewSchema()).length <= 4250, `reviewSchema ${JSON.stringify(reviewSchema()).length} bytes`);
   const size = (v) => JSON.stringify(v).length;
@@ -1011,12 +1011,22 @@ test("the schema is small: ask's whole input schema 12,000 bytes (3.0 forms, tun
   assert.ok(size(input("ask")) <= 12000 + 1000, `ask inputSchema ${size(input("ask"))} bytes`);
   assert.ok(size(input("swipe")) <= 7000 + 1000, `swipe inputSchema ${size(input("swipe"))} bytes`);
   assert.ok(size(input("ask")) >= size(specSchema()), "the whole input schema holds the spec schema, $defs and all");
-  const whole = size({ result: { tools } });
+  const visual = tools.find((t) => t.name === "visual");
+  assert.ok(size(visual) <= 3400, `visual tool ${size(visual)} bytes`);
+  const whole = size({ result: { tools: tools.filter((t) => t !== visual) } });
   // Outline adds about 1,400 bytes for preparation parameters and description.
   // 37,000 before the review tool; review (its schema, its description, the chapter lines) and lint's base/head add about 4,200; a chapter's focus and skim about 400 more.
   // The reviewer schema and its field descriptions add about 2,000 bytes.
   // Follow-up adds a previous round argument and the schema for replies.
   assert.ok(whole <= 50_000, `tools/list ${whole} bytes`);
+});
+
+test("the visual author guide example fits the MCP tool schema", async () => {
+  const guide = readFileSync(path.join(pluginDir, "skills/visual/SKILL.md"), "utf8");
+  const spec = JSON.parse(guide.match(/```json\n([\s\S]*?)```/)[1]);
+  const { toolList } = await load("lib/commands/index.mjs");
+  const { inputSchema } = toolList().find((t) => t.name === "visual");
+  assert.deepEqual(validate(inputSchema, { project: "/fixture", spec }, inputSchema), []);
 });
 
 test("a description sits only where the name does not say it, never on a spelling or a union arm", async () => {

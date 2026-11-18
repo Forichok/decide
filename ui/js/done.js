@@ -5,6 +5,7 @@ import { h, icon } from "./dom.js";
 import { t } from "./i18n.js";
 import { mdInline } from "./md.js";
 import { credit, eyebrow, journalPanel, pasteLine } from "./header.js";
+import { visualSummary } from "./visual/index.js";
 import { summarize } from "./summary.js";
 import { doneActions } from "./actions.js";
 import { ruleButtons } from "./settings.js";
@@ -26,7 +27,8 @@ function summaryCard(spec, result, env = {}) {
   if (result?.mode === "swipe" && result.brief?.length) {
     return h("section.sum", {}, h("h3.sum-h", {}, t("sum.brief")), h("ul.done-brief", {}, result.brief.map((b) => h(`li.sw-item.k-${b.kind}`, {}, b.text))));
   }
-  if (!result || result.cancelled) return null;
+  if (!result || result.cancelled || result.dismissed) return null;
+  if (result.mode === "visual") return visualSummary(result, spec, env.stay);
   if (result.mode === "review") return reviewCard(result, env);
   const s = spec ? summarize(spec, result, words()) : { rows: [], comment: result.comment || "", leftOut: [], commentFiles: [] };
   const rows = s.rows.map((r) =>
@@ -106,7 +108,7 @@ export function renderDone(result, env) {
   const cancelled = result?.cancelled || result?.dismissed;
   const next = env.nextRound;
   const { delivered = true, listening = false } = env.delivery || {};
-  const reviewed = result?.mode === "review";
+  const reviewed = ["review", "visual"].includes(result?.mode);
   const state = cancelled ? "cancelled" : env.offline ? "file" : delivered ? "sent" : reviewed ? "saved" : listening ? "handing" : "saved";
   const approved = result?.verdict === "approve" &&
     !result.comments?.some(c => c.kind === "fix") &&
@@ -156,7 +158,7 @@ export function renderDone(result, env) {
     ),
     summaryCard(env.spec, result, env),
     // Export and ADR are for decisions: a review's verdict is neither.
-    !env.offline && !cancelled && env.currentId && result?.mode !== "review" && doneActions(env.currentId),
+    !env.offline && !cancelled && env.currentId && !reviewed && doneActions(env.currentId),
     !env.offline && journalPanel({ skip: env.currentId }),
     credit(),
   );

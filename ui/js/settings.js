@@ -7,6 +7,7 @@ import { addRuleTo, getSettings, removeRuleFrom, setLevel, holdReload } from "./
 import { credit, eyebrow } from "./header.js";
 import { toast } from "./overlays.js";
 import { settingsChoice } from "./settings-choice.js";
+import { defaultImageLayout, saveDefaultImageLayout } from "./visual/preference.js";
 import { reviewerRoleDisplay } from "./reviewer-display.js";
 
 // The rule's text, prefilled from the question and the answer; the user may edit it before it is saved.
@@ -261,6 +262,25 @@ export function renderSettings(env) {
     return h("section.set-section", {}, form.form);
   }
 
+  function comparisonSection() {
+    const layout = settingsChoice([["split", t("va.split")], ["wipe", t("va.wipe")]], defaultImageLayout());
+    const status = h("span.set-save-state", { role: "status" });
+    layout.trigger.onchange = () => {
+      try {
+        saveDefaultImageLayout(layout.trigger.value);
+        status.textContent = t("settings4.saved");
+        status.classList.remove("failed");
+      } catch (error) {
+        layout.select(defaultImageLayout());
+        status.textContent = t("settings4.saveFailed", error.message);
+        status.classList.add("failed");
+      }
+    };
+    return h("section.set-section.set-row.set-appearance", { dataset: { setting: "comparison", scope: "browser" } },
+      sectionHeading("va.title", "comparison", "settings4.comparisonScope"),
+      h("div", {}, field("settings4.comparisonLayout", layout), h("div.set-actions", {}, status)));
+  }
+
   function themeSection() {
     const choices = ["light", "dark", "system"];
     const status = h("span.set-save-state", { role: "status", "aria-live": "polite" });
@@ -323,7 +343,7 @@ export function renderSettings(env) {
         scopeButtons && h("div.set-scopes", { role: "group", "aria-label": t("settings4.scope") }, scopeButtons)),
       h("div.set-panel", {}, scoped("level", "settings4.askHeading", levelFields),
         scoped("reviewers", "settings4.reviewers", reviewerFields), rulesSection()),
-      themeSection());
+      themeSection(), comparisonSection());
     showScope("global");
   }
   load();

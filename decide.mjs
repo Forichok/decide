@@ -25,11 +25,13 @@
 //   node decide.mjs lint <x.review.json> [--previous round | --no-previous]
 //   node decide.mjs outline [--base ref] [--head ref] [--previous round | --no-previous] [--json] [--place path:from-to] [--out spec.json] [--force] [--outside]
 //   node decide.mjs review <x.review.json> [--base ref] [--head ref] [--previous round | --no-previous] [--no-open]   a code review of a branch
+//   node decide.mjs visual --compare [--base ref] [--head ref]
+//   node decide.mjs visual <x.visual.json> [--base ref] [--head ref] [--baseline-policy branch-start] [--previous round] [--no-open]
 //   node decide.mjs serve [--port n]                  run the home's server (started on demand)
 //   wait <round> [--live] [--timeout-sec n]: stop after n seconds; without it, keep waiting.
 //   Exit codes: 0 result; 1 lint/stop refused; 2 error; 3 live item; 4 wait timed out.
 //   Every command also has a name: ask swipe wait push explain screenshot history supersede adr export
-//   import lint stop open notice rules patch review, as in `node decide.mjs wait <round> --live`, `node decide.mjs open <round>`.
+//   import lint stop open notice rules patch review outline visual, as in `node decide.mjs wait <round> --live`, `node decide.mjs open <round>`.
 //   Every command takes --project <dir> (default: the current directory).
 //
 // Zero dependencies, Node >= 20. Agent guide and spec: skills/decide/.

@@ -9,6 +9,7 @@ import { answererName, cancelRound, download, getRound, getState, listen, offlin
 import { createStore } from "./store.js";
 import { hideBar, mountRound } from "./round.js";
 import { mountSwipe } from "./swipe/index.js";
+import { mountVisual } from "./visual/index.js";
 import { mountReview } from "./review/index.js";
 import { pasteLine, renderIdle, roundTabs, updatePresence } from "./header.js";
 import { renderDone } from "./done.js";
@@ -152,7 +153,8 @@ function showRound(data) {
   app.done = null;
   // The header draws the round's own buttons for the round being shown, before app.round names it.
   const e = { ...env(), currentId: data.id };
-  app.round = data.mode === "swipe" ? mountSwipe(data, e) : data.mode === "review" ? mountReview(data, e) : mountRound(data, e);
+  const mount = { swipe: mountSwipe, review: mountReview, visual: mountVisual }[data.mode] || mountRound;
+  app.round = mount(data, e);
   syncRail();
 }
 
@@ -350,7 +352,7 @@ const closeRail = () => document.body.classList.remove("rail-open");
 function syncRail() {
   if (offline) return;
   ensureRail();
-  rail.setReview(app.view === "settings" || document.body.classList.contains("review-mode"));
+  rail.setReview(app.view === "settings" || ["review", "visual"].includes(app.round?.mode));
   rail.set(app.inbox, app.round?.id ?? app.done?.id ?? null);
   // The header's "Rounds · n" button, where the rail is a drawer.
   for (const b of $$(".inbox-btn")) {
@@ -503,7 +505,7 @@ function go(qid) {
 }
 
 // A swipe deck and a code review draw their own screen: the question shortcuts are not theirs.
-const swiping = () => app.round?.mode === "swipe" || app.round?.mode === "review";
+const swiping = () => ["swipe", "review", "visual"].includes(app.round?.mode);
 
 function step(delta) {
   if (app.round?.step) return app.round.step(delta); // a review walks its chapters
@@ -665,6 +667,7 @@ async function boot() {
   // 3.0 rounds that react: an agent patch, a restore or a keep moves the round's view (the store keeps answers only).
   net.onEvent("round", (d) => {
     if (d?.patch?.view !== undefined && app.view === "round" && app.round?.id === d.round) app.round.setView?.(d.patch.view);
+    if (d?.patch?.visual && app.round?.id === d.round) app.round.setVisual?.(d.patch.visual, d.seq);
     // A code review: a comment or a read mark saved (here or in another tab).
     if (d?.patch?.review && app.view === "round" && app.round?.id === d.round) app.round.setReview?.(d.patch.review, d.seq);
   });
