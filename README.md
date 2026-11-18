@@ -126,6 +126,18 @@ When the agent comes back after a return, you see only what changed since
 and its reply to each of your comments. Mark each reply Accepted or Not fixed
 in the overview or at the changed line.
 
+## Visual acceptance
+
+Ask your agent for `/decide:visual` to compare what a product change looked
+like before and after. Each task shows the captures and steps to repeat it.
+Switch between side by side and a draggable divider for screenshots, or play
+the two recordings in sync. Mark a spot on a screenshot or a moment in a
+recording to send it back for recheck.
+
+On the first round, choose whether to compare automatically with the commit
+where each work branch started. Choose a different Before revision whenever
+you need one. See the [visual round author guide](skills/visual/SKILL.md).
+
 ## Settings
 
 Open the gear next to the theme button on any page. Back returns to the round
@@ -484,6 +496,7 @@ command in your setup already uses `/decide`, type the full `/decide:decide`.
 | `/decide history`          | What was already decided in this project                |
 | `/decide x.questions.json` | Runs a spec you or the agent wrote                      |
 | `/decide:swipe <task>`     | A thorough interview: many two-answer cards, arrow keys |
+| `/decide:visual`           | A before and after round for a product change            |
 
 `/decide:swipe` also takes a path to a deck JSON, or nothing to interview
 you about the current task. See [Swipe interview](#swipe-interview).
@@ -491,7 +504,7 @@ you about the current task. See [Swipe interview](#swipe-interview).
 ## How it works
 
 “Write to the agent” in the top bar opens a conversation about the whole
-round in questions, swipe and review modes. Messages are saved even when
+round in questions, swipe, code review and visual acceptance. Messages are saved even when
 the agent is away. Replies can include visuals and a two-button question;
 the conversation stays in the answers file and final digest. In reviews,
 requested code changes go into the working tree for the next round; the
@@ -505,7 +518,8 @@ a simulator, `history` searches past decisions, `supersede` marks one as no
 longer holding, `adr` writes one into the repo, `export` and `import`
 carry a round to someone else and back, `lint` checks a spec without opening a
 page, `outline` lists a review snapshot with line numbers and a spec skeleton,
-`patch` changes an open round, and `stop` stops the server. Agents without MCP can run the same
+`patch` changes an open round, `visual` opens a visual acceptance round, and
+`stop` stops the server. Agents without MCP can run the same
 engine as a CLI (`node decide.mjs --help`).
 
 One server serves every project's page on 127.0.0.1:47474. It starts on

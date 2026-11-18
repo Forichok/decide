@@ -198,8 +198,8 @@ async function openRound(port, dir, extra = {}) {
 }
 
 test("protocol: a server speaks its own protocol and the one before", () => {
-  assert.equal(speaks(1, PROTOCOL), false, "a pre-review daemon must hand over to a review client");
-  assert.equal(speaks(PROTOCOL, 1), true, "existing clients can still use the upgraded daemon");
+  assert.equal(speaks(2, PROTOCOL), false, "a review daemon hands over to a visual client");
+  assert.equal(speaks(PROTOCOL, 2), true, "existing clients can still use the upgraded daemon");
   assert.deepEqual([speaks(2, 2), speaks(2, 1), speaks(2, 0), speaks(2, 3)], [true, true, false, false]);
 });
 

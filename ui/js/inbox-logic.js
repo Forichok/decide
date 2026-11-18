@@ -27,7 +27,7 @@ export function rowsFromState(state, now = Date.now()) {
       project: r.project || "",
       projectName: baseName(r.project),
       title: r.title,
-      mode: ["swipe", "review"].includes(r.mode) ? r.mode : "questions",
+      mode: ["swipe", "review", "visual"].includes(r.mode) ? r.mode : "questions",
       answered: null,
       total: Number(r.count) || 0,
       listening,

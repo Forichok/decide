@@ -230,6 +230,7 @@ export const reviewFile = (id, path, side) => {
   if (home) headers["x-decide-home-files"] = home;
   return fetch(`/api/rounds/${id}/file?${new URLSearchParams({ path, side })}`, { headers, cache: "no-store" }).then(json);
 };
+export const visualAction = (id, body) => post(`/api/rounds/${id}/visual`, body);
 export const reviewComment = (id, body) => post(`/api/rounds/${id}/comment`, body);
 export const reviewUncomment = (id, comment) => post(`/api/rounds/${id}/uncomment`, { id: comment });
 export const reviewRead = (id, chapter, read) => post(`/api/rounds/${id}/read`, { chapter, read });

@@ -174,6 +174,7 @@ export const exportRoundFile = gone;
 export const saveRoundAdr = gone;
 export const fitRound = gone;
 // A code review reads a repository through the daemon: there is none in an exported file.
+export const visualAction = gone;
 export const reviewPieces = gone;
 export const reviewFile = gone;
 export const reviewComment = gone;
