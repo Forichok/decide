@@ -721,7 +721,7 @@ test("MCP: review → comments, a question, read marks → the verdict with ever
 
   const opened = await call("review", { project: dir, spec: REPO_SPEC, open: false });
   assert.equal(opened.isError, undefined, text(opened));
-  const [, round, url] = text(opened).match(/Review (\S+) «The fixture change» is open for the user: (http:\/\/127\.0\.0\.1:\d+\/)/);
+  const [, round, url] = text(opened).match(/Review (\S+) «The fixture change» is ready: (http:\/\/127\.0\.0\.1:\d+\/)/);
   assert.match(text(opened), new RegExp(`Snapshot: main \\(${repo.base.slice(0, 7)}\\) → HEAD \\(${repo.head.slice(0, 7)}\\); 6 files, \\+6 −3; 5 of 7 hunks sorted`));
   assert.match(text(opened), /Lint warnings:[\s\S]*2 hunks in no chapter/);
 
@@ -745,7 +745,7 @@ test("MCP: review → comments, a question, read marks → the verdict with ever
   assert.equal(group, "ch:top");
   assert.deepEqual(pieces.map((p) => [p.id, p.file, p.lines.length]), [["h1", "lib/a.mjs", 7], ["h7", "test/a.test.mjs", 2]]);
   assert.equal((await get("/pieces?group=ch:nope")).status, 404);
-  const ownerUrl = new URL(text(opened).match(/is open for the user: (\S+)/)[1]);
+  const ownerUrl = new URL(text(opened).match(/is ready: (\S+)/)[1]);
   const key = new URLSearchParams(ownerUrl.hash.slice(1)).get("files");
   assert.ok(key);
   assert.ok(!JSON.stringify(first).includes(key));

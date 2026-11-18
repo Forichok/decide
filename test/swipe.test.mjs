@@ -152,6 +152,7 @@ test("MCP: swipe → batches → push → finish", async (context) => {
   const extra = [card("wind", "Ветер есть?"), card("timer", "Таймер хода?"), card("team", "3 акулы в команде?"), card("crate", "Ящики падают?")];
   const opened = await call("swipe", { project: dir, spec: { ...deckRaw, cards: [...deckRaw.cards, ...extra] }, open: false });
   assert.equal(opened.isError, undefined, text(opened));
+  assert.match(text(opened), /is ready with \d+ cards:/);
   const [, round, url] = text(opened).match(/Swipe round (\S+) .+: (http:\/\/127\.0\.0\.1:\d+\/)/);
   const swipe = (body) => post(url, `api/rounds/${round}/swipe`, body);
   const view = async () => (await fetch(`${url}api/rounds/${round}`)).json();

@@ -71,9 +71,8 @@ Always pass `project`, the absolute path of the project you work in.
    Before you write the spec, run the reviewer team when required.
 3. `lint {project, spec}` lays the spec on the diff without opening anything.
    Correct the chapter references and read the reviewer requirement it prints.
-4. `review {project, spec}` opens the page and returns the round id, the URL
-   and the lint warnings. Tell the user in one line that the review is open,
-   with the URL. The link lets the owner read whole files in this round. Keep it in the owner’s chat.
+4. `review {project, spec}` prepares the page and returns the round id, the URL
+   and the lint warnings. Give the user a clickable link to the review. The link lets the owner read whole files in this round. Keep it in the owner’s chat.
    After a server restart, use `node decide.mjs open <round>` to get a fresh link.
 5. `wait {project, round}` returns one of:
    - **"Still waiting"**: call `wait` again at once.

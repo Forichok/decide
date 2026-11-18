@@ -77,7 +77,7 @@ test("ask under the bar: rejected once, the second identical ask passes", async 
   assert.match(first.text, /under the bar/);
   assert.match(first.text, /\[a\] Which button colour/);
   const second = await call(home, "ask", { project: dir, spec, open: false });
-  assert.match(second.text, /is open for the user/);
+  assert.match(second.text, /is ready/);
   await call(home, "stop", { project: dir }).catch(() => {});
 });
 
@@ -90,7 +90,7 @@ test("ask covered by a rule: rejected once with the rules listed", async (t) => 
   assert.match(first.text, /covered by a rule/);
   assert.ok(first.text.includes(rule.id));
   const second = await call(home, "ask", { project: dir, spec, open: false });
-  assert.match(second.text, /is open for the user/);
+  assert.match(second.text, /is ready/);
   await call(home, "stop", { project: dir }).catch(() => {});
 });
 

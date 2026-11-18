@@ -67,8 +67,8 @@ Always pass `project`, the absolute path of the project you work in.
 1. `history {project, query}`: skip what was already decided.
 2. Check what you can find out on your own (code, docs, the running app). Never
    ask the user something the repository already answers.
-3. `swipe {project, spec}` opens the deck and returns the round id and URL.
-   Tell the user in one line that the interview is open, with the URL.
+3. `swipe {project, spec}` creates the deck and returns the round id and URL.
+   Give the user a clickable link to the interview. The URL confirms that the deck is ready. Browser visibility is unknown.
 4. `wait {project, round}` returns one of:
    - **"Still waiting"**: call `wait` again at once.
    - **A question about a card** (the user pressed `↓`, or typed one):

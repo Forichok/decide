@@ -37,7 +37,7 @@ const app = {
   closing: null, // "failed" after a Close tab the browser refused, else null
   inbox: [], // the rail's rows, see inbox.js
   advance: null, // seconds until Done goes on to the next round, or null
-  advanceFor: null, // the done round the countdown already ran for
+  advanceAction: null, // "next" or "close" while the countdown runs
   advanceTimer: null,
   spec: null, // spec of the round on the done screen
   idleError: null, // why the idle screen shows, e.g. a round id that does not exist
@@ -157,12 +157,18 @@ function showRound(data) {
 }
 
 function showDone(id, result, spec = null) {
-  app.spec = spec || app.round?.spec || null;
+  const justFinished = app.round?.id === id;
+  app.spec = spec || app.round?.spec || (app.done?.id === id ? app.spec : null);
+  if (app.done?.id !== id) {
+    disarmAdvance();
+    app.closing = null;
+    app.done = { id, justFinished };
+  }
   // only the round being settled drops its queue: another pending round still reports what was seen
   app.round?.stop({ settled: app.round.id === id });
   app.round = null;
   app.view = "done";
-  app.done = { id, result };
+  app.done.result = result;
   hideBar();
   renderDoneView();
   window.scrollTo({ top: 0 });
@@ -170,46 +176,63 @@ function showDone(id, result, spec = null) {
   armAdvance();
 }
 
-// ---- after Done the page goes on to the next open round; the tab never closes itself
+// ---- after Done, leave time to read the result or stay on the page
 const deliveryOf = (id) => app.state.history.find((e) => e.id === id) || { delivered: true };
 const ADVANCE_SEC = 6;
+const CLOSE_SEC = 10;
+
+function advanceAction() {
+  if (offline || !app.connected || !app.done || app.done.stay) return null;
+  const { id, result, justFinished } = app.done;
+  const delivered = app.state.history.find(row => row.id === id)?.delivered;
+  if (!result?.cancelled && !result?.dismissed && !delivered) return null;
+  if (nextRound(app.inbox, id)) return "next";
+  if (justFinished && !nextRound(app.state.rounds, id)) return "close";
+  return null;
+}
 
 function armAdvance() {
-  const { id, result } = app.done;
-  // Answers the agent has not collected stay on screen: the user may need the line to paste.
-  const held = !result?.cancelled && !result?.dismissed && !deliveryOf(id).delivered;
-  if (offline || held || app.advanceFor === id || !nextRound(app.inbox, id)) return;
-  app.advanceFor = id;
-  app.advance = ADVANCE_SEC;
+  const action = advanceAction();
+  if (app.advanceAction === action) return;
+  disarmAdvance();
+  app.advanceAction = action;
+  if (!action) return rerenderStatic();
+  app.advance = action === "close" ? CLOSE_SEC : ADVANCE_SEC;
   rerenderStatic();
   app.advanceTimer = setInterval(() => {
+    if (advanceAction() !== action) return armAdvance();
     app.advance -= 1;
     if (app.advance > 0) {
       const count = $(".next-count");
-      if (count) count.textContent = t("done.advance", app.advance);
+      if (count) count.textContent = t(action === "close" ? "done.closeIn" : "done.advance", app.advance);
       return;
     }
-    const next = nextRound(app.inbox, app.done?.id);
-    disarmAdvance();
-    if (next) openRound(next.id);
+    if (action === "close") return closeTab();
+    stay();
+    openRound(nextRound(app.inbox, app.done.id).id);
   }, 1000);
 }
 
 function disarmAdvance() {
   clearInterval(app.advanceTimer);
   app.advanceTimer = null;
+  app.advanceAction = null;
   app.advance = null;
 }
 
 function stay() {
+  app.done.stay = true;
   disarmAdvance();
-  rerenderStatic();
+  for (const el of $$(".done-card .next-count, .done-card .next-count + button")) el.remove();
 }
 
-// A button, never a timer. Browsers let a page close only a tab that scripts opened or that has one history entry.
 function closeTab() {
+  const done = app.done;
+  done.stay = true;
+  disarmAdvance();
   window.close();
   setTimeout(() => {
+    if (app.done !== done) return;
     app.closing = "failed";
     rerenderStatic();
   }, 400);
@@ -392,7 +415,7 @@ function onDialog(d) {
 }
 
 function onDeck(d) {
-  if (app.view === "round" && app.round.id === d.round && app.round.mode === "swipe") app.round.setDeck(d.deck, d.swipe);
+  if (app.view === "round" && app.round.id === d.round && app.round.mode === "swipe") app.round.setDeck(d.deck, d.swipe, d.seq);
 }
 
 function onStatus(ok) {
@@ -400,6 +423,7 @@ function onStatus(ok) {
   app.connected = ok;
   document.body.classList.toggle("offline", !ok);
   showStopped(!ok, app.state);
+  if (app.view === "done") armAdvance();
   if (app.view !== "round") rerenderStatic();
 }
 
@@ -606,6 +630,9 @@ async function boot() {
   });
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", paintTheme);
   bindKeys({ submit: review, step: (d) => app.round && step(d), nextOpen, act, help: () => (app.round?.help ? app.round.help() : swiping() || openHelp()), pick });
+  document.addEventListener("focusin", (e) => {
+    if (app.done?.justFinished && e.target.closest("textarea, input, [contenteditable=true], [role=dialog]")) stay();
+  });
   bindDrop();
   bindFrameFocus();
   try {

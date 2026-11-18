@@ -103,9 +103,11 @@ answered card, which 2.1 refused, now makes it a ghost. New tools: `patch`, `lin
 ### One page, with an inbox
 
 There is no tab per round. One page lists open rounds from every project: high
-stakes first, then the longest waiting. A new round appears in the list. If no
-page is open, the browser opens as before. The tab does not close itself after
-Done; it goes to the next round. The page can be installed as an app.
+stakes first, then the longest waiting. A new round appears in the list. If decide is in the background or closed,
+it asks the browser to open the new round. After Done, the page moves to the
+next open round. If the inbox is empty, the tab closes ten seconds after the
+agent collects your answers. Choose **Stay here** to keep the summary open.
+The page can be installed as an app.
 
 ### Safer by default
 

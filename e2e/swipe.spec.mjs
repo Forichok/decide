@@ -221,3 +221,53 @@ test("on a phone the folded brief opens below its bar and can be read", async ({
   });
   expect(onTop).toBe(true);
 });
+
+test("Back returns exactly one card when deck updates arrive after the answer response", async ({ page }) => {
+  await page.addInitScript(() => {
+    const listen = EventSource.prototype.addEventListener;
+    EventSource.prototype.addEventListener = function (type, listener, ...options) {
+      if (type !== "deck") return listen.call(this, type, listener, ...options);
+      return listen.call(this, type, event => {
+        if (window.lateDeck) window.lateDeck.push(() => listener(event));
+        else listener(event);
+      }, ...options);
+    };
+  });
+  const id = await open(page);
+  await page.locator(".sw-key.right").click();
+  await expect(front(page)).toHaveAttribute("data-card", "c2");
+  await page.evaluate(() => { window.lateDeck = []; });
+  await page.locator(".sw-key.right").click();
+  await expect(front(page)).toHaveAttribute("data-card", "c3");
+  await page.locator(".sw-key.undo").click();
+  await expect(front(page)).toHaveAttribute("data-card", "c2");
+  await expect.poll(async () => Object.keys((await d.round(id)).swipe.answers)).toEqual(["c1"]);
+  await expect.poll(() => page.evaluate(() => window.lateDeck.length)).toBeGreaterThanOrEqual(2);
+  await page.evaluate(() => {
+    const events = window.lateDeck;
+    window.lateDeck = null;
+    for (const deliver of events) deliver();
+  });
+  await expect(front(page)).toHaveAttribute("data-card", "c2");
+  await page.keyboard.press("Backspace");
+  await expect(front(page)).toHaveAttribute("data-card", "c1");
+});
+
+test("a failed Back keeps the round open when Finish is already waiting", async ({ page }) => {
+  const id = await open(page);
+  await page.locator(".sw-key.right").click();
+  await expect(front(page)).toHaveAttribute("data-card", "c2");
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  await page.route("**/swipe", async route => {
+    await gate;
+    await route.fulfill({ status: 503, json: { error: "retry" } });
+  });
+  await page.locator(".sw-key.undo").click();
+  await expect(front(page)).toHaveAttribute("data-card", "c1");
+  await page.locator(".sw-stop").click();
+  await page.locator(".sw-finish .btn.primary").click();
+  release();
+  await expect(front(page)).toHaveAttribute("data-card", "c2");
+  expect((await d.round(id)).status).toBe("pending");
+});

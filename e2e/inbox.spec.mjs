@@ -70,3 +70,46 @@ test("after Done the page offers the next round and the tab does not close itsel
   await expect(page.locator(".next-row")).toContainText("Done next", { timeout: 10_000 });
   expect(page.isClosed()).toBe(false);
 });
+
+async function finishLastRound(page) {
+  const id = await d.open(named("Last round"));
+  // A tab launched by the OS starts on the round URL, with no opener or earlier history.
+  await page.evaluate(url => location.replace(url), d.url(id));
+  await expect(page.locator(".card").first()).toBeVisible();
+  expect(await page.evaluate(() => [!!window.opener, history.length])).toEqual([false, 1]);
+  await opt(page, "db", "pg").click();
+  await page.locator("#bar .bar-done").click();
+  await page.locator("#overlay .btn.primary", { hasText: "Send to the agent" }).click();
+  await expect(page.locator(".done-card")).toBeVisible();
+  const final = await d.next(id);
+  expect(final.kind).toBe("final");
+  await d.ack(id, final.seq);
+  const countdown = page.locator(".next-count");
+  await expect(countdown).toContainText("10");
+  return countdown;
+}
+
+test("the last delivered round closes its tab after ten seconds", async ({ page }) => {
+  await finishLastRound(page);
+  await expect(page.locator(".next-count")).toContainText("1 s", { timeout: 12_000 });
+  await page.waitForEvent("close", { timeout: 3000 });
+});
+
+test("editing a rule on the result cancels the close countdown", async ({ page }) => {
+  const countdown = await finishLastRound(page);
+  await page.getByRole("button", { name: "Always ask me" }).first().click();
+  const draft = page.locator("textarea.rule-input");
+  await draft.fill("Keep this rule for later");
+  await expect(countdown).toHaveCount(0);
+  await page.clock.install();
+  await page.clock.runFor(11_000);
+  await expect(draft).toHaveValue("Keep this rule for later");
+});
+
+test("a new round during the close countdown opens in the same tab", async ({ page }) => {
+  const countdown = await finishLastRound(page);
+  const next = await d.open(named("One more round"));
+  await expect(countdown).toHaveText(/Opens in/);
+  await expect(page).toHaveURL(d.url(next), { timeout: 10_000 });
+  await expect(page.locator("#q-db")).toBeVisible();
+});
