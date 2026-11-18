@@ -159,3 +159,65 @@ test("cards shown on screen are reported as seen: POST /api/rounds/:id/seen {ids
   });
   expect(seen).toEqual(expect.arrayContaining(["c1", "c2"]));
 });
+
+// ---- scrolls inside a card
+
+const LONG = "https://example.com/a/path/that/never/breaks/" + "segment_".repeat(14);
+const wideCard = {
+  id: "w1",
+  title: `Ship ${"Unbreakable_identifier_".repeat(4)}?`,
+  body: `| Plan | Price | Seats | Storage | History | Support |\n|---|---|---|---|---|---|\n| Free | $0 | 3 | 1 GB | 7 days | community |\n\n${LONG}`,
+  code: { lang: "sql", text: `CREATE INDEX CONCURRENTLY reminders_fire_at_tz_idx ON reminders USING btree (fire_at, tz) INCLUDE (user_id, board_id, task_id) WHERE fire_at IS NOT NULL;\n${Array.from({ length: 40 }, (_, i) => `-- line ${i}`).join("\n")}` },
+  left: { label: "Generous", table: { columns: ["Limit", "Free", "Pro", "Team", "Enterprise"], rows: [["Boards per workspace", "5", "unlimited", "unlimited", "unlimited_with_a_long_token"], ...Array.from({ length: 12 }, (_, i) => [`Limit ${i}`, "1", "2", "3", "4"])] } },
+  right: { label: "An_answer_label_without_any_spaces_that_goes_on_and_on", detail: LONG },
+};
+
+// Every box inside the front card that scrolls, or hides what does not fit, sideways; and every box other than the card's body that scrolls down.
+const scrollers = (page) =>
+  page.evaluate(() => {
+    const card = document.querySelector(".sw-card.front");
+    const body = card.querySelector(".sw-card-body");
+    const out = [];
+    for (const el of [card, ...card.querySelectorAll("*")]) {
+      if (el.closest(".sw-stamp")) continue;
+      const cs = getComputedStyle(el);
+      const name = `${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0]}`;
+      if (cs.overflowX !== "visible" && el.scrollWidth - el.clientWidth > 1) out.push(`${name} sideways +${el.scrollWidth - el.clientWidth}`);
+      // a box that hides what is below its edge counts too: that content cannot be reached at all
+      if (el !== body && cs.overflowY !== "visible" && el.scrollHeight - el.clientHeight > 1) out.push(`${name} down +${el.scrollHeight - el.clientHeight}`);
+    }
+    return out;
+  });
+
+for (const [name, size] of [["a desktop", { width: 1440, height: 900 }], ["a phone", MOBILE]]) {
+  test(`on ${name} a card never scrolls sideways and nothing inside it scrolls on its own: code, tables and long words wrap`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await open(page, { cards: [wideCard, ...deck().cards] });
+    await expect(front(page).locator(".code")).toBeVisible();
+    expect(await scrollers(page)).toEqual([]);
+    expect(await page.evaluate(() => document.scrollingElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  });
+}
+
+test("a card with code, two answers and a reason fits a laptop window without scrolling", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 780 });
+  const card = { id: "f1", section: "Reminders", title: "Store reminder times in UTC?", tldr: "One line of context under the title.", why: "It decides the schema.", then: "The migration follows.", code: { lang: "sql", text: "ALTER TABLE reminders\n  ADD COLUMN fire_at timestamptz NOT NULL,\n  ADD COLUMN tz text NOT NULL;" }, left: { label: "UTC plus the zone", detail: "Moves with daylight saving" }, right: { label: "Local time only", detail: "Breaks when the user travels" }, recommended: "left", reason: "the zone is one more column" };
+  await open(page, { cards: [card, ...deck().cards] });
+  await expect(front(page).locator(".code")).toBeVisible();
+  const over = await front(page).locator(".sw-card-body").evaluate((b) => b.scrollHeight - b.clientHeight);
+  expect(over).toBeLessThanOrEqual(1);
+});
+
+test("on a phone the folded brief opens below its bar and can be read", async ({ page }) => {
+  await page.setViewportSize(MOBILE);
+  await open(page);
+  await page.locator(".sw-brief-toggle").click();
+  const item = page.locator(".sw-brief-body .sw-item").first();
+  await expect(item).toBeVisible();
+  // visible to the eye, not only in the tree: the point in the middle of the line belongs to the line
+  const onTop = await item.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+  });
+  expect(onTop).toBe(true);
+});
