@@ -221,7 +221,7 @@ test("three servers started at once: one serves, two resolve null", async (t) =>
   assert.equal(pids.find((p) => p.pid === info.pid).exited, null);
   const pong = await ping(info.port);
   assert.equal(pong.home, h);
-  assert.deepEqual([pong.ok, pong.app, pong.protocol, pong.version, pong.pid], [true, "decide", PROTOCOL, "3.1.0", info.pid]);
+  assert.deepEqual([pong.ok, pong.app, pong.protocol, pong.version, pong.pid], [true, "decide", PROTOCOL, "3.1.1", info.pid]);
 });
 
 test("a second home gets its own port and its own server", async (t) => {
@@ -290,7 +290,7 @@ test("daemon.json is mode 0600 and carries a token", async (t) => {
   const { home: h, server } = await serving(t);
   const info = readInfo(h);
   assert.match(info.token, /^[0-9a-f]{32,}$/);
-  assert.deepEqual([info.pid, info.port, info.protocol, info.version, info.home], [server.pid, server.port, PROTOCOL, "3.1.0", h]);
+  assert.deepEqual([info.pid, info.port, info.protocol, info.version, info.home], [server.pid, server.port, PROTOCOL, "3.1.1", h]);
   assert.ok(Number.isFinite(info.startedAt));
   if (process.platform !== "win32") assert.equal(statSync(path.join(h, "daemon.json")).mode & 0o777, 0o600);
 });
