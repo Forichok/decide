@@ -1291,7 +1291,7 @@ test("a round brief and dependsOn are read", () => {
   assert.ok(!errorsOf(issues).some((m) => /unknown field/.test(m)));
 });
 
-test('review overview orders owner decisions before risks, acceptance, summary and checks', async (context) => {
+test('review overview explains the change before asking for decisions', async (context) => {
   const restore = fakeDom();
   context.after(restore);
   document.createTextNode = (text) => Object.assign(new Node(), { text: String(text) });
@@ -1303,7 +1303,7 @@ test('review overview orders owner decisions before risks, acceptance, summary a
   const { spec } = normalizeReview({ title: 'Cap', summary: 'A silent discount cap.', acceptance: { changed: 'Discounts stop at 50%.', steps: ['Apply a discount', 'Check total'], expect: 'Half price' }, risks: [{ what: 'Wrong total', checkedBy: 'Totals test' }], checks: [{ command: 'node --test', exit: 0 }], chapters: [{ id: 'cap', title: 'Cap', summary: 'A cap.', hunks: ['cap.js'], focus: [{ at: 'cap.js:1', kind: 'decision', note: 'The cap', question: 'Is a silent cap acceptable?' }, { at: 'cap.js:2', kind: 'risk', note: 'Hidden limit' }] }] });
   const s = { spec, rv: { chapters: [{ id: 'cap', focus: [{ file: 'cap.js', from: 2, to: 2, kind: 'risk', note: 'Hidden limit' }] }], decisions: {}, sorted: 1, total: 1 }, verdict() {} };
   const tree = walkEl(renderOverview(s));
-  assert.deepEqual(tree.filter((e) => e.dataset?.section).map((e) => e.dataset.section), ['decisions', 'risks', 'reviewers', 'acceptance', 'summary', 'checks']);
+  assert.deepEqual(tree.filter((e) => e.dataset?.section).map((e) => e.dataset.section), ['summary', 'decisions', 'risks', 'reviewers', 'acceptance', 'checks']);
   const text = (e) => e.text ?? (e.children ?? []).map(text).join('');
   assert.ok(tree.some((e) => text(e).includes('Checked by: Totals test')));
   await context.test('section headings have no attribution bar; header and risk badges remain', () => {
@@ -1334,7 +1334,7 @@ test('review overview orders owner decisions before risks, acceptance, summary a
   const acceptance = walkEl(emptySteps).find((e) => e.dataset?.section === 'acceptance');
   assert.equal(text(acceptance).includes('0'), false, 'an empty step list displays no count');
   const minimal = { ...s, spec: { ...spec, chapters: [{ ...spec.chapters[0], focus: [] }], acceptance: undefined } };
-  assert.deepEqual(walkEl(renderOverview(minimal)).filter((e) => e.dataset?.section).map((e) => e.dataset.section), ['risks', 'reviewers', 'summary', 'checks']);
+  assert.deepEqual(walkEl(renderOverview(minimal)).filter((e) => e.dataset?.section).map((e) => e.dataset.section), ['summary', 'risks', 'reviewers', 'checks']);
 });
 
 test("reviewer fields in the skill and MCP schema come from the registry", async () => {

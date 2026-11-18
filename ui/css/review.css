@@ -372,3 +372,16 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 .cr-resolution-mark .cr-place-note { white-space: pre-wrap; overflow-wrap: anywhere; }
 .cr-resolution-actions button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-tx); border-color: var(--accent); }
 .cr-resolution-actions button[data-owner="notFixed"][aria-pressed="true"] { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+
+.cr-decision-buttons { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+.cr-decision-buttons .chip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.cr-decision-question, .cr-meta code { overflow-wrap: anywhere; }
+.cr-bar .state .link-btn { font: inherit; }
+@media (max-width: 620px) {
+  .cr-bar { display: grid; gap: 6px; padding: 8px 10px; bottom: 6px; }
+  .cr-bar .cr-pills { display: none; }
+  .cr-bar .state { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 8px; font-size: 12px; }
+  .cr-bar .state small { font-size: 12px; }
+  .cr-bar .acts { display: grid; grid-template-columns: 1fr 1.45fr 1fr; gap: 4px; }
+  .cr-bar .acts .btn { min-width: 0; min-height: 40px; padding: 4px; white-space: normal; font-size: 12px; }
+}

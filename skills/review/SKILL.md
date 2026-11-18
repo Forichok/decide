@@ -6,9 +6,8 @@ description: Show the user a code review of a branch on a local page: your overv
 # decide:review — a code review by chapters
 
 You open a page with the change you made (or any branch against its base).
-The user reads your overview first: decisions for them, risks and what checks
-cover them, the independent reviewers’ findings, how to check the change,
-what changed, and the checks you ran. Then they walk the diff, which you
+The overview explains what changed, then asks for the owner's decisions. It lists risks,
+reviewer findings, acceptance steps and the checks you ran. Then they walk the diff, which you
 have cut into chapters by meaning, not by file. On any line they can leave a
 comment of two kinds (fix, nit) or ask you a question. At the end they give
 one of three verdicts: approve, approve with nits, return.
@@ -128,6 +127,7 @@ Brief: <role brief from settings>
 
 Review the committed diff between these two SHAs.
 Read-only: change nothing, run nothing destructive.
+Write the summary, findings and explanations in the owner’s language. Keep source lines verbatim.
 Return one JSON object with summary (one or two sentences), verdict
 (clean, concerns or blocking), and findings (an array, empty if clean).
 Each finding has severity (blocking, major or minor), text, and why.
@@ -370,7 +370,7 @@ The owner wants to know whether a bad decision slipped in and whether the
 change will break. Write for that reader, even when they are an engineer.
 The page marks your claims as "in the agent’s words".
 
-Start with decisions for the owner. Give each `decision` place one yes/no
+Describe the change in the opening summary. Give each `decision` place one yes/no
 `question` about behaviour they can judge: "Is a silent 50% cap on a discount
 acceptable?" Ask about the effect on a person, not whether a function or an
 index is correct. Keep its `note` as the explanation beside the code. Use

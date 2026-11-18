@@ -7,6 +7,7 @@ import { reviewerRoleDisplay } from "../reviewer-display.js";
 const SEVERITIES = ["blocking", "major", "minor"];
 export const findingsOf = (s) => s.rv.reviewers?.findings ?? [];
 export const decisionOf = (s, f) => Object.hasOwn(s.rv.findingDecisions ?? {}, f.id) ? s.rv.findingDecisions[f.id] : null;
+export const blockingFindings = s => findingsOf(s).filter(f => f.severity === "blocking" && decisionOf(s, f)?.decision !== "dismissed");
 export const sortedFindings = (s) => [...findingsOf(s)].sort((a, b) => SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity));
 
 function roleTitle(s, role) {
@@ -123,7 +124,7 @@ export async function saveFinding(id, payload) {
 
 export function reviewerWarnings(s, close) {
   const { skipped = [], none } = s.rv.reviewers ?? {};
-  const blocking = findingsOf(s).filter(f => f.severity === "blocking" && decisionOf(s, f)?.decision !== "dismissed");
+  const blocking = blockingFindings(s);
   const groups = new Map();
   for (const f of blocking) {
     const key = f.anchor ? ownerOf(s, f.anchor.hunk) : "overview";

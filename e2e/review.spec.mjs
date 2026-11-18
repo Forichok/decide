@@ -54,7 +54,7 @@ function fixtureRepo(dir) {
   git("add", "-A");
   git("commit", "-q", "-m", "tall fixture");
   git("checkout", "-q", "feature");
-  return { git, write };
+  return { git, write, feature: git("rev-parse", "HEAD") };
 }
 
 const SPEC = {
@@ -437,10 +437,11 @@ test("verdict identifies the snapshot, warns on both approvals and reports colle
   await takeKind(opened.id, "final");
   await expect(page.locator(".done-sub")).toContainText("were delivered to the agent");
   await expect(page.locator(".sum-raw summary")).toHaveText("The text the agent received");
-  await expect(page.locator(".cr-done-recovery")).toHaveText(`If nothing follows, tell the agent in its chat to collect round ${opened.id}.`);
+  await expect(page.locator(".cr-done-recovery")).toHaveCount(0);
+  await expect(page.locator(".done-card .waiting")).toHaveCount(0);
   await expect(page.locator(".paste-line")).toHaveCount(0);
   await page.goto(`${d.origin}/?lang=ru#r=${opened.id}`);
-  await expect(page.locator(".cr-done-recovery")).toHaveText(`Если продолжения нет, попросите агента в его чате забрать раунд ${opened.id}.`);
+  await expect(page.locator(".done-card .waiting")).toHaveCount(0);
 });
 
 
@@ -477,13 +478,6 @@ test("Russian review strings use the page's word for pieces", async () => {
   }
 });
 
-
-test("review recovery asks for collection without repeating comment storage", async () => {
-  const { default: en } = await import("../ui/js/lang/en.js");
-  const { default: ru } = await import("../ui/js/lang/ru.js");
-  expect(en["cr.done.recovery"]("round-1")).toBe("If nothing follows, tell the agent in its chat to collect round round-1.");
-  expect(ru["cr.done.recovery"]("round-1")).toBe("Если продолжения нет, попросите агента в его чате забрать раунд round-1.");
-});
 
 test('coverage distinguishes hidden, partial and opened pieces, survives reload and warns on approval', async ({ page }) => {
   const opened = await d.must('POST', '/api/rounds', { project: d.project, spec: GUIDE, mode: 'review', open: false, head: 'guide' });
@@ -619,7 +613,7 @@ test('owner overview: decisions, risk checks, acceptance and persisted answers',
   const opened = await d.must('POST', '/api/rounds', { project: d.project, spec, mode: 'review', open: false });
   await page.goto(`${d.origin}/?lang=en#r=${opened.id}`);
   const overview = page.locator('#cr-overview');
-  await expect(overview.locator('h3')).toHaveText(['Decisions for you', 'Risks', 'Independent reviewers', 'How to check it yourself', 'What changed', 'Checks']);
+  await expect(overview.locator('h3')).toHaveText(['What changed', 'Decisions for you', 'Risks', 'Independent reviewers', 'How to check it yourself', 'Checks']);
   await expect(overview).toContainText('Checked by: Parser test covers the word.');
   await expect(overview.locator('.cr-overview-section > .cr-said')).toHaveCount(0);
   await expect(overview.locator('.cr-ch-head > .cr-said')).toHaveCount(1);
@@ -702,6 +696,7 @@ test("independent reviewer findings at their lines, decisions, and approval warn
   const { id } = await d.must("POST", "/api/rounds", { project: d.project, spec: { ...SPEC, reviewers }, mode: "review", open: false });
   await page.goto(`${d.origin}/?lang=en#r=${id}`);
   const overview = page.locator(".cr-reviewers");
+  await expect(page.locator(".cr-bar")).toContainText("3 blocking");
   await expect(overview).toContainText("Independent reviewers");
   await expect(overview).toContainText("Bugs and regressions");
   await expect(overview).toContainText("sonnet");
@@ -743,6 +738,7 @@ test("independent reviewer findings at their lines, decisions, and approval warn
   await expect(f1).toContainText("To fix");
   await overview.getByRole("button", { name: "lib/a.mjs:50", exact: true }).click();
   await expect(f2).toContainText("Dismissed");
+  await expect(page.locator(".cr-bar")).toContainText("2 blocking");
   await expect(page.locator("#cr-ch-top .cr-open-findings")).toBeHidden();
   await expect(page.locator(".cr-bar .state small")).toContainText("1 to fix");
   await page.locator('.cr-bar [data-verdict="approve"]').click();
@@ -854,4 +850,38 @@ test("a returned Fix comes back at its change, with the same owner mark in both 
   await page.locator(".cr-verdict .btn.primary").click();
   await expect.poll(async () => (await d.round(follow.id)).result?.verdict).toBe("approve");
   await expect(page.getByText(`Follow-up to round ${id}.`, { exact: true })).toBeVisible();
+});
+
+test("independent decision saves finish before a verdict and both reach the result", async ({ page }) => {
+  test.skip(!hasGit, "git is not installed");
+  const spec = structuredClone(SPEC);
+  spec.chapters[0].focus = [3, 4].map(line => ({
+    at: `lib/a.mjs:${line}`, kind: "decision", note: "Check the change.", question: `Keep line ${line}?`,
+  }));
+  const { id } = await d.must("POST", "/api/rounds", { project: d.project, base: "main", head: repo.feature, spec, mode: "review", open: false });
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  await page.route(`**/api/rounds/${id}/decision`, async route => {
+    if (route.request().postDataJSON().at.endsWith(":3")) await gate;
+    await route.continue();
+  });
+  await page.goto(`${d.origin}/?lang=en#r=${id}`);
+  const questions = page.locator("#cr-overview .cr-decision");
+  try {
+    await questions.nth(0).getByRole("button", { name: "Yes" }).click();
+    await questions.nth(1).getByRole("button", { name: "No" }).click();
+    await expect(questions.nth(1).getByRole("button", { name: "No" })).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press("Control+Enter");
+  } finally { release(); }
+  const modal = page.getByRole("dialog");
+  await expect(modal.locator('[data-verdict="return"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(modal.locator('[data-alert="empty"]')).toHaveCount(0);
+  await modal.locator('[data-verdict="nits"]').click();
+  await expect(modal.locator('[data-alert="decisionNo"]')).toBeVisible();
+  await modal.locator(".modal-actions .primary").focus();
+  await page.keyboard.press("Tab");
+  await expect.poll(() => modal.evaluate(el => el.contains(document.activeElement))).toBe(true);
+  await modal.locator(".modal-actions .primary").click();
+  await expect(page.locator(".done-view")).toBeVisible();
+  expect((await d.round(id)).result.decisions.map(d => d.answer)).toEqual(["yes", "no"]);
 });

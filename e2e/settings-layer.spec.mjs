@@ -16,6 +16,11 @@ const enter = async (page, id) => {
   await settings(page).click();
   await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
 };
+async function choose(control, value) {
+  await control.click();
+  await control.locator("..").locator(`[role=option][data-value="${value}"]`).click();
+}
+const scope = (page, name) => page.getByRole("group", { name: "Apply settings to" }).getByRole("button", { name, exact: true }).click();
 const save = async (form) => {
   await form.getByRole("button", { name: "Save", exact: true }).click();
   await expect(form.getByRole("status")).toHaveText("Saved");
@@ -59,23 +64,25 @@ test("global level, project override, clear, and a failed save keeps the choice"
   await enter(page, id);
   await expect(page.getByRole("heading", { name: "How much to ask", exact: true })).toBeVisible();
   await expect(globalLevel(page).locator(".set-source")).toHaveText("The default value is in force.");
-  await globalLevel(page).getByRole("combobox", { name: "Level", exact: true }).selectOption("mine");
+  await choose(globalLevel(page).getByRole("combobox", { name: "Level", exact: true }), "mine");
   await save(globalLevel(page));
   expect((await read()).settings.level).toMatchObject({ value: "mine", from: "global" });
-  await expect(projectLevel(page).locator(".set-source")).toHaveText("The value for all projects is in force.");
-  await projectLevel(page).getByLabel("In this project").selectOption("own");
-  await projectLevel(page).getByRole("combobox", { name: "Level", exact: true }).selectOption("irreversible");
+  await scope(page, "In this project");
+  await expect(projectLevel(page).locator(".set-source")).toContainText("From all projects:");
+  await choose(projectLevel(page).getByLabel("Use settings from"), "own");
+  await choose(projectLevel(page).getByRole("combobox", { name: "Level", exact: true }), "irreversible");
   await save(projectLevel(page));
   expect((await read()).settings.level).toMatchObject({ value: "irreversible", from: "project" });
-  await expect(projectLevel(page).locator(".set-source")).toHaveText("This project's value is in force.");
-  await projectLevel(page).getByLabel("In this project").selectOption("inherit");
+  await expect(projectLevel(page).getByLabel("Use settings from")).toHaveJSProperty("value", "own");
+  await choose(projectLevel(page).getByLabel("Use settings from"), "inherit");
   await save(projectLevel(page));
   expect((await read()).settings.level).toMatchObject({ value: "mine", from: "global" });
+  await scope(page, "Everywhere");
   await page.route("**/api/settings", (route) => route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"disk full"}' }));
-  await globalLevel(page).getByRole("combobox", { name: "Level", exact: true }).selectOption("everything");
+  await choose(globalLevel(page).getByRole("combobox", { name: "Level", exact: true }), "everything");
   await globalLevel(page).getByRole("button", { name: "Save", exact: true }).click();
   await expect(globalLevel(page).getByRole("status")).toContainText("Could not save");
-  await expect(globalLevel(page).getByRole("combobox", { name: "Level", exact: true })).toHaveValue("everything");
+  await expect(globalLevel(page).getByRole("combobox", { name: "Level", exact: true })).toHaveJSProperty("value", "everything");
 });
 
 test("Russian settings localize the default role summaries and show stored text in the editor", async ({ page }) => {
@@ -85,17 +92,19 @@ test("Russian settings localize the default role summaries and show stored text 
   await expect(gear.locator("svg")).toHaveAttribute("viewBox", "0 0 24 24");
   await gear.click();
   await expect(page.getByRole("heading", { name: "Настройки", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Сколько спрашивать", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Когда агент задаёт вопросы", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "В этом проекте", exact: true }).click();
   for (const name of ["level", "reviewers"]) {
     const project = page.locator(`[data-setting="${name}"][data-scope="project"]`);
-    await expect(project.getByText("В этом проекте", { exact: true })).toHaveCount(1);
-    await expect(project.getByRole("combobox", { name: "В этом проекте" })).toBeVisible();
+    await expect(project.getByRole("combobox", { name: "Какие настройки использовать" })).toBeVisible();
   }
   const form = globalReviewers(page);
+  await page.getByRole("button", { name: "Во всех проектах", exact: true }).click();
+  await form.locator(".set-advanced > summary").click();
   await expect(form.locator(".set-role-title")).toHaveText([
     "Ошибки и регрессии", "Безопасность и данные", "Что доказывают проверки",
   ]);
-  const first = form.locator("details").first();
+  const first = form.locator("details.set-role").first();
   await first.locator("summary").click();
   const role = (await read()).defaults.reviewers.roles[0];
   const title = first.getByRole("textbox", { name: "Название" });
@@ -111,29 +120,31 @@ test("roles expand to edit model, add, reorder, remove and reset to defaults", a
   const id = await d.open(spec());
   await enter(page, id);
   const form = globalReviewers(page);
-  await form.locator("details").first().locator("summary").click();
-  await form.locator("details").first().getByLabel("Model", { exact: true }).fill("my-review-model");
+  await form.locator(".set-advanced > summary").click();
+  await form.locator("details.set-role").first().locator("summary").click();
+  await form.locator("details.set-role").first().getByLabel("Model", { exact: true }).fill("my-review-model");
   await save(form);
   expect((await read()).settings.reviewers.value.roles[0].model).toBe("my-review-model");
   await form.getByRole("button", { name: "Add role", exact: true }).click();
-  const last = form.locator("details").last();
+  const last = form.locator("details.set-role").last();
   await last.getByLabel("Title", { exact: true }).fill("Accessibility");
   await last.getByLabel("Brief", { exact: true }).fill("Check keyboard access");
   await last.getByRole("button", { name: "Move up", exact: true }).click();
   await save(form);
   expect((await read()).settings.reviewers.value.roles[2].title).toBe("Accessibility");
-  await form.locator("details").nth(2).getByRole("button", { name: "Remove role", exact: true }).click();
+  await form.locator("details.set-role").nth(2).getByRole("button", { name: "Remove role", exact: true }).click();
   await save(form);
   expect((await read()).settings.reviewers.value.roles).toHaveLength(3);
   await form.getByRole("button", { name: "Reset roles to defaults", exact: true }).click();
   await save(form);
   expect((await read()).settings.reviewers.value.roles.map((r) => [r.id, r.model])).toEqual([["correctness", ""], ["safety", ""], ["tests", ""]]);
+  await scope(page, "In this project");
   const project = page.locator('[data-setting="reviewers"][data-scope="project"]');
-  await project.getByLabel("In this project").selectOption("own");
-  await project.getByLabel("When to review").selectOption("request");
+  await choose(project.getByLabel("Use settings from"), "own");
+  await choose(project.getByLabel("When to review"), "request");
   await save(project);
   expect((await read()).settings.reviewers.from).toBe("project");
-  await project.getByLabel("In this project").selectOption("inherit");
+  await choose(project.getByLabel("Use settings from"), "inherit");
   await save(project);
   expect((await read()).settings.reviewers.from).toBe("global");
 });
@@ -142,6 +153,7 @@ test("rules stay with the project and are removed on Save", async ({ page }) => 
   const id = await d.open(spec());
   await d.must("POST", "/api/rules", { project: d.project, mode: "never", text: "Use the existing formatter" });
   await enter(page, id);
+  await scope(page, "In this project");
   const form = page.locator('[data-setting="rules"]');
   await expect(form).toContainText("These rules belong to this project");
   await form.getByRole("checkbox", { name: "Remove rule: Use the existing formatter", exact: true }).check();
@@ -159,15 +171,15 @@ for (const width of [1440, 1100]) for (const theme of ["light", "dark"]) {
     const section = page.locator('[data-setting="theme"]');
     const select = section.getByLabel("Theme", { exact: true });
     await expect(section.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
-    await select.selectOption(theme);
+    await choose(select, theme);
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     await expect.poll(() => page.evaluate(() => localStorage.getItem("decide-theme"))).toBe(theme);
     await expect(section.getByRole("status")).toHaveText("Saved");
     await page.locator("button.theme").click();
     const other = theme === "dark" ? "light" : "dark";
-    await expect(select).toHaveValue(other);
+    await expect(select).toHaveJSProperty("value", other);
     await expect(section.getByRole("status")).toHaveText("Saved");
-    await select.selectOption("system");
+    await choose(select, "system");
     await expect(page.locator("html")).not.toHaveAttribute("data-theme");
     await expect.poll(() => page.evaluate(() => localStorage.getItem("decide-theme"))).toBeNull();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -190,9 +202,9 @@ test("a theme storage failure keeps the choice and Try again applies it", async 
   const section = page.locator('[data-setting="theme"]');
   const select = section.getByLabel("Theme", { exact: true });
   const retry = section.getByRole("button", { name: "Try again", exact: true });
-  await select.selectOption("dark");
+  await choose(select, "dark");
   await expect(page.locator("#toast.show")).toHaveText("Could not save the theme in this browser.");
-  await expect(select).toHaveValue("dark");
+  await expect(select).toHaveJSProperty("value", "dark");
   await expect(retry).toBeVisible();
   await retry.click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
@@ -216,4 +228,27 @@ test("gear opens from a review and returns to that review", async ({ page }) => 
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`#r=${id}$`));
   await expect(page.locator("h1.cr-title")).toHaveText("Settings review");
+});
+
+test("settings show one scope and the picker supports keyboard preview and cancellation", async ({ page }) => {
+  await enter(page, await d.open(spec()));
+  await expect(globalLevel(page)).toBeVisible();
+  await expect(projectLevel(page)).toBeHidden();
+  const control = globalLevel(page).getByRole("combobox");
+  await control.focus();
+  await control.press("ArrowDown");
+  const list = globalLevel(page).getByRole("listbox");
+  await expect(list).toBeVisible();
+  const initial = await control.textContent();
+  await control.press("End");
+  await control.press("Escape");
+  await expect(list).toBeHidden();
+  await expect(control).toHaveText(initial);
+  await control.press("Enter");
+  await control.press("Home");
+  await control.press("Enter");
+  await expect(control).toHaveJSProperty("value", "everything");
+  await page.getByRole("button", { name: "In this project", exact: true }).click();
+  await expect(projectLevel(page)).toBeVisible();
+  await expect(globalLevel(page)).toBeHidden();
 });

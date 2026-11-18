@@ -6,6 +6,7 @@ import { t } from "./i18n.js";
 import { addRuleTo, getSettings, removeRuleFrom, setLevel, holdReload } from "./net.js";
 import { credit, eyebrow } from "./header.js";
 import { toast } from "./overlays.js";
+import { settingsChoice } from "./settings-choice.js";
 import { reviewerRoleDisplay } from "./reviewer-display.js";
 
 // The rule's text, prefilled from the question and the answer; the user may edit it before it is saved.
@@ -56,17 +57,13 @@ export function renderSettings(env) {
   holdReload("view", () => drafts.size > 0);
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const button = (text, action) => h("button.btn.sm", { type: "button", onclick: action }, t(text));
-  const select = (values, value) => {
-    const el = h("select.set-input", {}, values.map(([key, text]) => h("option", { value: key }, text)));
-    el.value = value;
-    return el;
-  };
   let fieldId = 0;
   const field = (key, input, help = null) => {
     const id = `set4-field-${++fieldId}`;
-    input.id = id;
-    if (help) input.setAttribute("aria-describedby", `${id}-help`);
-    return h("div.set-field", {}, h("label", { for: id }, t(key)), input,
+    const control = input.trigger ?? input;
+    control.id = id;
+    if (help) control.setAttribute("aria-describedby", `${id}-help`);
+    return h("div.set-field", {}, h("label", { for: id }, t(key)), input.el ?? input,
       help && h("span.set-help", { id: `${id}-help` }, t(help)));
   };
   const hint = (key) => h("p.set-help", {}, t(key));
@@ -77,7 +74,9 @@ export function renderSettings(env) {
     const save = h("button.btn.sm.primary", { type: "submit" }, t("settings4.save"));
     const form = h("form.set-form", { dataset: { setting: name, scope } });
     let revision = 0;
+    save.hidden = true;
     const dirty = () => {
+      save.hidden = false;
       revision++;
       drafts.add(form);
       status.textContent = t("settings4.unsaved");
@@ -93,7 +92,7 @@ export function renderSettings(env) {
       status.classList.remove("failed");
       try {
         await saveValue();
-        if (revision === savingRevision) drafts.delete(form);
+        if (revision === savingRevision) { drafts.delete(form); save.hidden = true; }
         status.textContent = t(revision === savingRevision ? "settings4.saved" : "settings4.unsaved");
       } catch (err) {
         status.textContent = t("settings4.saveFailed", err.message);
@@ -104,18 +103,18 @@ export function renderSettings(env) {
   }
 
   function levelFields(value) {
-    const input = select(data.levels.map((level) => [level, t(`settings.level.${level}`)]), value);
-    const note = h("p.set-help", {}, t(`settings.level.${input.value}.sub`));
-    input.onchange = () => { note.textContent = t(`settings.level.${input.value}.sub`); };
+    const input = settingsChoice(data.levels.map((level) => [level, t(`settings.level.${level}`)]), value);
+    const note = h("p.set-help", {}, t(`settings.level.${input.trigger.value}.sub`));
+    input.trigger.onchange = () => { note.textContent = t(`settings.level.${input.trigger.value}.sub`); };
     return {
       el: h("div", {}, field("settings.level", input), note),
-      read: () => input.value,
-      set(value) { input.value = value; input.onchange(); },
+      read: () => input.trigger.value,
+      set(value) { input.select(value); input.trigger.onchange(); },
     };
   }
 
   function reviewerFields(value, dirty) {
-    const mode = select(["always", "large", "request"].map((key) => [key, t(`settings4.mode.${key}`)]), value.mode);
+    const mode = settingsChoice(["always", "large", "request"].map((key) => [key, t(`settings4.mode.${key}`)]), value.mode);
     const lines = h("input.set-input", { type: "number", min: 1, max: 100000, step: 1, required: true, value: value.lines });
     const list = h("div.set-role-list");
     let rows = [];
@@ -172,12 +171,14 @@ export function renderSettings(env) {
       draw(roles, roles.length - 1); dirty(); rows.at(-1).inputs.title.focus();
     });
     const reset = button("settings4.resetRoles", () => { draw(clone(data.defaults.reviewers.roles)); dirty(); });
-    const el = h("div", {}, field("settings4.reviewMode", mode), field("settings4.lines", lines, "settings4.linesHelp"),
+    const advanced = h("details.set-advanced", {}, h("summary", {}, t("settings4.advanced")),
+      field("settings4.lines", lines, "settings4.linesHelp"),
       h("h4", {}, t("settings4.roles")), hint("settings4.rolesHelp"), list, h("div.set-actions", {}, add, reset));
+    const el = h("div", {}, field("settings4.reviewMode", mode), advanced);
     draw(clone(value.roles));
     return {
-      el, read: () => ({ mode: mode.value, lines: Number(lines.value), roles: readRoles() }),
-      set(value) { mode.value = value.mode; lines.value = value.lines; draw(clone(value.roles)); },
+      el, read: () => ({ mode: mode.trigger.value, lines: Number(lines.value), roles: readRoles() }),
+      set(value) { mode.select(value.mode); lines.value = value.lines; draw(clone(value.roles)); },
     };
   }
 
@@ -189,30 +190,39 @@ export function renderSettings(env) {
       const form = formFor(name, scope, async () => {
         data = await setLevel(project, {
           scope,
-          ...(scope === "project" && inherit.value === "inherit" ? { clear: [name] } : { set: { [name]: fields.read() } }),
+          ...(scope === "project" && inherit.trigger.value === "inherit" ? { clear: [name] } : { set: { [name]: fields.read() } }),
         });
         updates.forEach((update) => update());
       });
       fields = makeFields(scope === "global" ? data.settings[name].global : data.settings[name].value, form.dirty);
       const source = h("p.set-help.set-source");
       const fieldset = h("fieldset.set-editor", {}, h("legend.sr-only", {}, t(title)), fields.el);
-      const scopeHeading = h("h4", {}, t(scope === "global" ? "settings4.global" : "settings4.project"));
-      form.form.append(scopeHeading);
       if (scope === "project") {
-        inherit = select([["inherit", t("settings4.inherit")], ["own", t("settings4.own")]], data.settings[name].from === "project" ? "own" : "inherit");
-        const change = () => { fieldset.disabled = inherit.value === "inherit"; };
-        inherit.onchange = () => { if (inherit.value === "inherit") fields.set(data.settings[name].global); change(); };
+        inherit = settingsChoice([["inherit", t("settings4.inherit")], ["own", t("settings4.own")]],
+          data.settings[name].from === "project" ? "own" : "inherit");
+        const change = () => {
+          fieldset.disabled = inherit.trigger.value === "inherit";
+          fieldset.hidden = fieldset.disabled;
+        };
+        inherit.trigger.onchange = () => {
+          if (inherit.trigger.value === "inherit") fields.set(data.settings[name].global);
+          change();
+          update();
+        };
         change();
-        scopeHeading.id = `set4-project-${name}`;
-        inherit.setAttribute("aria-labelledby", scopeHeading.id);
-        form.form.append(h("div.set-field", {}, inherit));
-        if (name === "reviewers") form.form.append(hint("settings4.wholeBlock"));
+        form.form.append(field("settings4.projectSource", inherit));
       }
       form.form.append(source, fieldset, form.footer);
       const update = () => {
         const from = scope === "global" ? data.settings[name].globalFrom : data.settings[name].from;
-        source.textContent = t(`settings4.source.${from}`);
-        if (scope === "project" && inherit.value === "inherit") fields.set(data.settings[name].global);
+        if (scope === "project" && inherit.trigger.value === "inherit") {
+          const value = data.settings[name].global;
+          source.textContent = t("settings4.inheritedValue", name === "level" ? t(`settings.level.${value}`) : t(`settings4.mode.${value.mode}`));
+        } else {
+          source.textContent = scope === "global" && from === "default" ? t("settings4.source.default") : "";
+        }
+        source.hidden = !source.textContent;
+        if (scope === "project" && inherit.trigger.value === "inherit") fields.set(data.settings[name].global);
       };
       updates.push(update); update();
       box.append(form.form);
@@ -244,9 +254,9 @@ export function renderSettings(env) {
   }
 
   function themeSection() {
-    const input = select(["light", "dark", "system"].map((key) => [key, t(`settings4.theme.${key}`)]), env.themeChoice());
+    const input = settingsChoice(["light", "dark", "system"].map((key) => [key, t(`settings4.theme.${key}`)]), env.themeChoice());
     const status = h("span.set-save-state", { role: "status", "aria-live": "polite" });
-    const retry = button("settings4.retry", () => { input.focus(); apply(); });
+    const retry = button("settings4.retry", () => { input.trigger.focus(); apply(); });
     retry.hidden = true;
     const section = h("section.set-section", { dataset: { setting: "theme", scope: "browser", themeForm: "" } },
       h("h3.sum-h", {}, t("settings4.theme")), hint("settings4.themeScope"), field("settings4.theme", input),
@@ -259,15 +269,15 @@ export function renderSettings(env) {
       retry.hidden = saved;
     };
     function apply() {
-      try { env.setTheme(input.value); }
+      try { env.setTheme(input.trigger.value); }
       catch (err) {
         showResult(false);
         toast(err.message);
       }
     }
-    input.onchange = apply;
+    input.trigger.onchange = apply;
     section.addEventListener("decide-theme", (e) => {
-      input.value = e.detail.choice;
+      input.select(e.detail.choice);
       showResult(e.detail.saved);
     });
     return section;
@@ -276,11 +286,22 @@ export function renderSettings(env) {
   async function load() {
     try { data = await getSettings(project); }
     catch { return body.replaceChildren(h("p.jr-empty", {}, t("settings.failed")), button("settings4.retry", load)); }
-    body.replaceChildren(scoped("level", "settings4.askHeading", levelFields), scoped("reviewers", "settings4.reviewers", reviewerFields), rulesSection(), themeSection());
+    const scopeButtons = project && ["global", "project"].map(scope => h("button", {
+      type: "button", dataset: { scopeChoice: scope }, onclick: () => showScope(scope),
+    }, t(`settings4.${scope}`)));
+    function showScope(scope) {
+      for (const btn of scopeButtons || []) btn.setAttribute("aria-pressed", String(btn.dataset.scopeChoice === scope));
+      for (const form of body.querySelectorAll("form[data-scope]")) {
+        form.hidden = form.dataset.scope !== scope;
+        if (form.dataset.setting === "rules") form.parentElement.hidden = form.hidden;
+      }
+    }
+    body.replaceChildren(...(scopeButtons ? [h("div.set-scopes", { role: "group", "aria-label": t("settings4.scope") }, scopeButtons)] : []), scoped("level", "settings4.askHeading", levelFields), scoped("reviewers", "settings4.reviewers", reviewerFields), rulesSection(), themeSection());
+    showScope("global");
   }
   load();
   return h("section.done-view.settings-view", {}, eyebrow(env),
     h("button.link-btn.set-back", { type: "button", onclick: env.leaveSettings }, t("settings4.back")),
     h("h2.set-title", {}, t("settings.title")),
-    project && h("p.set-project-name", {}, t("settings4.projectName", project)), body, credit());
+    project && h("p.set-project-name", { title: project }, t("settings4.projectName", project.split(/[\\/]/).filter(Boolean).at(-1) || project)), body, credit());
 }

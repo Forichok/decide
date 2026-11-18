@@ -59,6 +59,12 @@ function summaryCard(spec, result, env = {}) {
 function reviewCard(result, env) {
   const where = (c) => `${c.file || c.hunk}${Number.isInteger(c.line) ? `:${c.line}` : ""}`;
   const comments = result.comments || [];
+  const outstanding = (result.resolved ?? []).filter(row => {
+    if (row.owner === "notFixed") return true;
+    if (row.owner || result.verdict !== "return") return false;
+    return row.required ?? (["fix", "decision"].includes(row.kind) || (row.kind === "finding" && Boolean(row.how)));
+  });
+  const findingsToFix = (result.reviewers?.findings ?? []).filter(f => f.decision === "fix");
   return h(
     "section.sum",
     {},
@@ -68,6 +74,12 @@ function reviewCard(result, env) {
     result.verdict && h(`span.cr-sum-verdict.${result.verdict}`, {}, t(`cr.done.${result.verdict}`)),
     h("p.cr-sum-line", {}, t("cr.done.read", result.read?.length ?? 0, (result.read?.length ?? 0) + (result.unread?.length ?? 0))),
     result.note && h("div.sum-comment", {}, h("div.sum-label", {}, t("cr.done.note")), h("p", {}, result.note)),
+    result.decisions?.length > 0 && h("div.sum-comment", {}, h("h4", {}, t("cr.decisions")),
+      h("ul", {}, result.decisions.map(d => h("li", {}, d.question, " — ", d.label ?? t("cr.done.noAnswer"))))),
+    findingsToFix.length > 0 && h("div.sum-comment", {}, h("h4", {}, t("cr.kind.fix")),
+      h("ul", {}, findingsToFix.map(f => h("li", {}, f.text)))),
+    outstanding.length > 0 && h("div.sum-comment", {}, h("h4", {}, t("cr.done.outstanding")),
+      h("ul", {}, outstanding.map(row => h("li", {}, row.original.text)))),
     comments.length > 0 &&
       h(
         "ul.cr-sum-list",
@@ -96,6 +108,11 @@ export function renderDone(result, env) {
   const { delivered = true, listening = false } = env.delivery || {};
   const reviewed = result?.mode === "review";
   const state = cancelled ? "cancelled" : env.offline ? "file" : delivered ? "sent" : reviewed ? "saved" : listening ? "handing" : "saved";
+  const approved = result?.verdict === "approve" &&
+    !result.comments?.some(c => c.kind === "fix") &&
+    !result.reviewers?.findings?.some(f => f.decision === "fix") &&
+    !result.decisions?.some(d => d.answer === "no") &&
+    !result.resolved?.some(r => r.owner === "notFixed");
   const ring = { cancelled: ".cancel", sent: "", handing: ".handing", saved: ".saved", file: "" }[state];
   const line = state === "saved" && pasteLine(env.currentId || result?.round || "");
   const action = env.offline
@@ -116,7 +133,7 @@ export function renderDone(result, env) {
       : state === "handing"
         ? h("div.waiting", {}, h("span.pulse"), t("done.handingWait"))
         : state === "sent" || cancelled
-          ? closer(env)
+          ? closer(env, reviewed && state === "sent")
           : null;
   return h(
     "section.done-view",
@@ -128,7 +145,7 @@ export function renderDone(result, env) {
       h(`div.ring${ring}`, { html: icon(cancelled ? "x" : state === "sent" ? "check" : state === "saved" ? "alert" : "arrow") }),
       h("h2", {}, t(reviewed && REVIEW_STATES.includes(state) ? `cr.done.${state}` : `done.${state}`)),
       h("p.done-sub", {}, state === "file" ? t("done.fileSub", result.file) : t(reviewed && REVIEW_STATES.includes(state) ? `cr.done.${state}Sub` : `done.${state}Sub`)),
-      reviewed && state === "sent" && h("p.cr-done-recovery", {}, t("cr.done.recovery", env.currentId || result.round)),
+      reviewed && state === "sent" && h("p.cr-done-next", {}, t(approved ? "cr.done.complete" : "cr.done.agentNext")),
       line &&
         h(
           "div.paste-line.block",
@@ -146,12 +163,12 @@ export function renderDone(result, env) {
   );
 }
 
-function closer(env) {
-  if (!env.connected) return h("div.waiting", {}, t("done.gone"));
+function closer(env, reviewFinished = false) {
+  if (!env.connected && !reviewFinished) return h("div.waiting", {}, t("done.gone"));
   return h(
     "div.close-row",
     {},
-    h("div.waiting", {}, h("span.pulse"), env.closing === "failed" ? t("done.closeFailed") : t("done.waiting")),
+    !reviewFinished && h("div.waiting", {}, h("span.pulse"), env.closing === "failed" ? t("done.closeFailed") : t("done.waiting")),
     h("button.btn", { type: "button", onclick: env.closeTab, html: `${icon("x")}${t("done.close")}` }),
   );
 }

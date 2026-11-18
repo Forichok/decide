@@ -327,7 +327,7 @@ const closeRail = () => document.body.classList.remove("rail-open");
 function syncRail() {
   if (offline) return;
   ensureRail();
-  rail.setReview(document.body.classList.contains("review-mode"));
+  rail.setReview(app.view === "settings" || document.body.classList.contains("review-mode"));
   rail.set(app.inbox, app.round?.id ?? app.done?.id ?? null);
   // The header's "Rounds · n" button, where the rail is a drawer.
   for (const b of $$(".inbox-btn")) {

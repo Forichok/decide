@@ -129,7 +129,9 @@ in the overview or at the changed line.
 ## Settings
 
 Open the gear next to the theme button on any page. Back returns to the round
-or page you left. Each section has a Save button; a failed save keeps your edits.
+or page you left. Choose **Everywhere** or **In this project** at the top.
+Changing an option reveals its Save button. Switching scopes keeps your draft,
+and a failed save keeps it available for retry.
 
 Choose how much to ask everywhere, then give a project its own choice if needed.
 “Same as everywhere” clears that project’s override. Global choices live in
@@ -141,9 +143,9 @@ belong to the project and stay in its `rules.json`.
 Reviewer settings follow the same scopes. A project inherits or replaces the
 whole reviewer block, including the ordered role list. The default is to review
 large or risky changes, with 200 changed lines counting as large. The three
-starting roles check bugs, security and data, and what the checks prove. Expand
-a role to edit its title, brief or model; add, remove or reorder up to eight
-roles. An empty model means the agent’s default. A model the agent cannot start
+starting roles check bugs, security and data, and what the checks prove. Open
+**Review threshold and team** to change the size threshold or edit the roles.
+You can add, remove or reorder up to eight roles. An empty model means the agent’s default. A model the agent cannot start
 causes that role to be skipped and named in the review overview.
 
 Agents can read the effective choices, their sources and rules with

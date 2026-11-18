@@ -22,10 +22,26 @@ export function openModal(content, { wide = false, onClose } = {}) {
   const root = $("#overlay");
   const prevFocus = document.activeElement;
   const box = h(`div.modal${wide ? ".wide" : ""}`, { role: "dialog", "aria-modal": "true" }, content);
+  const title = box.querySelector("h1, h2, h3, .modal-title");
+  if (title) {
+    title.id ||= "decide-modal-title";
+    box.setAttribute("aria-labelledby", title.id);
+  }
   root.replaceChildren(box);
   root.hidden = false;
   document.body.classList.add("locked");
   const onKey = (e) => {
+    if (e.key === "Tab") {
+      const controls = [...box.querySelectorAll('a[href], button, input, select, textarea, summary, [tabindex]')]
+        .filter(el => el.tabIndex >= 0 && !el.matches(":disabled") && el.getClientRects().length);
+      const first = controls[0], last = controls.at(-1);
+      const edge = e.shiftKey ? first : last;
+      if (document.activeElement === edge || !box.contains(document.activeElement)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first)?.focus();
+      }
+      return;
+    }
     if (e.key !== "Escape") return;
     e.stopPropagation();
     close();

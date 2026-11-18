@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
+import { previousItems } from "../lib/review/resolved.mjs";
 import { prepareSpec } from "../lib/prepare.mjs";
 import { asAgent, asPage, envOf, exitOf, hasGit, homeOf, pluginDir, scratchDir, spawnServer } from "./helpers.mjs";
 
@@ -317,4 +318,15 @@ test("follow-up git arguments must be resolved commit ids", { skip: !hasGit }, a
   const traversal = cli("outline", "--previous", "../../feature");
   assert.equal(traversal.status, 2);
   assert.match(traversal.stderr, /unknown round/);
+});
+
+test("return carries mandatory unmarked replies until the owner accepts them", () => {
+  const row = { kind: "finding", required: true, how: "declined", original: { text: "Keep the digit." } };
+  const result = { verdict: "return", resolved: [
+    { ...row, ref: "f1", owner: null },
+    { ...row, ref: "f2", owner: "accepted" },
+    { ...row, ref: "f3", required: false, owner: null },
+    { ...row, ref: "d1", required: undefined, kind: "decision", owner: null },
+  ] };
+  assert.deepEqual(previousItems(result).map(item => item.kind), ["fix", "fix"]);
 });

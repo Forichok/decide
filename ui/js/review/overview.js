@@ -6,9 +6,9 @@ import { h } from "../dom.js";
 import { t } from "../i18n.js";
 import { md, mdInline } from "../md.js";
 import { coverageCounts } from "./coverage.js";
-import { decisionsOf, renderDecision } from "./decisions.js";
+import { answerOf, decisionsOf, renderDecision } from "./decisions.js";
 import { renderResolutions } from "./resolved.js";
-import { renderReviewers } from "./reviewers.js";
+import { blockingFindings, decisionOf, findingsOf, renderReviewers } from "./reviewers.js";
 import { collectRisks } from "./risks.js";
 
 export const checkState = (c) => (Number.isInteger(c.exit) ? (c.exit === 0 ? "ok" : "failed") : "missing");
@@ -36,7 +36,7 @@ export function renderTitle(s) {
         h("span.cr-followup-range", {}, t("cr.followup.since", snap.previous.round, short(snap.previous.head)), " ",
           counts(snap.stats), "; ", t("cr.followup.whole"), " ", counts(snap.wholeStats)),
       ] : [
-        h("span.chip.static", {}, h("code", {}, snap.headRef || snap.branch || "HEAD"), " → ", h("code", {}, snap.baseRef)),
+        h("span.chip.static", {}, h("code", { title: snap.headRef }, /^[0-9a-f]{40}$/i.test(snap.headRef) ? short(snap.headRef) : snap.headRef || snap.branch || "HEAD"), " → ", h("code", {}, snap.baseRef)),
         h("span.chip.static", {}, h("code", {}, `${short(snap.base)}..${short(snap.head)}`)),
         h("span.chip.static", {}, t("cr.files", snap.stats.files), " ", h("span.cr-add", {}, `+${snap.stats.added}`), " ", h("span.cr-del", {}, `−${snap.stats.removed}`)),
       ]),
@@ -81,6 +81,7 @@ export function renderOverview(s) {
   const acceptance = spec.acceptance;
   const sections = [
     rv.snapshot?.previous && renderResolutions(s),
+    section("summary", t("cr.whatChanged"), h("div.cr-lead.cr-md", { html: md(spec.summary) })),
     decisions.length && section("decisions", t("cr.decisions"), decisions.map((d) => h("div.cr-overview-decision", {}, renderDecision(s, d), h("button.link-btn", { type: "button", onclick: () => s.goPlace(d.chapter, d.index) }, t("cr.goPlace"))))),
     section("risks", t("cr.risks"), risks.length ? h("ul.cr-risks", {}, risks) : h("p.cr-none", {}, t("cr.noRisks"))),
     section("reviewers", t("cr.reviewers.title"), renderReviewers(s)),
@@ -91,7 +92,6 @@ export function renderOverview(s) {
       acceptance.expect && h("p", {}, t("cr.acceptance.expect"), " ", h("span", { html: mdInline(acceptance.expect) })),
       h("small.cr-hint", {}, t("cr.acceptance.note")),
     ]),
-    section("summary", t("cr.whatChanged"), h("div.cr-lead.cr-md", { html: md(spec.summary) })),
     section("checks", t("cr.checks"), [h("small.cr-hint", {}, t("cr.checksNote")), checks.length ? h("div.cr-checks-wrap", {}, h("table.cr-checks", {}, h("tbody", {}, checks))) : h("p.cr-none.warn", {}, t("cr.noChecks"))]),
     h("p.cr-mechanical-account", {}, mechanicalLine(s)),
   ];
@@ -194,9 +194,22 @@ export function renderBar(s) {
       line.textContent = t("cr.readOf", spec.chapters.filter(read).length, spec.chapters.length);
       const n = s.counts();
       const checks = s.checks();
-      const said = n.fix + n.nit + n.question ? t("cr.said.some", n.fix + n.nit + n.question, [n.fix && t("cr.n.fix", n.fix), n.question && t("cr.n.question", n.question), n.nit && t("cr.n.nit", n.nit)].filter(Boolean).join(", ")) : t("cr.said.none");
+      const open = findingsOf(s).filter(f => !decisionOf(s, f));
+      const blockers = blockingFindings(s);
+      const decisions = decisionsOf(s);
+      const answered = decisions.filter(d => answerOf(s, d) !== null).length;
+      const status = [];
+      if (open.length || blockers.length) {
+        const first = blockers[0] ?? open[0];
+        status.push(h("button.link-btn", { type: "button", onclick: () => s.goReviewers(first.id) },
+          t("cr.bar.findings", open.length, blockers.length)));
+      }
+      if (decisions.length) status.push(t("cr.bar.decisions", answered, decisions.length));
+      const said = n.fix + n.nit + n.question ? t("cr.said.some", n.fix + n.nit + n.question, [n.fix && t("cr.n.fix", n.fix), n.question && t("cr.n.question", n.question), n.nit && t("cr.n.nit", n.nit)].filter(Boolean).join(", ")) : "";
       const red = [checks.failed && t("cr.n.failed", checks.failed), checks.missing && t("cr.n.missing", checks.missing)].filter(Boolean).join(", ");
-      sub.replaceChildren(said, red ? " · " : "", red ? h("span.warn", {}, t("cr.checksRed", red)) : !checks.total ? h("span.warn", {}, ` · ${t("cr.checksNone")}`) : "");
+      if (said) status.push(said);
+      if (red || !checks.total) status.push(h("span.warn", {}, red ? t("cr.checksRed", red) : t("cr.checksNone")));
+      sub.replaceChildren(...status.flatMap((part, i) => i ? [" · ", part] : [part]));
     },
   };
 }

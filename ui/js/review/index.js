@@ -47,6 +47,8 @@ export function mountReview(round, env) {
 
   const saving = new Map();
   const resolving = new Map();
+  const answering = new Map();
+  s.isAnswerSaving = (chapter, at) => answering.has(`${chapter}:${at}`);
   s.isResolutionSaving = (ref) => resolving.has(ref);
   const resolutionsByHunk = new Map();
   for (const row of resolutionsOf(s)) {
@@ -117,7 +119,8 @@ export function mountReview(round, env) {
     const of = (kind) => all.filter((c) => c.kind === kind).length;
     const rejected = resolutionsOf(s).filter(row => markOf(s, row.ref) === "notFixed").length;
     const findings = findingsOf(s).filter(f => decisionOf(s, f)?.decision === "fix").length;
-    return { fix: of("fix") + rejected + findings, nit: of("nit"), question: of("question"), open: all.filter((c) => c.kind === "question" && !c.reply).length };
+    const negative = decisionsOf(s).filter(d => answerOf(s, d) === "no").length;
+    return { fix: of("fix") + rejected + findings + negative, nit: of("nit"), question: of("question"), open: all.filter((c) => c.kind === "question" && !c.reply).length };
   };
   s.checks = () => ({ failed: s.spec.checks.filter((c) => checkState(c) === "failed").length, missing: s.spec.checks.filter((c) => checkState(c) === "missing").length, total: s.spec.checks.length });
   // Chapter id → how many notes sit on its pieces.
@@ -220,9 +223,10 @@ export function mountReview(round, env) {
     el.focus({ preventScroll: true });
     s.paint();
   };
-  s.goReviewers = () => {
+  s.goReviewers = (id) => {
     ++jump;
-    const el = overview.querySelector(".cr-reviewers");
+    const section = overview.querySelector(".cr-reviewers");
+    const el = (id && [...section.querySelectorAll("[data-finding]")].find(card => card.dataset.finding === id)) || section;
     s.current = "overview";
     el.setAttribute("tabindex", "-1");
     el.scrollIntoView({ behavior: "instant", block: "start" });
@@ -416,14 +420,16 @@ export function mountReview(round, env) {
       failed(e);
     }
   };
-  s.answerDecision = async (d, value) => {
-    if (s.decisionSaving) return;
-    s.decisionSaving = true;
-    try {
-      await saveDecision(round.id, { chapter: d.chapter, at: d.at, answer: answerOf(s, d) === value ? null : value });
-      await refresh();
-    } catch (e) { failed(e); }
-    finally { s.decisionSaving = false; }
+  s.answerDecision = (d, value) => {
+    const key = `${d.chapter}:${d.at}`;
+    if (answering.has(key)) return;
+    const answer = answerOf(s, d) === value ? null : value;
+    const pending = saveDecision(round.id, { chapter: d.chapter, at: d.at, answer })
+      .then(async () => { await refresh(); return true; })
+      .catch(e => { failed(e); return false; })
+      .finally(() => { answering.delete(key); paintDecisions(s); });
+    answering.set(key, pending);
+    paintDecisions(s);
   };
   s.toggleRead = async (chapter) => {
     const read = !isRead(chapter);
@@ -439,13 +445,16 @@ export function mountReview(round, env) {
   };
 
   // ---- the verdict
-  s.verdict = (first, focusNote = false) => {
+  s.verdict = async (first, focusNote = false) => {
+    const writes = [...answering.values(), ...saving.values(), ...resolving.values()];
+    if (writes.length && (await Promise.all(writes)).includes(false)) return;
+    if (modalOpen()) return;
     if ((s.draft?.text || "").trim()) {
       toast(t("cr.unsent"));
       s.box?.scrollIntoView({ behavior: reduced.matches ? "auto" : "smooth", block: "center" });
       return s.box?.focusText();
     }
-    let verdict = first;
+    let verdict = first ?? suggested();
     const n = s.counts();
     const checks = s.checks();
     const unread = s.spec.chapters.filter((c) => !isRead(c.id));
@@ -480,7 +489,7 @@ export function mountReview(round, env) {
           approving && unmarked > 0 && h("div.cr-alert", { dataset: { alert: "resolution" } }, t("cr.followup.unmarked", unmarked), " ",
             h("button.link-btn", { type: "button", onclick: () => { close(); overview.querySelector("#cr-resolutions").focus(); } }, t("cr.followup.seeReplies"))),
           approving && decisionWarning("decisions", decisionsOf(s).filter((d) => answerOf(s, d) === null)),
-          v === "approve" && decisionWarning("decisionNo", decisionsOf(s).filter((d) => answerOf(s, d) === "no")),
+          approving && decisionWarning("decisionNo", decisionsOf(s).filter((d) => answerOf(s, d) === "no")),
           ...(approving ? reviewerWarnings(s, close) : []),
           approving && coverageWarning(s, () => { close(); s.openFiles(); }),
           approving && s.rv.newer && h("div.cr-alert", { dataset: { alert: "newer" } }, t("cr.alert.newer", s.rv.snapshot.head.slice(0, 7), s.rv.newer.head.slice(0, 7))),
@@ -497,7 +506,7 @@ export function mountReview(round, env) {
       if (busy) return;
       busy = true;
       try {
-        if ((await Promise.all([...saving.values(), ...resolving.values()])).includes(false)) { busy = false; return; }
+        if ((await Promise.all([...answering.values(), ...saving.values(), ...resolving.values()])).includes(false)) { busy = false; return; }
         await coverage.flush();
         const res = await submitRound(round.id, { verdict, ...(s.note.trim() ? { note: s.note.trim() } : {}) });
         s.note = "";
@@ -603,7 +612,7 @@ export function mountReview(round, env) {
     step,
     toggleRead: () => s.current.startsWith("ch:") && s.toggleRead(s.current.slice(3)),
     help: openKeys,
-    finish: () => (modalOpen() ? null : s.verdict(suggested())),
+    finish: () => (modalOpen() ? null : s.verdict()),
     stop() {
       coverage.stop();
       document.removeEventListener("keydown", onKey);
