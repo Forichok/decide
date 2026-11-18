@@ -592,6 +592,7 @@ function skipLink() {
 }
 
 async function boot() {
+  if (!offline) net.takeFileKeys();
   document.documentElement.lang = lang;
   skipLink();
   $("#toc").setAttribute("aria-label", t("toc"));
@@ -617,6 +618,7 @@ async function boot() {
   app.state.rounds.forEach((r) => app.seen.add(r.id));
   if (app.connected && !offline) app.inbox = (await loadInbox(app.state)) || [];
   window.addEventListener("hashchange", () => {
+    if (!offline) net.takeFileKeys();
     if (location.hash === "#journal") return app.view !== "journal" && (closeOverlays(), showJournal());
     if (location.hash === "#settings") return app.view !== "settings" && (closeOverlays(), showSettings());
     if (!location.hash && app.view === "settings") { settingsFrom = null; return showIdle(); }

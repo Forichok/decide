@@ -44,7 +44,7 @@ export function renderResolutions(s) {
         h("h4", {}, t(`cr.followup.${how}`)),
         h("ul.cr-resolution-list", {}, rows.map(row => {
           const { ref, original, kind, at, note } = row;
-          const location = original.line ? `${original.file}:${original.line}` : original.file;
+          const location = original.line ? `${original.file}:${original.line}${original.side === "old" ? ` (${t("cr.onOldLine", original.line)})` : ""}` : original.file;
           return h("li.cr-resolution", { dataset: { resolution: ref } },
             h("div.cr-resolution-meta", {}, t(kind === "finding" || kind === "decision" ? `cr.followup.${kind}` : `cr.kind.${kind}`), ` [${ref}]`, location && h("code", {}, location)),
             h("p.cr-resolution-original", {}, original.text),

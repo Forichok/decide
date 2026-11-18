@@ -10,6 +10,7 @@
 // A piece with no key place is shown whole when it is short, by its first lines when it is long, and
 // folded when its chapter has key places elsewhere. A long test file lists the names of its tests.
 
+import { createExposure } from "./exposure.js";
 import { renderFinding } from "./reviewers.js";
 import { resolutionMark } from "./resolved.js";
 import { renderDecision } from "./decisions.js";
@@ -231,7 +232,7 @@ export function renderPiece(s, piece, { folded = false } = {}) {
     );
 
   const resolutionRows = (owner, line) => s.resolutionsOf(owner)
-    .filter(row => row.anchor.line === line).map(row => resolutionMark(s, row));
+    .filter(row => keyOf(row.anchor) === lineKey(line)).map(row => resolutionMark(s, row));
 
   function rows() {
     const vis = visible();
@@ -245,7 +246,7 @@ export function renderPiece(s, piece, { folded = false } = {}) {
         continue;
       }
       for (const sp of spans) if (sp.first === i) out.push(placeRow(sp));
-      if (lines[i].n !== null) out.push(...resolutionRows(piece.id, lines[i].n));
+      out.push(...resolutionRows(piece.id, lines[i]));
       out.push(lineRow(lines[i], inPlace.get(i), painted[i], piece.id, marks.get(i)));
       if (lines[i].noeol) out.push(eolRow());
       i++;
@@ -268,7 +269,7 @@ export function renderPiece(s, piece, { folded = false } = {}) {
       row.classList.add("far");
       const focus = places.find(sp => i >= sp.first && i <= sp.last);
       if (focus) { row.classList.add("focus"); if (focus.place.kind) row.classList.add(`kind-${focus.place.kind}`); }
-      return [...places.filter(sp => sp.first === i).map(sp => placeRow(sp, l.owner, source)), ...resolutionRows(l.owner, l.n), row, ...(l.noeol ? [eolRow()] : [])];
+      return [...places.filter(sp => sp.first === i).map(sp => placeRow(sp, l.owner, source)), ...resolutionRows(l.owner, l), row, ...(l.noeol ? [eolRow()] : [])];
     });
     return [...neighbours(above), ...out, ...neighbours(below)];
   }
@@ -311,11 +312,17 @@ export function renderPiece(s, piece, { folded = false } = {}) {
       let file;
       try {
         file = await reviewFile(s.id, side === "old" ? piece.oldFile || piece.file : piece.file, side);
-      } catch {
-        file = null;
+      } catch (error) {
+        if (error.status !== 403) return toast(t("cr.wholeFailed"));
+        if (!el.querySelector(".cr-file-access")) {
+          el.querySelector(".cr-hunk-bar").after(h("p.cr-plain.cr-file-access", { role: "status" }, t("cr.wholeAccess", s.id)));
+        }
+        return;
+      } finally {
+        st.busy = false;
       }
-      st.busy = false;
       if (!file || file.binary || typeof file.text !== "string") return toast(t("cr.wholeFailed"));
+      el.querySelector(".cr-file-access")?.remove();
       st.file = layFile(file, piece);
     }
     if (all) st.above = st.below = Infinity;
@@ -337,19 +344,28 @@ export function renderPiece(s, piece, { folded = false } = {}) {
     compose({ hunk: row.dataset.owner, line: Number(line), side, kind: "fix" });
   });
 
+  s.exposure ??= createExposure(s.id);
+  function exposedState(owner, changed) {
+    const rows = [...tbody.querySelectorAll(`tr.cr-line.add[data-owner="${owner}"], tr.cr-line.del[data-owner="${owner}"]`)];
+    // A whole-file host can intersect the viewport while another owner's rows are far below it.
+    const visible = [];
+    for (const row of rows) {
+      const rect = row.getBoundingClientRect();
+      if (rect.bottom > 0 && rect.top < innerHeight && rect.right > 0 && rect.left < innerWidth) visible.push(row.dataset.key);
+    }
+    return s.exposure.observe(owner, visible, changed);
+  }
   el.coverageState = () => {
     if (!isHunk) return "opened";
     const changed = lines.filter((l) => l.t === "add" || l.t === "del").length;
-    // Count rendered rows: a full-diff request can be pending while s.full is already true.
-    const shown = tbody.querySelectorAll(`tr.cr-line.add[data-owner="${piece.id}"], tr.cr-line.del[data-owner="${piece.id}"]`).length;
-    return shown === changed ? "opened" : shown ? "part" : null;
+    // Count exposed rows: a full-diff request can be pending while s.full is already true.
+    return exposedState(piece.id, changed);
   };
   el.coveragePieces = () => {
     const result = { [piece.id]: el.coverageState() };
     for (const owner of new Set([...(st.file?.before ?? []), ...(st.file?.after ?? [])].map(l => l.owner).filter(Boolean))) {
       const all = [...st.file.before, ...st.file.after].filter(l => l.owner === owner && l.t !== "ctx").length;
-      const shown = tbody.querySelectorAll(`tr.cr-line.add[data-owner="${owner}"], tr.cr-line.del[data-owner="${owner}"]`).length;
-      result[owner] = shown === all ? "opened" : shown ? "part" : null;
+      result[owner] = exposedState(owner, all);
     }
     return result;
   };

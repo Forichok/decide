@@ -730,8 +730,8 @@ test("MCP: review → comments, a question, read marks → the verdict with ever
     const res = await fetch(`${url}api/rounds/${round}/${route}`, { method: "POST", headers: asPage(port), body: JSON.stringify(body) });
     return { status: res.status, body: await res.json() };
   };
-  const get = async (route = "") => {
-    const res = await fetch(`${url}api/rounds/${round}${route}`);
+  const get = async (route = "", headers = {}) => {
+    const res = await fetch(`${url}api/rounds/${round}${route}`, { headers });
     return { status: res.status, body: await res.json() };
   };
 
@@ -745,12 +745,23 @@ test("MCP: review → comments, a question, read marks → the verdict with ever
   assert.equal(group, "ch:top");
   assert.deepEqual(pieces.map((p) => [p.id, p.file, p.lines.length]), [["h1", "lib/a.mjs", 7], ["h7", "test/a.test.mjs", 2]]);
   assert.equal((await get("/pieces?group=ch:nope")).status, 404);
-  const whole = await get(`/file?path=${encodeURIComponent("lib/a.mjs")}&side=new`);
+  const ownerUrl = new URL(text(opened).match(/is open for the user: (\S+)/)[1]);
+  const key = new URLSearchParams(ownerUrl.hash.slice(1)).get("files");
+  assert.ok(key);
+  assert.ok(!JSON.stringify(first).includes(key));
+  for (const route of ["", "api/state", "api/inbox"]) {
+    const publicPage = await fetch(url + route);
+    assert.equal(publicPage.status, 200);
+    assert.ok(!(await publicPage.text()).includes(key), `the public ${route || "page"} does not grant file access`);
+  }
+  const getFile = (route) => get(route, { "x-decide-review-key": key });
+  assert.equal((await get("/file?path=lib/a.mjs&side=new")).status, 403);
+  const whole = await getFile(`/file?path=${encodeURIComponent("lib/a.mjs")}&side=new`);
   assert.equal(whole.status, 200);
   assert.match(whole.body.text, /^line 1\nline 2\nline three\n/);
-  assert.match((await get("/file?path=lib/a.mjs&side=old")).body.text, /\nline 3\n/);
+  assert.match((await getFile("/file?path=lib/a.mjs&side=old")).body.text, /\nline 3\n/);
   for (const [p, why] of [["secret.env", /not a file of this review's snapshot/], ["../x", /outside the project/], ["--help", /starts with "-"/]]) {
-    const res = await get(`/file?path=${encodeURIComponent(p)}&side=new`);
+    const res = await getFile(`/file?path=${encodeURIComponent(p)}&side=new`);
     assert.equal(res.status, 400, p);
     assert.match(res.body.error, why);
   }
@@ -882,7 +893,7 @@ test("a review survives a server restart: the snapshot, the comments, the read m
   assert.deepEqual(back.dialog.map((d) => [d.qid, d.ask, d.file, d.line, d.code]), [["h2", "Why fifty?", "lib/a.mjs", 50, "line fifty"]]);
   const group = await (await fetch(`${at(second.port)}/api/rounds/${id}/pieces?group=ch:tail`)).json();
   assert.deepEqual(group.pieces.map((p) => [p.id, p.newStart]), [["h2", 47]]);
-  const whole = await (await fetch(`${at(second.port)}/api/rounds/${id}/file?path=lib/a.mjs&side=new`)).json();
+  const whole = await (await fetch(`${at(second.port)}/api/rounds/${id}/file?path=lib/a.mjs&side=new`, { headers: asAgent(second.port) })).json();
   assert.match(whole.text, /^line 1\nline 2\nline three\n/, "the file as it was at the reviewed commit, not as it is now");
   const sent = await post(second.port, "submit", { verdict: "nits" });
   assert.equal(sent.status, 200);
@@ -1030,7 +1041,7 @@ const TEAM = {
 for (const { name, reviewers, errors, warnings } of [
   { name: "the gate refused the round", reviewers: { ran: [] }, errors: 1, warnings: [] },
   { name: "the spec says none ran", reviewers: { none: "Sub-agents are unavailable." }, errors: 0, warnings: [] },
-  { name: "part of the team ran", reviewers: TEAM, errors: 0, warnings: ['reviewers: role "tests" is missing from ran and skipped'] },
+  { name: "part of the team ran", reviewers: TEAM, errors: 1, warnings: [] },
 ]) test(`lint handles missing reviewer roles when ${name}`, () => {
   const requirement = {
     required: true, reason: "risks[] names a risk",
@@ -1146,10 +1157,10 @@ test("the reviewer gate agrees in lint and review; decisions survive a restart a
   assert.equal(outline.status, 0, outline.stderr);
   assert.match(JSON.parse(outline.stdout).reviewers.reason, /9 changed lines, the threshold is 9/);
 
-  const withTeam = { ...risky, reviewers: TEAM };
+  assert.equal((await open({ ...risky, reviewers: TEAM })).status, 422);
+  const withTeam = { ...risky, reviewers: { ...TEAM, skipped: [...TEAM.skipped, { role: "tests", model: "", why: "No test reviewer is available in this fixture." }] } };
   const started = await open(withTeam);
   assert.equal(started.status, 200);
-  assert.match(started.data.issues.map(i => i.message).join("\n"), /role "tests" is missing/);
   assert.equal(lint(withTeam).status, 0);
   const route = `rounds/${started.data.id}`;
   const decide = (id, decision, reason) => call(first.port, `${route}/finding`, { id, decision, reason });
@@ -1178,4 +1189,27 @@ test("the reviewer gate agrees in lint and review; decisions survive a restart a
   ]);
   assert.match(data.digest, /Verdict:.*\nReviewers: correctness \(concerns\); skipped: safety \(model not available\)/);
   assert.match(data.digest, /To fix \(1\):[\s\S]*\[f1\][\s\S]*Reviewer findings left open[\s\S]*\[f2\][\s\S]*Dismissed by the owner[\s\S]*\[f3\][\s\S]*Covered elsewhere/);
+});
+
+test("CLI review prints a live wait and writes the verdict to --out", { skip: !hasGit }, async (t) => {
+  const { dir } = await reviewRepo(t);
+  const specFile = path.join(dir, "change.review.json");
+  writeFileSync(specFile, JSON.stringify(REPO_SPEC));
+  const outputFile = path.join(dir, "chosen.json");
+  const cli = (...args) => spawnSync(process.execPath, [path.join(pluginDir, "decide.mjs"), ...args], {
+    cwd: dir, env: envOf(dir), encoding: "utf8", timeout: 20_000,
+  });
+  const opened = cli("review", specFile, "--out", outputFile, "--no-open", "--project", dir);
+  assert.equal(opened.status, 0, opened.stderr);
+  const [, id, origin] = opened.stdout.match(/Review (\S+).*?(http:\/\/127\.0\.0\.1:\d+)/);
+  assert.match(opened.stdout, new RegExp(`wait ${id} --live`));
+  const timeout = cli("wait", id, "--live", "--timeout-sec", "0", "--project", dir);
+  assert.equal(timeout.status, 4, timeout.stderr);
+  assert.match(timeout.stdout, new RegExp(`wait ${id} --live`));
+  const submitted = await fetch(`${origin}/api/rounds/${id}/submit`, {
+    method: "POST", headers: asPage(Number(new URL(origin).port)), body: JSON.stringify({ verdict: "approve" }),
+  });
+  assert.equal(submitted.status, 200);
+  assert.equal(JSON.parse(readFileSync(outputFile)).round, id);
+  assert.equal(existsSync(path.join(dir, "change.review.answers.json")), false);
 });

@@ -94,7 +94,7 @@ test("a review: overview, a chapter, a comment of each kind, a question, the ver
   const opened = await d.must("POST", "/api/rounds", { project: d.project, spec: SPEC, mode: "review", open: false });
   const id = opened.id;
   expect(opened.review).toMatchObject({ total: 6, sorted: 5 });
-  await page.goto(`${d.origin}/?lang=en#r=${id}`);
+  await page.goto(opened.url.replace("/#", "/?lang=en#"));
 
   // ---- the overview
   const overview = page.locator("#cr-overview");
@@ -220,7 +220,7 @@ test("a review with key places: the rest is folded and opens by the gap, the hun
   test.skip(!hasGit, "git is not installed");
   const opened = await d.must("POST", "/api/rounds", { project: d.project, spec: GUIDE, mode: "review", open: false, head: "guide" });
   expect(opened.review).toMatchObject({ total: 3, sorted: 3 });
-  await page.goto(`${d.origin}/?lang=en#r=${opened.id}`);
+  await page.goto(opened.url.replace("/#", "/?lang=en#"));
   await expect(page.locator("#cr-overview .cr-how")).toContainText("1 place");
 
   await expect(page.locator("#cr-overview .cr-risk")).toContainText("The loop.");
@@ -479,9 +479,18 @@ test("Russian review strings use the page's word for pieces", async () => {
 });
 
 
+async function exposeChangedRows(page, host) {
+  const rows = host.locator('tr.cr-line.add, tr.cr-line.del');
+  for (let i = 0; i < await rows.count(); i += 8) {
+    await rows.nth(i).scrollIntoViewIfNeeded();
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  }
+  await rows.last().scrollIntoViewIfNeeded();
+}
+
 test('coverage distinguishes hidden, partial and opened pieces, survives reload and warns on approval', async ({ page }) => {
   const opened = await d.must('POST', '/api/rounds', { project: d.project, spec: GUIDE, mode: 'review', open: false, head: 'guide' });
-  await page.goto(`${d.origin}/?lang=en#r=${opened.id}`);
+  await page.goto(opened.url.replace("/#", "/?lang=en#"));
   await page.locator('#cr-overview button.cr-risk').click();
   const big = page.locator('.cr-hunk').filter({ has: page.locator('.cr-path:text-is("lib/big.mjs")') });
   await expect(big).toBeInViewport();
@@ -525,6 +534,7 @@ test('coverage distinguishes hidden, partial and opened pieces, survives reload 
   await expect(files).toHaveCount(0);
   await page.locator('#cr-overview button.cr-risk').click();
   await big.getByRole('button', { name: 'Whole file', exact: true }).click();
+  await exposeChangedRows(page, big);
   await expect.poll(async () => (await d.round(opened.id)).review.coverage.h2).toBe('opened');
   await big.getByRole('button', { name: 'Fold', exact: true }).click();
   await page.reload();
@@ -572,7 +582,7 @@ test('requesting the whole diff does not count rows that have not unfolded yet',
     expect((await d.round(opened.id)).review.coverage.h2).toBe('part');
     release();
     await expect(big.locator('tr.cr-gap')).toHaveCount(0);
-    await big.scrollIntoViewIfNeeded();
+    await exposeChangedRows(page, big);
     await expect.poll(async () => (await d.round(opened.id)).review.coverage.h2).toBe('opened');
   } finally { release(); }
 });
@@ -663,6 +673,7 @@ for (const [colorScheme, lang, label] of [
     chapters: SPEC.chapters.map(c => ({ ...c, title })),
     reviewers: {
       ran: [{ role: "correctness", model: "", summary: "The parser may reject the word.", verdict: "concerns" }],
+      skipped: ["safety", "tests"].map(role => ({ role, model: "", why: "Outside this badge fixture." })),
       findings: [{ id: "f1", role: "correctness", severity: "blocking", at: "lib/a.mjs:3", text: "Keep the digit." }],
     },
   };
@@ -685,7 +696,7 @@ test("independent reviewer findings at their lines, decisions, and approval warn
   test.skip(!hasGit, "git is not installed");
   const reviewers = {
     ran: [{ role: "correctness", model: "sonnet", summary: "The parser may reject the word.", verdict: "concerns" }],
-    skipped: [{ role: "safety", model: "missing", why: "Model unavailable." }],
+    skipped: [{ role: "safety", model: "missing", why: "Model unavailable." }, { role: "tests", model: "", why: "Outside this fixture." }],
     findings: [
       { id: "f1", role: "correctness", severity: "blocking", at: "lib/a.mjs:3", line: "line three", text: "Keep the digit." },
       { id: "f2", role: "correctness", severity: "blocking", at: "lib/a.mjs:50", text: "Keep the other digit." },

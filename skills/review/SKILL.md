@@ -73,7 +73,8 @@ Always pass `project`, the absolute path of the project you work in.
    Correct the chapter references and read the reviewer requirement it prints.
 4. `review {project, spec}` opens the page and returns the round id, the URL
    and the lint warnings. Tell the user in one line that the review is open,
-   with the URL.
+   with the URL. The link lets the owner read whole files in this round. Keep it in the owner’s chat.
+   After a server restart, use `node decide.mjs open <round>` to get a fresh link.
 5. `wait {project, round}` returns one of:
    - **"Still waiting"**: call `wait` again at once.
    - **A question on a hunk**: the file, the line, the code on it and the
@@ -415,7 +416,8 @@ If the owner returned the change, run this loop:
 1. Fix the code and commit. Recheck the change the way the owner will use it.
 2. Run `outline` on the new head. It lists the previous items and fills in
    their IDs in the `resolved` skeleton. Fill in a reply for every item.
-   Use `fixed` with `at` on the new-file lines that changed. In `note`,
+   Use `fixed` with `at` on the new-file lines that changed. For a deleted file,
+   give its previous path, optionally followed by an old line number (for example, `lib/old.mjs:12`). In `note`,
    name the behavior that changed and how you checked it. Use `answered`
    for an explanation or `declined` for a change you chose to leave out.
    Give the answer or reason in the note. An explanation alone is
@@ -453,7 +455,7 @@ snapshot commit. If the branch has moved, the verdict names both commits.
 
 `Full JSON:` points to the round's own `answers.json`, which later rounds do
 not replace. The file next to the spec is a convenience copy; the next round
-of that spec overwrites it. An explicit `--out` still selects that copy's path.
+of that spec overwrites it. Use `--out <path>` to choose the copy's location. Relative paths start at the project root. Add `--outside` for a destination outside the project and its decide data directory.
 
 ## With the CLI
 
@@ -463,7 +465,7 @@ plugin root:
 ```bash
 node <plugin>/decide.mjs outline --project <project> [--base <ref>] [--head <ref>] [--previous <round> | --no-previous] [--json] [--place path:from-to] [--out spec.json] [--force] [--outside]
 node <plugin>/decide.mjs lint <spec.json> --project <project> [--previous <round> | --no-previous]
-node <plugin>/decide.mjs review <spec.json> --project <project> [--base <ref>] [--head <ref>] [--previous <round> | --no-previous]
+node <plugin>/decide.mjs review <spec.json> --project <project> [--out result.json] [--outside] [--base <ref>] [--head <ref>] [--previous <round> | --no-previous]
 node <plugin>/decide.mjs wait <round> --live --project <project>
 node <plugin>/decide.mjs explain <round> --question <id> --text "…" --project <project>
 ```

@@ -5,6 +5,12 @@ import { mdInline } from "../md.js";
 import { reviewerRoleDisplay } from "../reviewer-display.js";
 
 const SEVERITIES = ["blocking", "major", "minor"];
+export const missingRoles = (s) => {
+  const { ran = [], skipped = [], none, requirement } = s.rv.reviewers ?? {};
+  if (none || (!requirement?.required && !ran.length)) return [];
+  const named = new Set([...ran, ...skipped].map(r => r.role));
+  return (requirement?.roles ?? []).filter(r => !named.has(r.id));
+};
 export const findingsOf = (s) => s.rv.reviewers?.findings ?? [];
 export const decisionOf = (s, f) => Object.hasOwn(s.rv.findingDecisions ?? {}, f.id) ? s.rv.findingDecisions[f.id] : null;
 export const blockingFindings = s => findingsOf(s).filter(f => f.severity === "blocking" && decisionOf(s, f)?.decision !== "dismissed");
@@ -51,13 +57,15 @@ export function renderReviewers(s) {
   for (const r of skipped) rows.push(h("li.cr-reviewer.warn", {},
     h("div.cr-reviewer-head", {}, h("b", {}, roleTitle(s, r.role)), h("span", {}, r.model || t("cr.reviewers.defaultModel"))),
     h("div", {}, t("cr.reviewers.skipped", r.why))));
+  for (const role of missingRoles(s)) rows.push(h("li.cr-reviewer.warn", {},
+    h("b", {}, roleTitle(s, role.id)), h("div", {}, t("cr.reviewers.missing"))));
   const empty = requirement ? (requirement.mode === "request"
     ? t("cr.reviewers.request", requirement.lines)
     : t("cr.reviewers.notRequired", requirement.lines)) : t("cr.reviewers.legacy");
   return h("div", {},
     (rows.length > 0 || findings.length > 0) && h("small.cr-hint", {}, t("cr.reviewers.words")),
     rows.length > 0 && h("ul.cr-reviewer-list", {}, rows),
-    none ? h("p.cr-none.warn", {}, t("cr.reviewers.none", none)) : !ran.length && h("p.cr-none", {}, empty),
+    none ? h("p.cr-none.warn", {}, t("cr.reviewers.none", none)) : !ran.length && !rows.length && h("p.cr-none", {}, empty),
     findings.length > 0 && h("ol.cr-reviewer-list", {}, findings.map(f => h("li", {}, renderFinding(s, f, false)))),
     findings.some(f => f.anchor) && h("button.chip.cr-finding-toggle", { type: "button", onclick: () => s.setFindings(!s.showFindings) }),
   );
@@ -145,6 +153,7 @@ export function reviewerWarnings(s, close) {
   const alert = (kind, ...body) => h("div.cr-alert", { dataset: { alert: `reviewer-${kind}` } }, body);
   return [
     blocking.length && alert("blocking", h("b", {}, t("cr.reviewers.blockingWarning", blocking.length)), h("div.cr-finding-jumps", {}, links)),
+    missingRoles(s).length && alert("missing", t("cr.reviewers.missingWarning", missingRoles(s).map(r => roleTitle(s, r.id)).join(", "))),
     skipped.length && alert("skipped", t("cr.reviewers.skippedWarning", skipped.map(r => roleTitle(s, r.role)).join(", "))),
     none && alert("none", t("cr.reviewers.none", none)),
   ].filter(Boolean);

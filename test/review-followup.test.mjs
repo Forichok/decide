@@ -292,7 +292,7 @@ test("the follow-up result records the owner's marks and carries Not fixed into 
   const { result } = (await finish(follow.id)).data;
   assert.deepEqual(JSON.parse(readFileSync(output, "utf8")).resolved, result.resolved);
   assert.deepEqual(result.previous, { round: first.id, head });
-  assert.deepEqual(result.resolved[0], { ...reply(fix), kind: "fix", original: { text: "Use a digit.", file: "parser.txt", line: 2 }, owner: "notFixed" });
+  assert.deepEqual(result.resolved[0], { ...reply(fix), kind: "fix", original: { text: "Use a digit.", file: "parser.txt", line: 2, side: "new" }, owner: "notFixed" });
   assert.deepEqual(result.resolved.map(r => [r.ref, r.how, r.owner]), [[fix, "fixed", "notFixed"], [nit, "declined", "accepted"], [example, null, null]]);
   assert.match(result.digest, new RegExp(`Verdict: RETURNED[^\\n]*\\nFollow-up to round ${first.id}\\.`));
   assert.match(result.digest, /Your fixes, as the owner judged them[\s\S]*Not fixed[\s\S]*Use a digit\.[\s\S]*Restored the digit\.[\s\S]*Not marked[\s\S]*Add an example\.[\s\S]*Accepted \(1\)/);

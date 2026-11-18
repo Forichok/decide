@@ -130,9 +130,9 @@ test("'in words' with no agent that takes events is saved as the note and shown"
   const id = await openTune(page);
   // A new round counts as listened to for 90 s; a plain `ask` waiter (held, no events) is the other way to
   // reach the same branch: the item would never be handed out, so the words become a note.
-  const hold = fetch(`${d.origin}/api/rounds/${id}/next?waiter=plain&timeout=6000`, { headers: { "x-decide-token": d.token, origin: d.origin } }).catch(() => null);
-  await new Promise((r) => setTimeout(r, 400));
   await card(page, "card").locator("textarea.tn-words-in").fill("more airy");
+  const hold = fetch(`${d.origin}/api/rounds/${id}/next?waiter=plain&timeout=6000`, { headers: { "x-decide-token": d.token, origin: d.origin } });
+  await expect.poll(async () => (await d.round(id)).threadListening).toBe(false);
   await card(page, "card").locator('[data-act="words"]').click();
   // The words come back as the question's note and the note box shows them.
   await expect(card(page, "card").locator("textarea.note")).toHaveValue(/more airy/);

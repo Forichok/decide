@@ -1,6 +1,6 @@
 // net.js — API calls to the session daemon. The page proves itself by its Origin: the browser puts it on
 // every fetch that is not a GET (POST and PUT here), and the daemon only takes a write whose Origin is its
-// own. The page holds no token and makes no other kind of write.
+// own. A local owner link also grants read access to whole review files.
 
 const WRITE = { "content-type": "application/json" };
 
@@ -198,7 +198,38 @@ export const fitRound = (id, minutes) => post(`/api/rounds/${id}/fit`, { minutes
 
 // A code review round (ui/js/review/): its diff a group at a time, one file whole, comments, read marks.
 export const reviewPieces = (id, group) => fetch(`/api/rounds/${id}/pieces?${new URLSearchParams({ group })}`, { cache: "no-store" }).then(json);
-export const reviewFile = (id, path, side) => fetch(`/api/rounds/${id}/file?${new URLSearchParams({ path, side })}`, { cache: "no-store" }).then(json);
+// The address bar keeps only the round id. A returning tab or installed app can
+// recover its read access from this origin's browser storage until the daemon restarts.
+const fileKeys = new Map();
+const fileKeyName = (scope) => `decide.review-files.${scope}`;
+export function takeFileKeys() {
+  const params = new URLSearchParams(location.hash.slice(1));
+  const scope = params.has("homeFiles") ? "*" : params.get("r");
+  const field = scope === "*" ? "homeFiles" : "files";
+  if (!params.has(field)) return;
+  const key = params.get(field);
+  if (scope && /^[a-f0-9]{64}$/.test(key)) {
+    fileKeys.set(scope, key);
+    try { localStorage.setItem(fileKeyName(scope), key); } catch {}
+  }
+  params.delete(field);
+  const hash = params.toString();
+  history.replaceState(null, "", location.pathname + location.search + (hash ? `#${hash}` : ""));
+}
+
+function fileKey(scope) {
+  if (fileKeys.has(scope)) return fileKeys.get(scope);
+  try { return localStorage.getItem(fileKeyName(scope)); } catch { return null; }
+}
+
+export const reviewFile = (id, path, side) => {
+  const headers = {};
+  const home = fileKey("*");
+  const round = fileKey(id);
+  if (round) headers["x-decide-review-key"] = round;
+  if (home) headers["x-decide-home-files"] = home;
+  return fetch(`/api/rounds/${id}/file?${new URLSearchParams({ path, side })}`, { headers, cache: "no-store" }).then(json);
+};
 export const reviewComment = (id, body) => post(`/api/rounds/${id}/comment`, body);
 export const reviewUncomment = (id, comment) => post(`/api/rounds/${id}/uncomment`, { id: comment });
 export const reviewRead = (id, chapter, read) => post(`/api/rounds/${id}/read`, { chapter, read });
