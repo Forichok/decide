@@ -1,7 +1,7 @@
 // settings.js — how much to ask: the two buttons under an answered question ("don't ask about this again",
 // "always ask me") and the #settings page with the level and the rules.
 
-import { h } from "./dom.js";
+import { h, icon } from "./dom.js";
 import { t } from "./i18n.js";
 import { addRuleTo, getSettings, removeRuleFrom, setLevel, holdReload } from "./net.js";
 import { credit, eyebrow } from "./header.js";
@@ -182,8 +182,16 @@ export function renderSettings(env) {
     };
   }
 
+  function sectionHeading(title, symbol, description) {
+    return h("div.set-section-heading", {},
+      h("span.set-symbol", { "aria-hidden": "true", html: icon(symbol) }),
+      h("div", {}, h("h3.sum-h", {}, t(title)), description && hint(description)));
+  }
+
   function scoped(name, title, makeFields) {
-    const box = h("section.set-section", {}, h("h3.sum-h", {}, t(title)));
+    const level = name === "level";
+    const box = h("section.set-section.set-row", {},
+      sectionHeading(title, level ? "help" : "check", level ? "settings4.askDescription" : "settings4.reviewDescription"));
     for (const scope of project ? ["global", "project"] : ["global"]) {
       let fields;
       let inherit;
@@ -212,7 +220,7 @@ export function renderSettings(env) {
         change();
         form.form.append(field("settings4.projectSource", inherit));
       }
-      form.form.append(source, fieldset, form.footer);
+      form.form.append(fieldset, source, form.footer);
       const update = () => {
         const from = scope === "global" ? data.settings[name].globalFrom : data.settings[name].from;
         if (scope === "project" && inherit.trigger.value === "inherit") {
@@ -254,13 +262,25 @@ export function renderSettings(env) {
   }
 
   function themeSection() {
-    const input = settingsChoice(["light", "dark", "system"].map((key) => [key, t(`settings4.theme.${key}`)]), env.themeChoice());
+    const choices = ["light", "dark", "system"];
     const status = h("span.set-save-state", { role: "status", "aria-live": "polite" });
-    const retry = button("settings4.retry", () => { input.trigger.focus(); apply(); });
+    const radios = choices.map(value => h("input.sr-only", {
+      type: "radio", name: "settings-theme", value, checked: env.themeChoice() === value,
+      onchange: () => apply(value),
+    }));
+    const tiles = choices.map((choice, i) => h("label.set-theme-tile", { dataset: { choice } }, radios[i],
+      h("span.set-preview", { "aria-hidden": "true" }, h("i"), h("i"), h("i")),
+      h("span.set-theme-caption", {}, t(`settings4.theme.${choice}`), h("i", { "aria-hidden": "true", html: icon("check") }))));
+    const retry = button("settings4.retry", () => {
+      const current = radios.find(radio => radio.checked);
+      current.focus();
+      apply(current.value);
+    });
     retry.hidden = true;
-    const section = h("section.set-section", { dataset: { setting: "theme", scope: "browser", themeForm: "" } },
-      h("h3.sum-h", {}, t("settings4.theme")), hint("settings4.themeScope"), field("settings4.theme", input),
-      h("div.set-actions", {}, retry, status));
+    const section = h("section.set-section.set-row.set-appearance", { dataset: { setting: "theme", scope: "browser", themeForm: "" } },
+      sectionHeading("settings4.appearance", "sun", "settings4.themeScope"),
+      h("div", {}, h("fieldset.set-tiles", {}, h("legend.sr-only", {}, t("settings4.theme")), tiles),
+        h("div.set-actions", {}, retry, status)));
     const showResult = (saved) => {
       if (saved) drafts.delete(section);
       else drafts.add(section);
@@ -268,16 +288,15 @@ export function renderSettings(env) {
       status.classList.toggle("failed", !saved);
       retry.hidden = saved;
     };
-    function apply() {
-      try { env.setTheme(input.trigger.value); }
+    function apply(value) {
+      try { env.setTheme(value); }
       catch (err) {
         showResult(false);
         toast(err.message);
       }
     }
-    input.trigger.onchange = apply;
     section.addEventListener("decide-theme", (e) => {
-      input.select(e.detail.choice);
+      for (const radio of radios) radio.checked = radio.value === e.detail.choice;
       showResult(e.detail.saved);
     });
     return section;
@@ -296,12 +315,20 @@ export function renderSettings(env) {
         if (form.dataset.setting === "rules") form.parentElement.hidden = form.hidden;
       }
     }
-    body.replaceChildren(...(scopeButtons ? [h("div.set-scopes", { role: "group", "aria-label": t("settings4.scope") }, scopeButtons)] : []), scoped("level", "settings4.askHeading", levelFields), scoped("reviewers", "settings4.reviewers", reviewerFields), rulesSection(), themeSection());
+    const projectName = project?.split(/[\\/]/).filter(Boolean).at(-1);
+    body.replaceChildren(
+      h("header.set-page-head", {},
+        h("div", {}, h("h2.set-title", {}, t("settings.title")),
+          projectName && h("span.set-project-name", { title: project }, t("settings4.projectName", projectName))),
+        scopeButtons && h("div.set-scopes", { role: "group", "aria-label": t("settings4.scope") }, scopeButtons)),
+      h("div.set-panel", {}, scoped("level", "settings4.askHeading", levelFields),
+        scoped("reviewers", "settings4.reviewers", reviewerFields), rulesSection()),
+      themeSection());
     showScope("global");
   }
   load();
   return h("section.done-view.settings-view", {}, eyebrow(env),
-    h("button.link-btn.set-back", { type: "button", onclick: env.leaveSettings }, t("settings4.back")),
-    h("h2.set-title", {}, t("settings.title")),
-    project && h("p.set-project-name", { title: project }, t("settings4.projectName", project.split(/[\\/]/).filter(Boolean).at(-1) || project)), body, credit());
+    h("button.set-back", { type: "button", onclick: env.leaveSettings },
+      h("span", { html: icon("left"), "aria-hidden": "true" }), t("settings4.back")),
+    body, credit());
 }
