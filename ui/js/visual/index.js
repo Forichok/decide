@@ -7,6 +7,7 @@ import { hideBar } from "../round.js";
 import { captureLabel, evidenceViewer, marker, themeName } from "./evidence.js";
 import { visualChoice } from "./choice.js";
 import { seconds } from "./playback.js";
+import { defaultImageLayout } from "./preference.js";
 
 const word = key => t("va." + key);
 const button = (key, fn, primary = false) => h("button.btn", { class: primary ? "primary" : "", type: "button", onclick: fn }, word(key));
@@ -187,7 +188,8 @@ export function mountVisual(round, env) {
 let lastEvidence;
 function completedEvidence(spec, result, stay) {
   if (!spec?.tasks) return null;
-  if (lastEvidence?.id === result.round) return lastEvidence.el;
+  const layout = defaultImageLayout();
+  if (lastEvidence?.id === result.round && lastEvidence.layout === layout) return lastEvidence.el;
   const body = h("div");
   const viewers = [];
   const details = h("details.va-completed", {}, h("summary", {}, word("revisit")), body);
@@ -204,7 +206,7 @@ function completedEvidence(spec, result, stay) {
         task.gap && h("p.va-gap", {}, task.gap)));
     }
   };
-  lastEvidence = { id: result.round, el: details };
+  lastEvidence = { id: result.round, layout, el: details };
   return details;
 }
 

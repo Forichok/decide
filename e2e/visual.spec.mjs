@@ -45,6 +45,33 @@ async function open(page, input = spec) {
   return id;
 }
 
+test("settings choose the initial layout for paired screenshots", async ({ page }) => {
+  await open(page);
+  const divider = page.getByRole("slider", { name: "Before and after divider" });
+  await expect(page.getByRole("button", { name: "Side by side", exact: true })).toBeVisible();
+  await expect(divider).toBeHidden();
+  const settings = page.getByRole("button", { name: "Open settings", exact: true });
+  const layout = page.getByRole("combobox", { name: "Default screenshot view" });
+  const back = page.getByRole("button", { name: "Back", exact: true });
+  await settings.click();
+  await expect(layout).toHaveText("Side by side", { timeout: 2000 });
+  await layout.click();
+  await page.getByRole("option", { name: "Wipe", exact: true }).click();
+  await back.click();
+  await expect(divider).toBeVisible();
+  await page.getByRole("button", { name: "Side by side", exact: true }).click();
+  await expect(divider).toBeHidden();
+  await page.reload();
+  await expect(divider).toBeVisible();
+  await settings.click();
+  await expect(layout).toHaveText("Wipe");
+  await layout.click();
+  await page.getByRole("option", { name: "Side by side", exact: true }).click();
+  await back.click();
+  await expect(page.getByRole("button", { name: "Side by side", exact: true })).toBeVisible();
+  await expect(divider).toBeHidden();
+});
+
 test("compare evidence, mark a region and a recording, and return the round", async ({ page }) => {
   const id = await open(page);
   await expect(page.getByRole("heading", { name: "Save email preferences" })).toBeVisible();

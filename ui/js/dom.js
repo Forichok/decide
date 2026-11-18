@@ -58,6 +58,7 @@ const P = {
   history: '<path d="M3 12a9 9 0 103-6.7L3 8"/><path d="M3 3v5h5M12 8v4l3 2"/>',
   pen: '<path d="M4 20l1.5-5.5L16 4a2.1 2.1 0 013 3L8.5 17.5z"/><path d="M14 6l3 3"/>',
   square: '<rect x="4" y="5" width="16" height="14" rx="2"/>',
+  comparison: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M12 5v14"/>',
   pointer: '<path d="M5 19L19 5M19 5h-8M19 5v8"/>',
   undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',

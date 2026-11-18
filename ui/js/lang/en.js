@@ -902,6 +902,8 @@ export default {
   "settings4.rulesScope": "These rules belong to this project. Mark rules to remove, then save.",
   "settings4.theme": "Theme",
   "settings4.themeScope": "The theme applies to this browser.",
+  "settings4.comparisonScope": "Applies to every round in this browser.",
+  "settings4.comparisonLayout": "Default screenshot view",
   "settings4.theme.light": "Light",
   "settings4.theme.dark": "Dark",
   "settings4.theme.system": "As the system",

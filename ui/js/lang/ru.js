@@ -909,6 +909,8 @@ export default {
   "settings4.rulesScope": "Эти правила действуют в этом проекте. Отметьте ненужные и сохраните.",
   "settings4.theme": "Тема",
   "settings4.themeScope": "Тема действует в этом браузере.",
+  "settings4.comparisonScope": "Для всех раундов в этом браузере.",
+  "settings4.comparisonLayout": "Сравнение снимков по умолчанию",
   "settings4.theme.light": "Светлая",
   "settings4.theme.dark": "Тёмная",
   "settings4.theme.system": "Как в системе",

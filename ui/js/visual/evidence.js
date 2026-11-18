@@ -2,6 +2,7 @@ import { h } from "../dom.js";
 import { t } from "../i18n.js";
 import { openModal } from "../overlays.js";
 import { visualChoice } from "./choice.js";
+import { defaultImageLayout } from "./preference.js";
 import { playback, seconds } from "./playback.js";
 
 const sides = ["before", "after"];
@@ -53,7 +54,9 @@ export function evidenceViewer(task, evidence, range, save) {
   const has = kind => sides.some(side => evidence[side]?.[kind]);
   const readOnly = !save;
   let kind = has("image") ? "image" : "video";
-  let wipe = false, zoom = 1, expanded = "", marking = false, syncing = false;
+  const sameImages = sides.every(side => evidence[side]?.image);
+  let wipe = sameImages && defaultImageLayout() === "wipe";
+  let zoom = 1, expanded = "", marking = false, syncing = false;
   let marks = [], player;
   const view = h("div.va-compare");
   const hint = h("p.va-meta", { hidden: true }, word("placeHint"));
@@ -80,7 +83,6 @@ export function evidenceViewer(task, evidence, range, save) {
   const divider = h("input.va-divider", { type: "range", min: 0, max: 100, value: 50, "aria-label": word("divider") });
   divider.oninput = () => view.style.setProperty("--cut", divider.value + "%");
   const bar = (...items) => h("div.va-buttons", {}, items);
-  const sameImages = sides.every(side => evidence[side]?.image);
   controls.append(bar(has("image") && has("video") ? [photos, motion] : []),
     bar(sameImages ? [split, dividerMode] : [], zoomControl, markButton));
   const list = h("ol.va-marks");
