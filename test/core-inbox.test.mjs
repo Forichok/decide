@@ -146,11 +146,11 @@ test("the inbox puts high stakes first, then the longest waiting, then the round
 
 // ---- the server
 
-function stream(t, port) {
+function stream(t, port, query = "") {
   const seen = [];
   let ready;
   const opened = new Promise((r) => (ready = r));
-  const req = request({ host: "127.0.0.1", port, path: "/api/events" }, (res) => {
+  const req = request({ host: "127.0.0.1", port, path: "/api/events" + query }, (res) => {
     res.setEncoding("utf8");
     let buf = "";
     res.on("data", (chunk) => {
@@ -224,4 +224,26 @@ test("GET /api/inbox, `event: inbox` on a change, and both inbox and state when 
   await waiting;
   await until(() => inboxes().at(-1).rounds[0].listening === false, "the inbox says the agent left");
   await until(() => events.seen.filter((e) => e.name === "state").at(-1).data.rounds.find((r) => r.id === id).listening === false, "the state says it left");
+});
+
+test("a background Decide page does not swallow the browser launch for a new round", async (t) => {
+  const dir = await scratchDir(t);
+  const home = homeOf(dir);
+  const launches = [];
+  const server = await startServer({ home, embedded: true, openUrl: url => launches.push(url) });
+  t.after(() => server.stop());
+  await stream(t, server.port, "?page=reader&watching=1").opened;
+  const s = await findServer(home);
+  const create = (open) => api(s, "/api/rounds", {
+    method: "POST", body: { project: dir, spec: specOf("New round"), open },
+  });
+  await create(true);
+  await api(s, "/api/watching", { method: "POST", body: { page: "reader", watching: false } });
+  await create(false);
+  const background = await create(true);
+  await until(() => launches.length > 0, "launch of the round URL");
+  const followup = await create(true);
+  await until(() => server.store.inbox().rounds.some(row => row.id === followup.id), "follow-up in the inbox");
+  await sleep(50);
+  assert.deepEqual(launches, [background.url]);
 });

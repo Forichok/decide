@@ -80,8 +80,8 @@ it the tools can't tell where to keep the journal and screenshots.
    (`desktop`, `mobile` or `both`) and returns PNG paths for the spec.
    `screenshot {project, simulator: "ios" | "android", device?}` captures the
    booted iOS simulator or the running Android emulator instead.
-3. `ask {project, spec}` opens the round and returns its id and URL. Tell the
-   user in one line that the questions are open, with the URL. If the output
+3. `ask {project, spec}` creates the round and returns its id and URL. Give the
+   user a clickable link to the questions. The URL confirms that the round is ready. If the output
    says a question may contradict a decision that still holds, read that
    decision: reuse it instead of asking, or ask and supersede it afterwards
    (see [Decisions that change](#decisions-that-change)).

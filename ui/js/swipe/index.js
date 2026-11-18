@@ -55,7 +55,40 @@ export function mountSwipe(round, env) {
   const trail = Object.entries(s.server.answers)
     .sort((a, b) => a[1].at - b[1].at)
     .map(([id]) => id);
+  let answerSeq = round.seq;
+  const writes = new Map();
   let deltaTimer = null;
+
+  function remember(id) {
+    const index = trail.indexOf(id);
+    if (index !== -1) trail.splice(index, 1);
+    trail.push(id);
+  }
+
+  // HTTP replies and deck events carry the same answers, but can arrive in either order.
+  function confirmAnswers(answers, seq) {
+    if (seq < answerSeq) return;
+    s.server.answers = answers;
+    answerSeq = seq;
+  }
+
+  async function sendSwipe(body) {
+    const { answers, seq } = await swipeCard(round.id, body);
+    confirmAnswers(answers, seq);
+  }
+
+  function writeCard(id, choice, send) {
+    s.inflight.set(id, choice);
+    const previous = writes.get(id);
+    const sent = (previous ? previous.catch(() => {}) : Promise.resolve()).then(send).finally(() => {
+      if (writes.get(id) === sent) {
+        writes.delete(id);
+        s.inflight.delete(id);
+      }
+    });
+    writes.set(id, sent);
+    return sent;
+  }
 
   // ---- text that must survive a reload: the closing note, an own answer, a question to the agent
   const KEY = `decide.swipe.${round.id}`;
@@ -239,24 +272,23 @@ export function mountSwipe(round, env) {
     // An answer to check: the same side keeps it; another side takes the old answer back first.
     const old = s.isRecheck(c.id) ? s.answers()[c.id] : null;
     if (old && side === old.side && side !== "own") {
+      remember(c.id);
       s.react.kept.set(c.id, sigOf(norm(old)));
       keepAnswer(round.id, c.id).catch(() => {});
       await deckView.fly(side);
       return s.paint();
     }
-    s.inflight.set(c.id, side === "own" ? { side, text, at: Date.now() } : { side, at: Date.now() });
-    trail.push(c.id);
-    const send = () => swipeCard(round.id, { card: c.id, side, ...(side === "own" ? { text } : {}), rev: c.rev || 0, ms });
+    const choice = side === "own" ? { side, text, at: Date.now() } : { side, at: Date.now() };
+    remember(c.id);
+    const send = () => sendSwipe({ card: c.id, side, ...(side === "own" ? { text } : {}), rev: c.rev || 0, ms });
     // Sent before the card flies off, so the daemon knows which card is on screen next as soon as possible.
-    const sent = old ? swipeCard(round.id, { card: c.id, undo: true }).then(send) : send();
-    sent.catch(() => {});
+    const sent = writeCard(c.id, choice, () => old ? sendSwipe({ card: c.id, undo: true }).then(send) : send());
+    sent.catch(() => {}); // the animation finishes before the error is shown
     await deckView.fly(side);
     s.paint();
     try {
       await sent;
     } catch (e) {
-      s.inflight.delete(c.id);
-      trail.pop();
       if (side === "own" && e.status !== 409 && !s.writing) {
         // Keep what the user typed: the card comes back with the box open.
         s.writing = s.queue()[0]?.id === c.id ? c.id : null;
@@ -268,31 +300,28 @@ export function mountSwipe(round, env) {
       s.paint();
       return;
     }
-    s.inflight.delete(c.id);
   };
 
   s.undo = async function undo() {
-    if (s.flying || s.finishing) return;
+    if (s.finishing) return;
     const a = s.answers();
-    while (trail.length && !a[trail.at(-1)]) trail.pop();
-    const id = trail.pop();
+    const ghosts = s.states().ghosts;
+    const id = trail.findLast(id => a[id] && !ghosts.has(id));
     if (!id) return toast(t("sw.nothingToUndo"));
     s.asking = null;
     s.writing = null;
     s.ownDraft = "";
     s.persist();
     s.pinned = id;
-    s.inflight.set(id, { undo: true });
+    const sent = writeCard(id, { undo: true }, () => sendSwipe({ card: id, undo: true }));
     s.paint();
     $(".sw-card.front", deckView.stack)?.classList.add("back-in");
     try {
-      await swipeCard(round.id, { card: id, undo: true });
+      await sent;
     } catch (e) {
-      trail.push(id);
-      s.pinned = null;
+      if (s.pinned === id) s.pinned = null;
       toast(t(e.status === 409 ? "sw.closed" : "sw.offline"));
     }
-    s.inflight.delete(id);
     s.paint();
   };
 
@@ -346,6 +375,7 @@ export function mountSwipe(round, env) {
     if (s.finishing) return;
     s.finishing = true;
     try {
+      await Promise.all(writes.values());
       const res = await submitRound(round.id, s.note.trim() ? { note: s.note.trim() } : {});
       store.write(null);
       env.finished(round.id, res.result);
@@ -400,7 +430,7 @@ export function mountSwipe(round, env) {
       for (const d of next.filter((x) => x.reply && !had.has(x.id) && x.qid !== top?.id)) toast(t("toast.replied", s.byId().get(d.qid)?.title || d.qid));
       s.paint();
     },
-    setDeck(next, view) {
+    setDeck(next, view, seq) {
       const a = s.answers();
       const shown = s.queue()[0]?.id;
       const before = new Set(s.deck.cards.map((c) => c.id));
@@ -408,7 +438,10 @@ export function mountSwipe(round, env) {
       const added = next.cards.filter((c) => !before.has(c.id)).map((c) => c.id);
       const removed = [...before].filter((id) => !after.has(id) && !a[id]).length;
       s.deck = next;
-      s.server = view || s.server;
+      if (view) {
+        s.server = { ...view, answers: s.server.answers };
+        confirmAnswers(view.answers, seq);
+      }
       // The card the user is reading stays in front, even if the push landed before the daemon heard the last answer.
       if (shown && s.queue().some((c) => c.id === shown) && s.queue()[0].id !== shown) s.pinned = shown;
       if (added.length || removed) announce(added, removed);

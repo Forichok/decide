@@ -28,7 +28,7 @@ export default {
   "done.cancelled": "Round cancelled",
   "done.sent": "The agent has your answers",
   "done.cancelledSub": "The agent will ask in chat how to go on.",
-  "done.sentSub": "It carries on with the task. If it needs more from you, new questions show up in this tab.",
+  "done.sentSub": "The agent can continue with your answers.",
   "done.more": (n) => (n === 1 ? "1 more round is waiting" : `${n} more rounds are waiting`),
   "done.waiting": "Waiting for the next round",
   "done.gone": "The agent has disconnected. You can close this tab.",

@@ -127,8 +127,7 @@ export function renderDone(result, env) {
           "div.next-row",
           {},
           h("button.btn.primary", { type: "button", onclick: () => env.switchTo(next.id), html: `${t("done.next", next.title)}${icon("arrow")}` }),
-          typeof env.advance === "number" && h("span.next-count", {}, t("done.advance", env.advance)),
-          typeof env.advance === "number" && h("button.link-btn", { type: "button", onclick: env.stay }, t("done.stay")),
+          countdown(env, "done.advance"),
         )
       : state === "handing"
         ? h("div.waiting", {}, h("span.pulse"), t("done.handingWait"))
@@ -163,12 +162,22 @@ export function renderDone(result, env) {
   );
 }
 
+function countdown(env, label) {
+  if (typeof env.advance !== "number") return null;
+  return [
+    h("span.next-count", {}, t(label, env.advance)),
+    h("button.link-btn", { type: "button", onclick: env.stay }, t("done.stay")),
+  ];
+}
+
 function closer(env, reviewFinished = false) {
   if (!env.connected && !reviewFinished) return h("div.waiting", {}, t("done.gone"));
   return h(
     "div.close-row",
     {},
-    !reviewFinished && h("div.waiting", {}, h("span.pulse"), env.closing === "failed" ? t("done.closeFailed") : t("done.waiting")),
+    env.closing === "failed"
+      ? h("div.waiting", {}, t("done.closeFailed"))
+      : countdown(env, "done.closeIn") || (!reviewFinished && h("div.waiting", {}, h("span.pulse"), t("done.waiting"))),
     h("button.btn", { type: "button", onclick: env.closeTab, html: `${icon("x")}${t("done.close")}` }),
   );
 }
