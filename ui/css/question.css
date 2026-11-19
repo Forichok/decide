@@ -62,14 +62,24 @@ details:not([open]) .chev { transform: rotate(-90deg); }
 .q-body { margin-top: var(--space-5); display: grid; gap: var(--space-4); }
 .q-body > .media { margin-top: 0; }
 
-/* quick actions: quiet text buttons, no rule above */
-.actions {
-  display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2);
-  margin-top: var(--space-5); padding-top: 0;
+/* question actions */
+.actions { margin-top: var(--space-5); }
+.action-row, .action-group, .action-panel .quick { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.action-row { align-items: center; }
+.action-panel {
+  display: grid; width: fit-content; max-width: 100%; margin-top: var(--space-2); padding: var(--space-2);
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
 }
-.tools, .flags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-.chip.flag, .tools .chip { background: transparent; }
-.chip.flag:hover, .tools .chip:hover { background: var(--surface-3); }
+.action-panel > * + * { border-top: 1px solid var(--line); margin-top: var(--space-1); padding-top: var(--space-1); }
+.action-panel .chip { white-space: normal; text-align: left; }
+.action-panel .i { flex: none; }
+.action-more .i { transition: transform var(--dur) var(--ease); }
+.action-more[aria-expanded="true"] { color: var(--tx); background: var(--surface-3); }
+.action-more[aria-expanded="true"] .i { transform: rotate(180deg); }
+.action-status { color: var(--tx-mut); font-size: var(--step--1); }
+.action-status:empty, .action-more[aria-expanded="true"] + .action-status { display: none; }
+.chip.flag { background: transparent; }
+.actions .chip:hover { background: var(--surface-3); }
 .chip.flag.on[data-flag="explain"], .chip.flag.on[data-flag="delegate"] { background: var(--accent-soft); color: var(--accent-tx); }
 .chip.flag.on[data-flag="skip"] { background: var(--surface-3); color: var(--tx); }
 .rec-act.on { background: var(--accent-soft); color: var(--accent-tx); }
@@ -125,9 +135,6 @@ textarea.note:focus, textarea.answer-text:focus { background: var(--surface-soli
 .opt-then::before { content: "→"; color: var(--tx-dim); flex: none; }
 
 /* ready answers: Yes, but… / None, suggest others / Later */
-/* two rows at most on a desktop card: ready answers and tools share the first, the flags take the second */
-.actions > .quick { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-.actions:has(> .quick) > .flags { flex: 1 0 100%; }
 .chip.quick-btn.on { background: var(--accent-soft); color: var(--accent-tx); border-color: transparent; }
 .chip.quick-btn.open { border-color: var(--accent-line); }
 .quick-panel { display: grid; gap: 6px; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); }

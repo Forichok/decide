@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { startDecide, spec } from "./helpers.mjs";
-import { card, openRound, opt, until } from "./ui.mjs";
+import { card, openMoreActions, openRound, opt, until } from "./ui.mjs";
 
 let d;
 test.beforeAll(async () => {
@@ -56,6 +56,7 @@ test("a reply that carries a patch lists under it what it changed", async ({ pag
 test("'none, suggest others' reaches a listening agent as a request", async ({ page }) => {
   const id = await d.open(spec(), { live: true });
   await openRound(page, d, id);
+  await openMoreActions(card(page, "db"));
   await card(page, "db").locator('[data-quick="none"]').click();
   await card(page, "db").locator(".quick-input").fill("something managed");
   await card(page, "db").locator(".quick-save").click();
@@ -67,6 +68,7 @@ test("'none, suggest others' reaches a listening agent as a request", async ({ p
 test("without a live agent 'none' stays a flag in the answers", async ({ page }) => {
   const id = await d.open(spec(), { live: false });
   await openRound(page, d, id);
+  await openMoreActions(card(page, "db"));
   await card(page, "db").locator('[data-quick="none"]').click();
   await card(page, "db").locator(".quick-save").click();
   const a = await until(async () => {
