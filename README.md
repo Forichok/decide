@@ -48,8 +48,8 @@ https://github.com/user-attachments/assets/00b0ef15-06af-41a0-9ac2-9587f890b694
   compares 4 to 8 variants in pairs until one wins.
 - **Evidence labels.** A pro, con or metric can say `measured`, `estimate` or
   `guess`, with a source.
-- **Ready answers.** "Yes, but...", "None, suggest others" and "Later" sit
-  next to every choice. The agent gets the condition, a request for new
+- **Ready answers.** Open "More actions" under a choice to find "Yes, but...",
+  "None, suggest others" and "Later". The agent gets the condition, a request for new
   options, or a deferred decision.
 - **A task panel** in both modes: what the task is, what is decided, what is open.
 - **A journal map.** The journal shows dates across projects, and a map of

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { startDecide, spec, writeFile, MOBILE, DESKTOP } from "./helpers.mjs";
-import { card, openRound, opt, until } from "./ui.mjs";
+import { card, openMoreActions, openRound, opt, until } from "./ui.mjs";
 
 // One test per acceptance item of the design, named after it.
 
@@ -56,6 +56,7 @@ test("an option of the user's own shows selected", async ({ page }) => {
   const id = await d.open(spec());
   await openRound(page, d, id);
   const db = card(page, "db");
+  await openMoreActions(db);
   await db.locator('[data-act="other"]').click();
   await db.locator(".other-input").fill("Something custom");
   await expect(db.locator(".other-wrap")).toHaveClass(/sel/);

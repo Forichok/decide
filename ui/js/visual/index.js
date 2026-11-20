@@ -1,4 +1,4 @@
-import { $, h } from "../dom.js";
+import { $, h, icon } from "../dom.js";
 import { shortcut, t } from "../i18n.js";
 import { eyebrow, roundTabs } from "../header.js";
 import { getRound, holdReload, onEvent, sendMessage, submitRound, visualAction } from "../net.js";
@@ -10,6 +10,7 @@ import { seconds } from "./playback.js";
 import { defaultImageLayout } from "./preference.js";
 
 const word = key => t("va." + key);
+const decisionLabels = { accept: "va.acceptTask", reject: "va.rejectTask", conditional: "quick.yes", later: "quick.later" };
 const button = (key, fn, primary = false) => h("button.btn", { class: primary ? "primary" : "", type: "button", onclick: fn }, word(key));
 const hasGap = task => !task.manualOnly && Boolean(task.gap || !task.evidence.length || task.evidence.some(e => !e.before || !e.after));
 function sceneLink(value) {
@@ -33,16 +34,25 @@ function anchorFrame(source, mark, title) {
 function taskEvidence(task, range, save) {
   const views = task.evidence.map(e => evidenceViewer(task, e, range, save));
   let selected = 0;
+  const mark = save && h("button.chip", { type: "button", onclick: () => views[selected].markImage() },
+    h("span", { html: icon("pointer") }), word("markProblem"));
+  function showMarkAction() {
+    const pair = task.evidence[selected];
+    if (mark) mark.hidden = !pair?.before?.image && !pair?.after?.image;
+  }
+  showMarkAction();
   const picker = views.length > 1 && visualChoice(word("capture"), task.evidence.map((e, i) =>
     [String(i), captureLabel(e)]), value => {
       views[selected].stop();
       views[selected].el.hidden = true;
       selected = Number(value);
       views[selected].el.hidden = false;
+      showMarkAction();
     }, "va-picker");
   views.forEach((view, i) => { view.el.hidden = i !== 0; });
   return {
     el: [picker, views.map(view => view.el)],
+    mark,
     setMarks(marks) { for (const view of views) view.setMarks(marks); },
     stop() { for (const view of views) view.stop(); }
   };
@@ -86,28 +96,83 @@ export function mountVisual(round, env) {
     finally { pending.delete(job); }
   }
   const toggle = (task, op, key) => {
-    const input = h("input", { type: "checkbox", onchange: async () => {
-      input.disabled = true;
-      await save({ op, task: task.id, value: input.checked });
-      input.disabled = false;
-    } });
-    renderers.push(s => { input.checked = Boolean((op === "check" ? s.checks : s.gaps)[task.id]); });
-    return h("label.va-check", {}, input, word(key));
+    const selected = s => Boolean((op === "check" ? s.checks : s.gaps)[task.id]);
+    const control = h("button.opt", { type: "button", onclick: async () => {
+      control.disabled = true;
+      await save({ op, task: task.id, value: !selected(state) });
+      control.disabled = false;
+    } }, h("span.mark", { html: icon("check") }), h("span.opt-label", {}, word(key)));
+    renderers.push(s => {
+      const on = selected(s);
+      control.classList.toggle("sel", on);
+      control.setAttribute("aria-pressed", String(on));
+    });
+    return control;
   };
   function requestCapture(task) {
     const id = "visual-capture-" + spec.tasks.indexOf(task);
     const text = (word("requestText") + " " + task.title + ". " + (task.gap || "")).slice(0, 4000);
-    const request = button("request", async () => {
+    const request = h("button.chip", { type: "button", onclick: async () => {
       request.disabled = true;
       try {
         await sendMessage(round.id, { id, text });
         request.textContent = word("requested");
       } catch (err) { toast(err.message); request.disabled = false; }
-    });
+    } }, word("request"));
     if (round.thread?.some(m => m.id === id && m.from === "user")) {
       request.textContent = word("requested"); request.disabled = true;
     }
     return request;
+  }
+  function taskDecisions(task, mark) {
+    const controls = new Map();
+    const condition = h("p.quick-state", { hidden: true });
+    const row = h("div.opts.confirm.va-task-actions", { role: "group", "aria-label": task.title });
+    const current = () => state.taskDecisions?.[task.id];
+    async function record(value, note) {
+      for (const b of controls.values()) b.disabled = true;
+      try { return await save({ op: "decision", task: task.id, value, note }); }
+      finally { for (const b of controls.values()) b.disabled = false; }
+    }
+    function choose(choice) {
+      const same = current()?.choice === choice;
+      if (choice === "accept" || choice === "reject") return record(same ? null : choice);
+      const prompt = t(choice === "conditional" ? "quick.yesHint" : "quick.laterHint");
+      const field = h("textarea.note", { rows: 3, maxlength: 4000, "aria-label": prompt, placeholder: prompt, "data-autofocus": true });
+      field.value = same ? current().note : "";
+      const submit = h("button.btn.primary", { type: "submit" }, t("quick.save"));
+      const sync = () => { submit.disabled = !field.value.trim(); };
+      field.oninput = sync;
+      sync();
+      const clear = same && h("button.chip", { type: "button", onclick: () => commit(null) }, t("quick.undo"));
+      const form = h("form.va-compose", { onsubmit: e => { e.preventDefault(); if (!submit.disabled) commit(choice); } },
+        h("h2.modal-title", {}, t(decisionLabels[choice])), field, h("div.modal-actions", {}, clear, button("cancel", () => close()), submit));
+      const close = openModal(form);
+      async function commit(value) {
+        submit.disabled = true;
+        if (clear) clear.disabled = true;
+        if (await record(value, field.value.trim())) { if (form.isConnected) close(); }
+        else { sync(); if (clear) clear.disabled = false; }
+      }
+    }
+    for (const [choice, key] of Object.entries(decisionLabels)) {
+      const b = h("button.opt", { type: "button", onclick: () => choose(choice) },
+        h("span.mark", { html: icon("dot") }), h("span.opt-label", {}, t(key)));
+      controls.set(choice, b);
+      row.append(b);
+    }
+    if (mark) row.append(mark);
+    renderers.push(s => {
+      const decision = s.taskDecisions?.[task.id];
+      for (const [choice, b] of controls) {
+        const on = decision?.choice === choice;
+        b.classList.toggle("sel", on);
+        b.setAttribute("aria-pressed", String(on));
+      }
+      condition.textContent = decision?.note || "";
+      condition.hidden = !condition.textContent;
+    });
+    return [row, condition];
   }
   function taskCard(task) {
     const url = sceneLink(task.scene);
@@ -120,10 +185,11 @@ export function mountVisual(round, env) {
       h("dl.va-changes", {}, summary("before", task.beforeText), summary("after", task.afterText)),
       gallery.el,
       hasGap(task) && h("aside.va-gap", {}, h("h3", {}, word("gap")), h("p", {}, task.gap || word("noCapture")),
-        h("div.va-buttons", {}, requestCapture(task), toggle(task, "gap", "acceptGap"))),
+        h("div.opts.confirm.va-task-actions", {}, requestCapture(task), toggle(task, "gap", "acceptGap"))),
       h("section.va-try", {}, h("h3", {}, word("try")), h("ol", {}, task.steps.map(step => h("li", {}, step))),
         h("p", {}, h("b", {}, word("expected") + " · "), task.expected),
-        h("div.va-buttons", {}, url ? h("a.btn.sm", { href: url, target: "_blank", rel: "noopener noreferrer" }, word("openScene")) :
+        taskDecisions(task, gallery.mark),
+        h("div.opts.confirm.va-task-actions", {}, url ? h("a.chip", { href: url, target: "_blank", rel: "noopener noreferrer" }, word("openScene")) :
           h("span.va-meta", {}, word("sceneAbsent")), toggle(task, "check", "checked"))));
   }
   const note = h("textarea.note", { rows: 2, maxlength: 4000, placeholder: word("note"), "aria-label": word("note") });
@@ -148,8 +214,9 @@ export function mountVisual(round, env) {
     const gap = spec.tasks.some(task => hasGap(task) && !s.gaps[task.id] && !s.checks[task.id]);
     const manual = spec.tasks.some(task => task.manualOnly && !s.checks[task.id]);
     const open = spec.replies?.some(r => s.resolutions[r.ref] !== "fixed");
-    outstanding.textContent = [gap && word("needsGap"), manual && word("needsManual"), open && word("needsRecheck")].filter(Boolean).join(" ");
-    approve.disabled = Boolean(sending || gap || manual || open);
+    const rejected = Object.values(s.taskDecisions || {}).some(d => d.choice === "reject" || d.choice === "later");
+    outstanding.textContent = [gap && word("needsGap"), manual && word("needsManual"), open && word("needsRecheck"), rejected && word("pendingDecisions")].filter(Boolean).join(" ");
+    approve.disabled = Boolean(sending || gap || manual || open || rejected);
     back.disabled = sending;
   });
   const verdict = h("section.va-verdict", {}, h("h2", {}, word("verdict")), note, outstanding, error, h("div.va-buttons", {}, approve, back));
@@ -214,6 +281,8 @@ export function visualSummary(result, spec, stay) {
   const title = id => spec?.tasks?.find(task => task.id === id)?.title || id;
   return h("section.sum.va-result", {}, h("h3.sum-h", {}, word(result.verdict === "approve" ? "approved" : "returned")),
     result.note && h("p", {}, result.note),
+    Object.keys(result.taskDecisions || {}).length > 0 && h("ul", {}, Object.entries(result.taskDecisions).map(([id, d]) =>
+      h("li", {}, h("b", {}, title(id)), " · ", t(decisionLabels[d.choice]), d.note && " — " + d.note))),
     result.marks?.length > 0 && h("ol", {}, result.marks.map(m => h("li", {}, h("b", {}, m.text), " · ",
       [title(m.task), m.label, word(m.side), m.time != null ? seconds(m.time) : ""].filter(Boolean).join(" · ")))),
     result.replies?.length > 0 && h("section", {}, h("h4", {}, word("recheck")),

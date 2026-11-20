@@ -45,6 +45,75 @@ async function open(page, input = spec) {
   return id;
 }
 
+test("side by side shows both entire phone captures at the initial zoom", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setContent("<main>Guest sign-in</main><footer style='position:fixed;bottom:0'>Enter</footer>");
+  await page.screenshot({ path: join(daemon.project, "phone.png") });
+  const input = structuredClone(spec);
+  const capture = input.tasks[0].evidence[0];
+  capture.viewport = "390 × 844";
+  capture.before = capture.after = { image: "phone.png" };
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await open(page, input);
+  const images = page.locator(".va-side img");
+  await expect(images).toHaveCount(2);
+  for (const image of await images.all()) {
+    await image.scrollIntoViewIfNeeded();
+    await image.evaluate(img => img.decode());
+    const geometry = await image.evaluate(img => {
+      const pane = img.closest(".va-scroll");
+      const layer = pane.querySelector(".va-marks-layer").getBoundingClientRect();
+      const rect = img.getBoundingClientRect();
+      return { height: rect.height, width: rect.width, ratio: rect.width / rect.height,
+        paneHeight: pane.clientHeight, paneWidth: pane.clientWidth,
+        layerAligned: ["left", "top", "right", "bottom"].every(edge => Math.abs(layer[edge] - rect[edge]) < 1) };
+    });
+    expect(geometry.height).toBeLessThanOrEqual(geometry.paneHeight + 1);
+    expect(geometry.width).toBeLessThanOrEqual(geometry.paneWidth + 1);
+    expect(geometry.ratio).toBeCloseTo(390 / 844, 2);
+    expect(geometry.layerAligned).toBe(true);
+  }
+  const fitted = await images.first().boundingBox();
+  await page.getByRole("combobox", { name: "Zoom" }).click();
+  await page.getByRole("option", { name: "150%", exact: true }).click();
+  const enlarged = await images.first().boundingBox();
+  expect(enlarged.width / fitted.width).toBeCloseTo(1.5, 2);
+});
+
+test("decide on one task, pin a problem on the selected capture and submit the decisions", async ({ page }) => {
+  const input = structuredClone(spec);
+  const evidence = input.tasks[0].evidence;
+  evidence.push({ ...evidence[0], id: "alternate", label: "Alternate capture" });
+  const id = await open(page, input);
+  const card = page.locator('[data-task="save"]');
+  const answer = name => card.getByRole("button", { name, exact: true });
+  await answer("Accept").click();
+  await expect(answer("Accept")).toHaveAttribute("aria-pressed", "true");
+  await answer("Yes, but…").click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("textbox").fill("Keep keyboard focus on Save.");
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await page.reload();
+  await expect(answer("Yes, but…")).toHaveAttribute("aria-pressed", "true");
+  await expect(card).toContainText("Keep keyboard focus on Save.");
+  await card.getByRole("combobox", { name: "Capture" }).click();
+  await page.getByRole("option", { name: /Alternate capture/ }).click();
+  await answer("Mark a problem on the screenshot").click();
+  const plane = card.locator(".va-evidence:visible [data-side=after] .va-plane");
+  await plane.click({ position: { x: 50, y: 60 } });
+  await dialog.getByRole("textbox").fill("The button is clipped here.");
+  await dialog.getByRole("button", { name: "Save remark" }).click();
+  const other = page.locator('[data-task="history"]');
+  await other.getByRole("button", { name: "Reject", exact: true }).click();
+  await expect(other.getByRole("button", { name: "Reject", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Return for changes" }).click();
+  await expect(page.locator(".va-result")).toContainText("Keep keyboard focus on Save.");
+  const { result } = await daemon.round(id);
+  expect(result.taskDecisions.save).toEqual({ choice: "conditional", note: "Keep keyboard focus on Save." });
+  expect(result.taskDecisions.history.choice).toBe("reject");
+  expect(result.marks).toContainEqual(expect.objectContaining({ task: "save", evidence: "alternate", side: "after", x: expect.any(Number), y: expect.any(Number) }));
+});
+
 test("settings choose the initial layout for paired screenshots", async ({ page }) => {
   await open(page);
   const divider = page.getByRole("slider", { name: "Before and after divider" });
@@ -117,9 +186,13 @@ test("compare evidence, mark a region and a recording, and return the round", as
   await page.getByRole("button", { name: "Mark after frame" }).click();
   await page.getByRole("textbox", { name: "Remark" }).fill("Confirmation arrives here.");
   await page.getByRole("button", { name: "Save remark" }).click();
-  await page.getByLabel("I checked this myself").first().check();
+  const confirmation = page.getByRole("button", { name: "I checked this myself" }).first();
+  await expect(confirmation.locator(".mark")).toBeVisible();
+  await expect(confirmation).toHaveCSS("border-radius", "999px");
+  await confirmation.click();
   await page.reload();
-  await expect(page.getByLabel("I checked this myself").first()).toBeChecked();
+  await expect(page.getByRole("button", { name: "I checked this myself" }).first()).toHaveAttribute("aria-pressed", "true");
+  await expect(confirmation).toHaveClass(/\bsel\b/);
   await expect(page.getByText("Move this button.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Return for changes" }).click();
   await expect(page.getByText("Returned for changes", { exact: true })).toBeVisible();
@@ -175,12 +248,12 @@ test("a phone reopens original marks alongside the author's response, then gives
   await expect(page.getByRole("button", { name: "Capture requested" })).toBeDisabled();
   const manual = page.locator('[data-task="persist"]');
   await expect(manual.getByRole("heading", { name: "Missing evidence" })).toHaveCount(0);
-  await manual.getByLabel("I checked this myself").check();
-  await page.getByLabel("I checked this myself").nth(1).check();
+  await manual.getByRole("button", { name: "I checked this myself" }).click();
+  await page.locator('[data-task="history"]').getByRole("button", { name: "I checked this myself" }).click();
   await expect(accept).toBeEnabled();
-  await page.getByLabel("I checked this myself").nth(1).uncheck();
+  await page.locator('[data-task="history"]').getByRole("button", { name: "I checked this myself" }).click();
   await expect(accept).toBeDisabled();
-  await page.getByLabel("I accept this gap").check();
+  await page.getByRole("button", { name: "I accept this gap" }).click();
   await expect(accept).toBeEnabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await accept.click();

@@ -27,16 +27,17 @@ body.visual-mode .toc { display: none; }
 .va-controls { justify-content: space-between; row-gap: 6px; margin: 8px 0; }
 .va-controls .btn, .va-side .btn { font-size: 12px; padding: 5px 9px; min-height: 32px; }
 .va-buttons:empty { display: none; }
-.va-controls button[aria-pressed=true], .va-recheck button[aria-pressed=true] { background: var(--accent-soft); color: var(--accent-tx); border-color: var(--accent-line); }
+.va-buttons button[aria-pressed=true] { background: var(--accent-soft); color: var(--accent-tx); border-color: var(--accent-line); }
 .va-zoom { display: inline-flex; align-items: center; gap: 4px; color: var(--tx-mut); font-size: 12px; }
 .va-compare { display: grid; position: relative; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; --cut: 50%; }
 .va-compare.one, .va-compare.wipe { grid-template-columns: minmax(0, 1fr); }
 .va-side, .va-recheck-frame { min-width: 0; margin: 0; }
 .va-side figcaption { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 37px; font-size: 13px; }
 .va-side figcaption button { margin-inline-start: auto; }
-.va-scroll { max-height: min(60vh, 540px); overflow: auto; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); scrollbar-width: thin; }
+.va-scroll { --pane-height: min(60vh, 540px); max-height: var(--pane-height); overflow: auto; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); scrollbar-width: thin; }
 .va-plane { position: relative; line-height: 0; }
 .va-plane img, .va-plane video { display: block; width: 100%; height: auto; }
+.va-compare.fit .va-plane { max-width: calc((var(--pane-height) - 2px) * var(--image-aspect) * var(--zoom)); margin-inline: auto; }
 .va-plane.drawing { cursor: crosshair; touch-action: none; user-select: none; }
 .va-plane.drawing:focus-visible { outline-offset: -3px; }
 .va-marks-layer { position: absolute; inset: 0; pointer-events: none; }
@@ -57,6 +58,9 @@ body.visual-mode .toc { display: none; }
 .va-try, .va-gap, .va-recheck { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 20px; }
 .va-try ol { padding-left: 1.4em; margin: 8px 0; }
 .va-try p, .va-gap p, .va-recheck p { margin: 6px 0 12px; }
+.va-task-actions { align-items: center; }
+.va-task-actions ~ .va-task-actions { margin-top: var(--space-3); }
+.va-task-actions a.chip { text-decoration: none; }
 .va-gap { color: var(--warn); background: var(--warn-soft); border: 0; padding: 14px; border-radius: 10px; }
 .va-check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
 .va-check input, .va-seek { accent-color: var(--accent); }

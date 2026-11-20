@@ -21,12 +21,6 @@ export const FACETS = [
   ["then", t("facet.then")],
 ];
 
-const ACTIONS = [
-  { flag: "explain", icon: "help", label: t("act.explain"), key: "E" },
-  { flag: "delegate", icon: "hand", label: t("act.delegate"), key: "D" },
-  { flag: "skip", icon: "skip", label: t("act.skip"), key: "S" },
-];
-
 export function renderQuestion(q, index, ctx) {
   const g = ctx.glossary;
   const card = h("article.card", { id: `q-${q.id}`, tabindex: "-1", dataset: { qid: q.id }, "aria-labelledby": `qt-${q.id}` });
@@ -93,36 +87,66 @@ function badges(q) {
 }
 
 function renderActions(q, ctx, quick) {
-  const row = h("div.actions", {}, quick);
-  const tools = h("div.tools");
-  const toolList = [
+  const tools = h(
+    "div.action-group",
+    {},
     h("button.chip.ghost", { type: "button", dataset: { act: "note" }, html: `${icon("note")}${t("chip.note")}`, title: t("chip.noteTitle"), onclick: () => ctx.openNote(q.id) }),
     q.allowOther &&
       h("button.chip.ghost", { type: "button", dataset: { act: "other" }, html: `${icon("plus")}${t("chip.other")}`, onclick: () => ctx.openOther(q.id) }),
     !ctx.offline && h("button.chip.ghost", { type: "button", dataset: { act: "file" }, html: `${icon("clip")}${t("chip.file")}`, title: t("chip.fileTitle"), onclick: () => ctx.pickFile(q.id) }),
-  ];
-  tools.append(...toolList.filter(Boolean));
-  const flags = h("div.flags");
-  if (recommendedIds(q).length) {
-    flags.append(
-      h("button.chip.ghost.rec-act", { type: "button", dataset: { act: "rec" }, html: `${icon("star")}${t("chip.rec")}`, title: t("chip.recTitle"), onclick: () => ctx.applyRecommended(q.id) }),
-    );
+  );
+  const showRec = (!quick || q.type === "multi") && recommendedIds(q).length > 0;
+  const flags = h(
+    "div.action-group",
+    {},
+    showRec && h("button.chip.ghost.rec-act", { type: "button", dataset: { act: "rec" }, html: `${icon("star")}${t("chip.rec")}`, title: t("chip.recTitle"), onclick: () => ctx.applyRecommended(q.id) }),
+    !q.mine && renderFlag(q, ctx, "delegate", "hand", "D"),
+    renderFlag(q, ctx, "skip", "skip", "S"),
+  );
+  const panel = h("div.action-panel", { id: `qa-${q.id}`, hidden: true }, quick, tools, flags);
+  const more = h("button.chip.ghost.action-more", {
+    type: "button",
+    "aria-expanded": "false",
+    "aria-controls": panel.id,
+    html: `${t("act.more")}${icon("chevron")}`,
+    onclick: () => expand(panel.hidden),
+  });
+  const footer = h(
+    "div.actions",
+    {},
+    h(
+      "div.action-row",
+      {},
+      renderFlag(q, ctx, "explain", "help", "E"),
+      more,
+      h("span.action-status"),
+    ),
+    panel,
+  );
+  footer.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || panel.hidden) return;
+    e.stopPropagation();
+    expand(false);
+    more.focus();
+  });
+  return footer;
+
+  function expand(open) {
+    panel.hidden = !open;
+    more.setAttribute("aria-expanded", String(open));
   }
-  for (const a of ACTIONS.filter((x) => !(q.mine && x.flag === "delegate"))) {
-    const label = a.flag === "explain" && ctx.live ? t("act.ask") : a.label;
-    flags.append(
-      h("button.chip.flag", {
-        type: "button",
-        dataset: { flag: a.flag },
-        "aria-pressed": "false",
-        title: `${label} (${a.key})`,
-        html: `${icon(a.icon)}${label}`,
-        onclick: () => ctx.toggleFlag(q.id, a.flag),
-      }),
-    );
-  }
-  row.append(tools, flags);
-  return row;
+}
+
+function renderFlag(q, ctx, flag, iconName, key) {
+  const label = t(flag === "explain" && ctx.live ? "act.ask" : `act.${flag}`);
+  return h("button.chip.flag", {
+    type: "button",
+    dataset: { flag },
+    "aria-pressed": "false",
+    title: `${label} (${key})`,
+    html: `${icon(iconName)}${label}`,
+    onclick: () => ctx.toggleFlag(q.id, flag),
+  });
 }
 
 export function syncQuestion(card, q, ctx) {
@@ -137,9 +161,14 @@ export function syncQuestion(card, q, ctx) {
     b.classList.toggle("on", on);
     b.setAttribute("aria-pressed", String(on));
   }
-  const rec = recommendedIds(q);
-  const isRec = rec.length > 0 && a.selected.length > 0 && a.selected.every((id) => rec.includes(id));
-  $(".rec-act", card)?.classList.toggle("on", isRec);
+  const status = $(".action-status", card);
+  status.textContent = a.flag === "delegate" ? t("act.delegated") : a.flag === "skip" ? t("act.skipped") : "";
+  const recButton = $(".rec-act", card);
+  if (recButton) {
+    const rec = recommendedIds(q);
+    const isRec = !a.other.trim() && a.selected.length === rec.length && a.selected.every((id) => rec.includes(id));
+    recButton.classList.toggle("on", isRec);
+  }
   syncInput(card, q, a);
   syncExtras(card, q, ctx);
   syncQuick(card);

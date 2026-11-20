@@ -51,6 +51,13 @@ test("visual evidence survives source changes, restart and a returned mark", (t)
       specFile: join(dir, "spec.json"),
     });
   const round = open(raw);
+  const decide = (value, note) => store.changeVisual(round, { op: "decision", task: "pick", value, note });
+  assert.throws(() => decide("conditional", " "), /condition/);
+  assert.throws(() => decide("unknown"), /decision/);
+  decide("later", "After the phone test");
+  assert.throws(() => store.finish(round, { verdict: "approve" }), /deferred/);
+  decide(null);
+  decide("conditional", "Keep the keyboard shortcut");
   const copy = round.spec.tasks[0].evidence[0].after.image;
   writeFileSync(join(dir, "app.png"), Buffer.concat([png, Buffer.from("new")]));
   assert.deepEqual(readFileSync(copy), png);
@@ -67,6 +74,8 @@ test("visual evidence survives source changes, restart and a returned mark", (t)
   store = createStore({ home, roots });
   const old = store.get(round.id);
   const result = store.finish(old, { verdict: "return" });
+  assert.deepEqual(result.taskDecisions.pick, { choice: "conditional", note: "Keep the keyboard shortcut" });
+  assert.match(result.digest, /pick: conditional — Keep the keyboard shortcut/);
   const [mark] = result.marks;
   assert.equal(mark.revision, range.head);
   assert.throws(() => open({ ...raw, previous: old.id }), /reply|remark/i);
