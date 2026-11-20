@@ -98,6 +98,11 @@ export function evidenceViewer(task, evidence, range, save) {
     const video = asset.video && h("video", { src: asset.video, playsinline: true, preload: "metadata", "aria-label": evidence.label + " · " + word(side) });
     if (video) { video.muted = true; clips.push({ side, video, cue: asset.cue || 0 }); }
     const plane = planes[side] = h("div.va-plane", {}, img, video, layer);
+    if (img) {
+      const sizeImage = () => plane.style.setProperty("--image-aspect", String(img.naturalWidth / img.naturalHeight));
+      img.addEventListener("load", sizeImage);
+      if (img.naturalHeight) sizeImage();
+    }
     const status = h("p.va-empty", { hidden: true }, word("loadFailed"));
     for (const media of [img, video].filter(Boolean)) media.addEventListener("error", () => { status.hidden = false; });
     let start = null, ghost = null, cursor = { x: .5, y: .5 };
@@ -145,6 +150,8 @@ export function evidenceViewer(task, evidence, range, save) {
   function update() {
     const activeWipe = wipe && kind === "image" && !expanded;
     view.classList.toggle("wipe", activeWipe); view.classList.toggle("one", Boolean(expanded));
+    view.classList.toggle("fit", kind === "image" && !expanded && !activeWipe);
+    view.style.setProperty("--zoom", String(zoom));
     divider.hidden = !activeWipe;
     split.hidden = dividerMode.hidden = kind !== "image";
     zoomControl.hidden = kind !== "image";

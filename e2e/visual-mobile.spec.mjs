@@ -19,7 +19,7 @@ test("a visual round on a narrow screen keeps a manual check beside its evidence
     await page.goto(d.origin + "/?lang=en#r=" + id);
     await expect(page.getByRole("heading", { name: "Open history" })).toBeVisible();
     await expect(page.getByText("The historical environment is offline.")).toBeVisible();
-    await expect(page.getByLabel("I checked this myself")).toBeVisible();
+    await expect(page.getByRole("button", { name: "I checked this myself" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   } finally { await d.stop(); }
 });

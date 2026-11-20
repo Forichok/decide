@@ -86,13 +86,15 @@ export function mountVisual(round, env) {
     finally { pending.delete(job); }
   }
   const toggle = (task, op, key) => {
-    const input = h("input", { type: "checkbox", onchange: async () => {
-      input.disabled = true;
-      await save({ op, task: task.id, value: input.checked });
-      input.disabled = false;
-    } });
-    renderers.push(s => { input.checked = Boolean((op === "check" ? s.checks : s.gaps)[task.id]); });
-    return h("label.va-check", {}, input, word(key));
+    const selected = s => Boolean((op === "check" ? s.checks : s.gaps)[task.id]);
+    const control = button(key, async () => {
+      control.disabled = true;
+      await save({ op, task: task.id, value: !selected(state) });
+      control.disabled = false;
+    });
+    control.classList.add("sm");
+    renderers.push(s => control.setAttribute("aria-pressed", String(selected(s))));
+    return control;
   };
   function requestCapture(task) {
     const id = "visual-capture-" + spec.tasks.indexOf(task);

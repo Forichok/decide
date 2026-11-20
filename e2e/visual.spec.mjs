@@ -45,6 +45,41 @@ async function open(page, input = spec) {
   return id;
 }
 
+test("side by side shows both entire phone captures at the initial zoom", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setContent("<main>Guest sign-in</main><footer style='position:fixed;bottom:0'>Enter</footer>");
+  await page.screenshot({ path: join(daemon.project, "phone.png") });
+  const input = structuredClone(spec);
+  const capture = input.tasks[0].evidence[0];
+  capture.viewport = "390 × 844";
+  capture.before = capture.after = { image: "phone.png" };
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await open(page, input);
+  const images = page.locator(".va-side img");
+  await expect(images).toHaveCount(2);
+  for (const image of await images.all()) {
+    await image.scrollIntoViewIfNeeded();
+    await image.evaluate(img => img.decode());
+    const geometry = await image.evaluate(img => {
+      const pane = img.closest(".va-scroll");
+      const layer = pane.querySelector(".va-marks-layer").getBoundingClientRect();
+      const rect = img.getBoundingClientRect();
+      return { height: rect.height, width: rect.width, ratio: rect.width / rect.height,
+        paneHeight: pane.clientHeight, paneWidth: pane.clientWidth,
+        layerAligned: ["left", "top", "right", "bottom"].every(edge => Math.abs(layer[edge] - rect[edge]) < 1) };
+    });
+    expect(geometry.height).toBeLessThanOrEqual(geometry.paneHeight + 1);
+    expect(geometry.width).toBeLessThanOrEqual(geometry.paneWidth + 1);
+    expect(geometry.ratio).toBeCloseTo(390 / 844, 2);
+    expect(geometry.layerAligned).toBe(true);
+  }
+  const fitted = await images.first().boundingBox();
+  await page.getByRole("combobox", { name: "Zoom" }).click();
+  await page.getByRole("option", { name: "150%", exact: true }).click();
+  const enlarged = await images.first().boundingBox();
+  expect(enlarged.width / fitted.width).toBeCloseTo(1.5, 2);
+});
+
 test("settings choose the initial layout for paired screenshots", async ({ page }) => {
   await open(page);
   const divider = page.getByRole("slider", { name: "Before and after divider" });
@@ -117,9 +152,9 @@ test("compare evidence, mark a region and a recording, and return the round", as
   await page.getByRole("button", { name: "Mark after frame" }).click();
   await page.getByRole("textbox", { name: "Remark" }).fill("Confirmation arrives here.");
   await page.getByRole("button", { name: "Save remark" }).click();
-  await page.getByLabel("I checked this myself").first().check();
+  await page.getByRole("button", { name: "I checked this myself" }).first().click();
   await page.reload();
-  await expect(page.getByLabel("I checked this myself").first()).toBeChecked();
+  await expect(page.getByRole("button", { name: "I checked this myself" }).first()).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText("Move this button.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Return for changes" }).click();
   await expect(page.getByText("Returned for changes", { exact: true })).toBeVisible();
@@ -175,12 +210,12 @@ test("a phone reopens original marks alongside the author's response, then gives
   await expect(page.getByRole("button", { name: "Capture requested" })).toBeDisabled();
   const manual = page.locator('[data-task="persist"]');
   await expect(manual.getByRole("heading", { name: "Missing evidence" })).toHaveCount(0);
-  await manual.getByLabel("I checked this myself").check();
-  await page.getByLabel("I checked this myself").nth(1).check();
+  await manual.getByRole("button", { name: "I checked this myself" }).click();
+  await page.getByRole("button", { name: "I checked this myself" }).nth(1).click();
   await expect(accept).toBeEnabled();
-  await page.getByLabel("I checked this myself").nth(1).uncheck();
+  await page.getByRole("button", { name: "I checked this myself" }).nth(1).click();
   await expect(accept).toBeDisabled();
-  await page.getByLabel("I accept this gap").check();
+  await page.getByRole("button", { name: "I accept this gap" }).click();
   await expect(accept).toBeEnabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await accept.click();
