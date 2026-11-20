@@ -3,6 +3,7 @@
 export const card = (page, qid) => page.locator(`#q-${qid}`);
 export const opt = (page, qid, oid) => page.locator(`#q-${qid} .opt[data-oid="${oid}"]`);
 export const saved = (page) => page.locator("#bar .bar-save");
+export const openMoreActions = (question) => question.locator('.action-more[aria-expanded="false"]').click();
 
 export async function openRound(page, d, id) {
   await page.goto(d.url(id));
