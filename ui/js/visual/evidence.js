@@ -186,5 +186,15 @@ export function evidenceViewer(task, evidence, range, save) {
     } }, h("b", {}, i + 1), h("span", {}, m.text), h("small", {}, [word(m.side), m.time != null ? seconds(m.time) : ""].filter(Boolean).join(" · "))))));
   }
   update(); setMarks([]);
-  return { el: block, setMarks, stop: () => player?.pause() };
+  function markImage() {
+    if (readOnly || !has("image")) return;
+    player?.pause();
+    kind = "image"; wipe = false; marking = true;
+    if (expanded && !evidence[expanded]?.image) expanded = "";
+    update();
+    const side = expanded || (evidence.after?.image ? "after" : "before");
+    hint.scrollIntoView({ block: "start" });
+    planes[side].focus({ preventScroll: true });
+  }
+  return { el: block, setMarks, markImage, stop: () => player?.pause() };
 }
