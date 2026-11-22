@@ -53,18 +53,18 @@ test("evidence labels sit beside the reason, the pros and the cons", async ({ pa
   await expect(opt(page, "db", "pg").locator(".ev.ev-estimate")).toHaveText("estimate");
 });
 
-test("the footer shows two controls and reveals the remaining actions on demand", async ({ page }) => {
+test("the footer shows the everyday controls and reveals the rare actions on demand", async ({ page }) => {
   const id = await d.open(rich(), { live: true });
   await openRound(page, d, id);
   const footer = card(page, "db").locator(".actions");
   const more = footer.getByRole("button", { name: "More actions" });
-  await expect(footer.getByRole("button")).toHaveText(["Ask the agent", "More actions"]);
+  await expect(footer.getByRole("button")).toHaveText(["Ask the agent", "Note", "Own option", "More actions"]);
   await opt(page, "db", "pg").click();
   await expect(opt(page, "db", "pg")).toHaveAttribute("aria-checked", "true");
   await more.press("Enter");
   await expect(more).toHaveAttribute("aria-expanded", "true");
   await expect(footer.getByRole("button")).toHaveText([
-    "Ask the agent", "More actions", "Yes, but…", "None, suggest others", "Later", "Note", "Own option", "File", "Agent decides", "Skip",
+    "Ask the agent", "Note", "Own option", "More actions", "Yes, but…", "None, suggest others", "Later", "File", "Agent decides", "Skip",
   ]);
   const skip = footer.getByRole("button", { name: "Skip", exact: true });
   await skip.click();
