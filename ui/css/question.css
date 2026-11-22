@@ -73,6 +73,9 @@ details:not([open]) .chev { transform: rotate(-90deg); }
 .action-panel > * + * { border-top: 1px solid var(--line); margin-top: var(--space-1); padding-top: var(--space-1); }
 .action-panel .chip { white-space: normal; text-align: left; }
 .action-panel .i { flex: none; }
+/* what each row of the menu is for; the row itself carries the name for a screen reader */
+.action-cap { flex: none; align-self: center; width: 10em; padding-left: 10px; font-size: 12.5px; font-weight: 620; color: var(--tx-mut); }
+@media (max-width: 560px) { .action-cap { flex: 0 0 100%; width: auto; padding: 4px 10px 0; } }
 .action-more .i { transition: transform var(--dur) var(--ease); }
 .action-more[aria-expanded="true"] { color: var(--tx); background: var(--surface-3); }
 .action-more[aria-expanded="true"] .i { transform: rotate(180deg); }

@@ -43,7 +43,7 @@ const code = (pairs, mark) => splitTokens(pairs, mark).map(([cls, text, changed]
 });
 // place: undefined off a key place, else its kind.
 function lineRow(l, place, pairs, owner, mark) {
-  return h(`tr.cr-line.${l.t}${place === undefined ? "" : `.focus${place ? `.kind-${place}` : ""}`}`, { dataset: { key: lineKey(l), owner } }, h("td.n", {}, l.o ?? ""), h("td.n", {}, l.n ?? ""), h("td.s", {}, sign(l.t)), h("td.t", {}, pairs ? code(pairs, mark) : l.text));
+  return h(`tr.cr-line.${l.t}${place === undefined ? "" : `.focus${place ? `.kind-${place}` : ""}`}`, { tabindex: "-1", dataset: { key: lineKey(l), owner } }, h("td.n", {}, l.o ?? ""), h("td.n", {}, l.n ?? ""), h("td.s", {}, sign(l.t)), h("td.t", {}, pairs ? code(pairs, mark) : l.text));
 }
 const eolRow = () => h("tr.eol", {}, h("td.n"), h("td.n"), h("td.s"), h("td.t", {}, t("cr.noeol")));
 // A line outside every hunk is read only.
@@ -139,7 +139,9 @@ export function renderPiece(s, piece, { folded = false } = {}) {
   const base = new Set();
   for (const sp of spans) fill(base, sp.first - CONTEXT, sp.last + CONTEXT, n);
   if (!spans.length && !folded && !listed) fill(base, 0, n > LONG ? HEAD - 1 : n - 1, n);
-  const st = { all: false, more: new Set(), above: 0, below: 0, file: null, busy: false };
+  // tab: the line that takes Tab (one stop per piece, the arrows walk the rest); back: the line the box
+  // was opened from by key, where the focus returns when the box closes.
+  const st = { all: false, more: new Set(), above: 0, below: 0, file: null, busy: false, tab: "", back: "" };
 
   // The lines on screen; null when it is all of them.
   function visible() {
@@ -186,8 +188,8 @@ export function renderPiece(s, piece, { folded = false } = {}) {
       piece.test && h("span.badge.cr-test", {}, t("cr.test")),
       STATUS[piece.status] && h("span.badge", {}, t(STATUS[piece.status])),
       piece.modes && h("span.badge", {}, t("cr.modes", piece.modes[0], piece.modes[1])),
-      h("span.cr-at", {}, where(piece)),
-      h("span.cr-tools", {}, expand, around, whole, tool(t("cr.askHunk"), () => s.compose({ hunk: piece.id, kind: "question" })), tool(t("cr.commentHunk"), () => s.compose({ hunk: piece.id, kind: "fix" }))),
+      h("span.cr-at", { title: where(piece) }, where(piece)),
+      h("span.cr-tools", {}, expand, around, whole, tool(t("cr.askHunk"), () => s.compose({ hunk: piece.id, kind: "question" }), t("cr.askTitle")), tool(t("cr.commentHunk"), () => s.compose({ hunk: piece.id, kind: "fix" }), t("cr.commentTitle"))),
     ),
     h("div.cr-hunk-notes"),
     tests,
@@ -226,7 +228,7 @@ export function renderPiece(s, piece, { folded = false } = {}) {
           sp.place.kind === "decision" && sp.place.question && renderDecision(s, { ...sp.place, chapter: sp.place.key.slice(0, sp.place.key.lastIndexOf(":")) }),
           sp.place.kind && h("span.cr-kind", {}, t(`cr.placeKind.${sp.place.kind}`)),
           h("span.cr-place-note", { html: mdInline(sp.place.note || t("cr.placeNoNote")) }),
-          h("span.cr-place-acts", {}, tool(t("cr.askHunk"), onPlace(sp, "question", owner, source)), tool(t("cr.commentHunk"), onPlace(sp, "fix", owner, source))),
+          h("span.cr-place-acts", {}, tool(t("cr.askHunk"), onPlace(sp, "question", owner, source), t("cr.askTitle")), tool(t("cr.commentHunk"), onPlace(sp, "fix", owner, source), t("cr.commentTitle"))),
         ),
       ),
     );
@@ -279,7 +281,11 @@ export function renderPiece(s, piece, { folded = false } = {}) {
     const typing = s.box?.contains(document.activeElement);
     const at = (key) => (key ? tbody.querySelector(`tr.cr-line[data-key="${key}"]`)?.getBoundingClientRect().top : undefined);
     const top = at(hold);
+    const focused = document.activeElement?.closest?.("tr.cr-line");
+    const keep = focused && tbody.contains(focused) ? rowId(focused) : "";
     tbody.replaceChildren(...rows());
+    setTab(keep || st.tab);
+    if (keep) lineOf(keep)?.focus({ preventScroll: true });
     const vis = visible();
     if (expand) {
       expand.hidden = base.size >= n || s.full || st.above === Infinity;
@@ -336,12 +342,40 @@ export function renderPiece(s, piece, { folded = false } = {}) {
     tbody.querySelector(`tr.cr-line[data-key="${lineKey(lines[names[k].i])}"]`)?.scrollIntoView({ block: "center" });
   }
 
+  const onLine = (row) => {
+    const [side, line] = row.dataset.key.split(":");
+    compose({ hunk: row.dataset.owner, line: Number(line), side, kind: "fix" });
+  };
   tbody.addEventListener("click", (e) => {
     const row = e.target.closest("tr.cr-line");
     // A click that ends a text selection is a selection, not a comment.
     if (!row || String(getSelection())) return;
-    const [side, line] = row.dataset.key.split(":");
-    compose({ hunk: row.dataset.owner, line: Number(line), side, kind: "fix" });
+    onLine(row);
+  });
+  // The same without a mouse: Tab lands on one line of the piece, the arrows walk its lines, Enter or
+  // Space opens the box on the line in focus.
+  const rowId = (row) => `${row.dataset.owner}/${row.dataset.key}`;
+  const lineOf = (id) => [...tbody.querySelectorAll("tr.cr-line")].find((row) => rowId(row) === id);
+  function setTab(id) {
+    const all = [...tbody.querySelectorAll("tr.cr-line")];
+    const at = all.find((row) => rowId(row) === id) || all[0];
+    for (const row of all) row.tabIndex = row === at ? 0 : -1;
+    st.tab = at ? rowId(at) : "";
+  }
+  tbody.addEventListener("focusin", (e) => e.target.matches?.("tr.cr-line") && setTab(rowId(e.target)));
+  tbody.addEventListener("keydown", (e) => {
+    const row = e.target;
+    if (!row.matches?.("tr.cr-line") || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      st.back = rowId(row);
+      return onLine(row);
+    }
+    const all = [...tbody.querySelectorAll("tr.cr-line")];
+    const to = { ArrowDown: all[all.indexOf(row) + 1], ArrowUp: all[all.indexOf(row) - 1], Home: all[0], End: all.at(-1) }[e.key];
+    if (!(e.key in { ArrowDown: 1, ArrowUp: 1, Home: 1, End: 1 })) return;
+    e.preventDefault();
+    to?.focus();
   });
 
   s.exposure ??= createExposure(s.id);
@@ -377,6 +411,12 @@ export function renderPiece(s, piece, { folded = false } = {}) {
     const hidden = vis && [...s.notesOf(piece.id).map(keyOf), s.draft?.hunk === piece.id ? keyOf(s.draft) : ""].some((key) => index.has(key) && !tbody.querySelector(`tr.cr-line[data-key="${key}"]`));
     if (hidden) update();
     else paintNotes(s, el, piece);
+    // The box opened by key is gone: the line it was opened from has the focus again.
+    if (st.back && (s.draft?.view || s.draft?.hunk) !== piece.id) {
+      const row = lineOf(st.back);
+      st.back = "";
+      if (row && (document.activeElement === document.body || !document.activeElement)) row.focus({ preventScroll: true });
+    }
   };
   // Is there something here the reader was not shown: folded lines.
   el.folded = () => isHunk && visible() !== null;

@@ -9,6 +9,7 @@
 //
 // Exit code 1 when there is at least one finding. Runs its own server in a scratch home (scripts/harness.mjs).
 
+import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { chromium } from "@playwright/test";
@@ -71,6 +72,7 @@ function measure({ phone }) {
     if (!ownText(el)) continue;
     const s = getComputedStyle(el);
     if (s.overflowX === "visible") continue;
+    if (el.clientWidth <= 1 && (s.clipPath !== "none" || s.clip !== "auto")) continue; // hidden on purpose: a name kept for a screen reader
     if (el.scrollWidth > el.clientWidth + 1) add("cut-text", el, `${el.scrollWidth}px of text in ${el.clientWidth}px${s.textOverflow === "ellipsis" ? " (ellipsis)" : ""}`);
   }
 
@@ -357,14 +359,142 @@ const VIEWS = {
     await VIEWS["done-rule"](page);
     await page.locator(".rule-row .btn.primary").click();
     await page.locator('.rule-row a[href="#settings"]').click();
-    await page.locator(".set-levels").waitFor();
+    await page.locator(".set-panel").waitFor();
     await sleep(400);
   },
   async "settings-empty"(page) {
     await page.goto(`${d.origin}/#settings`);
     await sleep(1000);
   },
+  // a code review of a branch: the overview, the chapters and the bar ("review" above is the send check of a question round)
+  async "code-review"(page) {
+    await d.clear();
+    const { lineA } = await branches();
+    const r = await d.must("POST", "/api/rounds", { project: d.project, spec: reviewSpec(lineA), mode: "review", open: false, base: "main", head: "feature" });
+    await page.goto(d.url(r.id));
+    await ready(page, ".cr-bar");
+  },
+  async "code-review-verdict"(page) {
+    await VIEWS["code-review"](page);
+    await page.locator(".cr-bar .btn.primary").click();
+    await page.locator("#overlay .btn.primary").waitFor();
+    await sleep(300);
+  },
+  // a visual acceptance round: a task with captures on two screens and a task with none
+  async visual(page) {
+    await d.clear();
+    await branches();
+    const spec = visualSpec(await captures());
+    const specFile = path.join(d.project, "audit-visual.json");
+    writeFileSync(specFile, JSON.stringify(spec));
+    const r = await d.must("POST", "/api/rounds", { mode: "visual", project: d.project, base: "main", head: "feature", open: false, specFile, spec });
+    await page.goto(d.url(r.id));
+    await ready(page, ".va-task");
+  },
+  async "visual-mark"(page) {
+    await VIEWS.visual(page);
+    await page.locator(".va-controls button", { hasText: "Mark on the screenshot" }).first().click();
+    const plane = page.locator(".va-plane").first();
+    await plane.scrollIntoViewIfNeeded();
+    const box = await plane.boundingBox();
+    await page.mouse.click(box.x + box.width * 0.75, box.y + Math.min(box.height, 300) * 0.5);
+    await page.locator("#va-remark").waitFor();
+    await sleep(300);
+  },
 };
+
+// ---- fixtures for the code review and the visual round: a small branch in the project folder, captures made once
+
+let branchesMade;
+const branches = () =>
+  (branchesMade ||= (async () => {
+    const git = (...a) => execFileSync("git", ["-c", "user.name=Audit", "-c", "user.email=audit@example.invalid", "-c", "commit.gpgsign=false", ...a], { cwd: d.project, encoding: "utf8" });
+    const body = (n, word) => Array.from({ length: n }, (_, i) => `export const ${word}${i} = (value) => value + ${i}; // ${word} step ${i}`).join("\n") + "\n";
+    git("init", "-q", "-b", "main");
+    d.write("src/actions.js", body(40, "act"));
+    d.write("src/card.css", Array.from({ length: 30 }, (_, i) => `.card-${i} { padding: ${i}px; }`).join("\n") + "\n");
+    d.write("test/actions.test.js", body(12, "check"));
+    d.write("lang/en.js", body(20, "word"));
+    git("add", "src", "test", "lang");
+    git("commit", "-qm", "base");
+    git("switch", "-qc", "feature");
+    d.write("src/actions.js", body(40, "act").replace(/value \+ 7;/, "value + 70;").replace(/value \+ 30;[^\n]*/, "value + 30 + extra(value); // a longer line that has to wrap or scroll on a phone, never push the page wider than the screen"));
+    d.write("src/card.css", Array.from({ length: 30 }, (_, i) => `.card-${i} { padding: ${i * 2}px; }`).join("\n") + "\n");
+    d.write("test/actions.test.js", body(14, "check"));
+    d.write("lang/en.js", body(22, "word"));
+    git("add", "src", "test", "lang");
+    git("commit", "-qm", "simpler question actions");
+    const lineA = Number((git("diff", "-U0", "main", "feature", "--", "src/actions.js").match(/^@@ -\S+ \+(\d+)/m) || [])[1] || 1);
+    return { lineA };
+  })());
+
+const reviewSpec = (lineA) => ({
+  previous: false,
+  lang: "en",
+  title: "Simpler question actions",
+  summary: "Three actions under a question instead of six. Rare ones moved into a menu; Ask opens right under the card.",
+  risks: [
+    { level: "high", what: "The action menu closes on an outside click: check keyboard and focus", chapter: "actions" },
+    { level: "medium", what: "Card styles touch the phone width", chapter: "styles" },
+  ],
+  checks: [{ command: "node --test test/*.test.mjs", exit: 0, seconds: 12.4 }, { command: "npx playwright test e2e/question.spec.mjs", exit: 1, seconds: 48 }, { command: "node scripts/ui-audit.mjs out question" }],
+  chapters: [
+    { id: "actions", title: "Actions under the question", summary: "Three buttons and a More menu.", risk: "high", watch: "Focus returns to the button when the menu closes.", hunks: ["src/actions.js"],
+      focus: [{ at: `src/actions.js:${lineA}`, note: "The action row is built here.", kind: "decision", question: "Keep Later in the row or move it to the menu?", options: ["In the row", "In the menu"] }] },
+    { id: "styles", title: "Card styles", summary: "The action row and the menu.", risk: "medium", hunks: ["src/card.css"] },
+    { id: "tests", title: "Tests", summary: "The spec for the new actions.", hunks: ["test/"], skim: "Names only." },
+  ],
+  mechanical: [{ title: "Interface strings", hunks: ["lang/"] }],
+  reviewers: {
+    ran: [{ role: "correctness", model: "opus", summary: "The menu does not close on Escape while focus is in the note field.", verdict: "concerns" }],
+    skipped: [{ role: "safety", model: "", why: "The change does not touch data or access." }, { role: "tests", model: "", why: "Outside this fixture." }],
+    findings: [
+      { id: "f1", role: "correctness", severity: "blocking", at: `src/actions.js:${lineA}`, text: "Escape in the note field does not close the menu: the handler sits on the button, not the document." },
+      { id: "f2", role: "correctness", severity: "minor", at: "src/card.css:3", text: "The action row padding at 375px is smaller than its neighbours'." },
+    ],
+  },
+});
+
+let capturesMade;
+const captures = () =>
+  (capturesMade ||= (async () => {
+    const form = (label, extra) => `<meta name="viewport" content="width=device-width"><body style="font:16px system-ui;margin:24px;background:#f6f7fb"><h1 style="font-size:22px">Notification settings</h1><p style="color:#555">Mail about new decisions, and reminders.</p><label style="display:block;margin:12px 0"><input type="checkbox"> Weekly summary</label><label style="display:block;margin:12px 0"><input type="checkbox" checked> Reminders</label>${extra}<button style="padding:10px 16px;border-radius:10px;border:0;background:#d6245f;color:#fff;font:inherit">${label}</button> <output style="color:#0a7a3d"></output><script>document.querySelector("button").onclick=()=>document.querySelector("output").textContent="Saved"</script>`;
+    const caps = {};
+    for (const [vp, w, h] of [["desktop", 1024, 640], ["phone", 390, 844]]) {
+      caps[vp] = {};
+      for (const [side, label, extra] of [["before", "Save", ""], ["after", "Save settings", '<p style="margin:12px 0;padding:10px 12px;background:#fff;border-radius:10px">The summary comes on Mondays.</p>']]) {
+        const video = vp === "desktop"; // one moving capture is enough to draw the player
+        const ctx = await browser.newContext({ viewport: { width: w, height: h }, ...(video ? { recordVideo: { dir: d.project, size: { width: w, height: h } } } : {}) });
+        const shot = await ctx.newPage();
+        await shot.setContent(form(label, extra));
+        await shot.screenshot({ path: path.join(d.project, `${vp}-${side}.png`) });
+        caps[vp][side] = { image: `${vp}-${side}.png` };
+        if (video) {
+          await shot.getByRole("checkbox").first().check();
+          await shot.getByRole("button").click();
+          await sleep(700);
+          const v = shot.video();
+          await ctx.close();
+          Object.assign(caps[vp][side], { video: path.basename(await v.path()), cue: 0.2 });
+        } else await ctx.close();
+      }
+    }
+    return caps;
+  })());
+
+const visualSpec = (caps) => ({
+  title: "Notification settings", lang: "en", summary: ["The button names what it saves.", "A hint about the summary day sits under the checkboxes."],
+  tasks: [
+    { id: "save", title: "Save the mail settings", beforeText: "The button said Save.", afterText: "The button says Save settings; a hint about Monday sits under the checkboxes.",
+      steps: ["Turn the weekly summary on.", "Press Save settings."], expected: "Saved appears next to the button.",
+      evidence: [
+        { id: "desktop", label: "Settings, desktop", viewport: "1024 × 640", theme: "light", fixture: "subscriber", state: "saved", ...caps.desktop },
+        { id: "phone", label: "Settings, phone", viewport: "390 × 844", theme: "light", fixture: "subscriber", state: "saved", ...caps.phone },
+      ] },
+    { id: "history", title: "Open the change history", beforeText: "There was no history.", afterText: "The history opens from a link under the form.",
+      steps: ["Open the history."], expected: "One change in the list.", gap: "The test environment with history is unavailable: no captures.", evidence: [] },
+  ],
+});
 
 async function seedJournal() {
   const make = async (title, qid, dependsOn) => {
@@ -438,7 +568,7 @@ try {
           for (const f of found) findings.push({ where, view: name, width: +widthKey, theme, ...f });
           console.log(`${where}: ${found.length}`);
         } catch (e) {
-          findings.push({ where, view: name, width: +widthKey, theme, kind: "audit-error", el: "", text: "", detail: String(e).slice(0, 300) });
+          findings.push({ where, view: name, width: +widthKey, theme, kind: "audit-error", el: "", text: "", detail: String(e).slice(0, 1200) });
           console.log(`${where}: ERROR ${String(e).slice(0, 160)}`);
         }
         await page.close();

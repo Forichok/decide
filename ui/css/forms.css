@@ -45,7 +45,7 @@
 
 /* versus */
 .versus { display: grid; gap: var(--space-3); outline: none; }
-.versus:focus-visible .vs-pair { box-shadow: 0 0 0 3px var(--accent-soft); border-radius: var(--r-md); }
+.versus:focus-visible .vs-pair { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: var(--r-md); }
 .vs-count { margin: 0; font-size: 13px; color: var(--tx-dim); }
 .vs-pair { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; gap: var(--space-3); }
 @media (max-width: 640px) { .vs-pair { grid-template-columns: 1fr; } .vs-or { text-align: center; } }

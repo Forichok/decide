@@ -98,7 +98,7 @@ test("decide on one task, pin a problem on the selected capture and submit the d
   await expect(card).toContainText("Keep keyboard focus on Save.");
   await card.getByRole("combobox", { name: "Capture" }).click();
   await page.getByRole("option", { name: /Alternate capture/ }).click();
-  await answer("Mark a problem on the screenshot").click();
+  await card.locator(".va-decisions").getByRole("button", { name: "Mark on the screenshot", exact: true }).click();
   const plane = card.locator(".va-evidence:visible [data-side=after] .va-plane");
   await plane.click({ position: { x: 50, y: 60 } });
   await dialog.getByRole("textbox").fill("The button is clipped here.");
@@ -159,8 +159,8 @@ test("compare evidence, mark a region and a recording, and return the round", as
   expect(Number(await divider.inputValue())).toBeGreaterThan(50);
   await page.getByRole("button", { name: "Side by side", exact: true }).click();
   await page.getByRole("combobox", { name: "Zoom", exact: true }).click();
-  await page.getByRole("option", { name: "100%", exact: true }).click();
-  await page.getByRole("button", { name: "Right here", exact: true }).click();
+  await page.getByRole("option", { name: "Fit", exact: true }).click();
+  await page.locator(".va-controls").getByRole("button", { name: "Mark on the screenshot", exact: true }).first().click();
   const frame = page.locator('[data-side="after"] .va-plane').first();
   await frame.scrollIntoViewIfNeeded();
   const rect = await frame.boundingBox();
@@ -199,7 +199,7 @@ test("compare evidence, mark a region and a recording, and return the round", as
   await page.getByText("Revisit the evidence", { exact: true }).click();
   const receipt = page.locator(".va-completed");
   await expect(receipt.getByText("Move this button.", { exact: true })).toBeVisible();
-  await expect(receipt.getByRole("button", { name: "Right here", exact: true })).toHaveCount(0);
+  await expect(receipt.getByRole("button", { name: "Mark on the screenshot", exact: true })).toHaveCount(0);
   await expect(receipt.locator("img").first()).toBeVisible();
   const result = (await daemon.round(id)).result;
   expect(result.marks).toEqual(expect.arrayContaining([
@@ -264,4 +264,35 @@ test("a phone reopens original marks alongside the author's response, then gives
   const summary = page.locator(".va-result");
   await expect(summary).toContainText("Move the button. · Fixed");
   await expect(summary).toContainText("Delay the confirmation. · Fixed");
+});
+
+test("the bar and the list under the verdict name what is still undecided and lead to it", async ({ page }) => {
+  await open(page);
+  const bar = page.locator(".va-bar");
+  await expect(bar).toContainText("Tasks decided: 0 of 2");
+  await expect(bar).toContainText("Next: Save email preferences");
+  await expect(bar.getByRole("button", { name: "To the verdict", exact: true })).not.toHaveClass(/\bprimary\b/);
+  // one line per task that holds the approval back, each a way to its card
+  const left = page.locator(".va-outstanding li");
+  await expect(left).toHaveCount(1);
+  await expect(left).toContainText("Open the history");
+  await expect(left).toContainText("has no captures");
+  await bar.getByRole("button", { name: "To the verdict", exact: true }).click();
+  await expect(page.locator("#va-note")).toBeFocused();
+  await expect(bar).toBeHidden(); // the verdict is on screen: the bar would only repeat it
+  await left.getByRole("button").click();
+  await expect(page.locator('[data-task="history"]')).toBeInViewport();
+  await page.locator('[data-task="save"]').getByRole("button", { name: "Accept", exact: true }).click();
+  await expect(bar).toContainText("Tasks decided: 1 of 2");
+});
+
+test("paired screenshots that do not fit side by side open as a wipe until the reader picks a layout", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await open(page);
+  const wipe = page.getByRole("button", { name: "Wipe", exact: true });
+  await expect(wipe).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Side by side", exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 812 });
+  await expect(page.getByRole("button", { name: "Side by side", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

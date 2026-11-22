@@ -8,6 +8,14 @@ import { test, expect } from "@playwright/test";
 import { startDecide } from "./helpers.mjs";
 
 const hasGit = spawnSync("git", ["--version"]).status === 0;
+
+// The dialog confirms the verdict the bar's button named; the other two wait behind "Another verdict".
+const pickVerdict = async (page, verdict) => {
+  const modal = page.locator(".cr-verdict");
+  const change = modal.locator(".cr-verdict-change");
+  if (await change.isVisible()) await change.click();
+  await modal.locator(`.cr-seg [data-verdict="${verdict}"]`).click();
+};
 const lines = (n, over = {}) => `${Array.from({ length: n }, (_, i) => over[i + 1] ?? `line ${i + 1}`).join("\n")}\n`;
 
 const testFile = (names) =>
@@ -161,7 +169,7 @@ test("a review: overview, a chapter, a comment of each kind, a question, the ver
   await top.locator(".cr-ch-foot .btn").click();
   await expect(top).toHaveClass(/\bread\b/);
   await expect(bar.locator(".state b")).toHaveText("Chapters viewed: 1 of 2");
-  await expect(bar.locator(".state small")).toContainText("3 comments");
+  await expect(bar.locator('[data-stat="said"]')).toHaveText("Comments: 3");
   await expect(page.locator(".cr-rail-item.read")).toHaveCount(1);
 
   // ---- mechanical edits are one folded line; what the agent did not sort is "The rest"
@@ -175,10 +183,10 @@ test("a review: overview, a chapter, a comment of each kind, a question, the ver
   // ---- the verdict: approving warns about the check that never ran, the open "fix" and the unread chapter
   await bar.locator('[data-verdict="approve"]').click();
   const modal = page.locator(".cr-verdict");
-  await expect(modal.locator('.cr-alert[data-alert="checks"]')).toContainText("not green");
+  await expect(modal.locator('.cr-alert[data-alert="checks"]')).toContainText("Checks not run: 1.");
   await expect(modal.locator('.cr-alert[data-alert="fix"]')).toBeVisible();
   await expect(modal.locator('.cr-alert[data-alert="unread"]')).toContainText("Line fifty");
-  await modal.locator('.cr-seg [data-verdict="return"]').click();
+  await pickVerdict(page, "return");
   await expect(modal.locator(".cr-alert")).toHaveCount(0);
   await modal.locator("textarea").fill("Put the digit back.");
   await modal.locator(".btn.primary").click();
@@ -422,7 +430,7 @@ test("verdict identifies the snapshot, warns on both approvals and reports colle
   await expect(modal).toContainText(sha);
   await expect(modal).toContainText("HEAD");
   for (const verdict of ["approve", "nits"]) {
-    await modal.locator(`[data-verdict="${verdict}"]`).click();
+    await pickVerdict(page, verdict);
     await expect(modal.locator('[data-alert="newer"]')).toContainText(head);
     await expect(modal.locator('[data-alert="newer"]')).toContainText(sha);
   }
@@ -505,29 +513,29 @@ test('coverage distinguishes hidden, partial and opened pieces, survives reload 
   await expect(firstFile.locator(':scope > code')).toHaveCount(1);
   await expect(firstFile.locator('code wbr')).toHaveCount(1);
   await expect(firstFile.locator(':scope > span')).toHaveCount(1);
-  await expect(firstFile).toContainText('○ Not opened · +1 −1 · 1 hunk');
+  await expect(firstFile).toContainText('○ Not shown · +1 −1 · 1 hunk');
   await expect(firstFile).toBeFocused();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Shift+Tab');
   expect(await firstFile.evaluate((el) => parseFloat(getComputedStyle(el).outlineOffset))).toBeLessThan(0);
-  await expect(files.locator('.cr-coverage-summary')).toHaveText('Opened 0 of 3 pieces · 1 in part · 2 not opened');
+  await expect(files.locator('.cr-coverage-summary')).toHaveText('Shown 0 of 3 pieces · 1 in part · 2 not shown');
   await files.getByRole('button', { name: /lib\/a.mjs/ }).click();
   const a = page.locator('.cr-hunk').filter({ has: page.locator('.cr-path:text-is("lib/a.mjs")') });
   await expect(a).toBeInViewport();
   await expect(a.locator('tr.cr-gap')).toHaveCount(0);
   await expect.poll(async () => (await d.round(opened.id)).review.coverage).toMatchObject({ h1: 'opened', h2: 'part' });
   await page.locator('.cr-bar [data-verdict="approve"]').click();
-  await expect(page.locator('[data-alert="coverage"]')).toContainText('Opened 1 of 3 pieces · 1 in part · 1 not opened');
+  await expect(page.locator('[data-alert="coverage"]')).toContainText('Shown 1 of 3 pieces · 1 in part · 1 not shown');
   await expect(page.locator('[data-alert="coverage"] li')).toHaveText([
     'The module: in part 1 (lib/big.mjs)',
-    'The tests: not opened 1 (test/big.test.mjs)',
+    'The tests: not shown 1 (test/big.test.mjs)',
   ]);
-  await expect(page.locator('.cr-progress > span')).toHaveText(['Viewed chapters: 0 of 2', 'Opened pieces: 1 of 3, in part 1']);
-  await page.locator('.cr-verdict [data-verdict="nits"]').click();
+  await expect(page.locator('.cr-progress > span')).toHaveText(['Pieces shown: 1 of 3, in part 1']);
+  await pickVerdict(page, "nits");
   await expect(page.locator('[data-alert="coverage"]')).toBeVisible();
-  await page.locator('.cr-verdict [data-verdict="return"]').click();
+  await pickVerdict(page, "return");
   await expect(page.locator('[data-alert="coverage"]')).toHaveCount(0);
-  await page.locator('.cr-verdict [data-verdict="approve"]').click();
+  await pickVerdict(page, "approve");
   await page.locator('[data-alert="coverage"]').getByRole('button', { name: 'Files', exact: true }).click();
   await expect(files).toBeVisible();
   await page.keyboard.press('Escape');
@@ -559,7 +567,7 @@ test('mechanical share and its reason are the agent account in the overview and 
   await expect(page.locator('.cr-fold')).not.toHaveAttribute('open');
   await page.locator('.cr-rail').getByRole('button', { name: 'Files', exact: true }).click();
   await expect(page.locator('.cr-file-list li').filter({ hasText: 'lib/big.mjs' })).toContainText('in mechanical: Generated modules');
-  await expect(page.locator('.cr-file-list li').filter({ hasText: 'lib/big.mjs' })).toContainText('Not opened');
+  await expect(page.locator('.cr-file-list li').filter({ hasText: 'lib/big.mjs' })).toContainText('Not shown');
 });
 
 test('requesting the whole diff does not count rows that have not unfolded yet', async ({ page }) => {
@@ -597,7 +605,7 @@ test('approval coverage warnings bound groups and file names in both languages',
     const warning = page.locator('[data-alert="coverage"]');
     const rows = warning.locator('li');
     await expect(rows).toHaveCount(7);
-    await expect(rows.first()).toContainText(lang === 'en' ? ': not opened 6 (' : ': не открыто 6 (');
+    await expect(rows.first()).toContainText(lang === 'en' ? ': not shown 6 (' : ': не показано 6 (');
     await expect(rows.first()).toContainText(lang === 'en' ? 'and 3 more' : 'и ещё 3');
     await expect(rows.first()).not.toContainText(lang === 'en' ? 'in part' : 'частично');
     await expect(rows.last()).toHaveText(lang === 'en' ? 'and 3 more: see Files' : 'и ещё 3: см. Файлы');
@@ -624,11 +632,11 @@ test('owner overview: decisions, risk checks, acceptance and persisted answers',
   await page.goto(`${d.origin}/?lang=en#r=${opened.id}`);
   const overview = page.locator('#cr-overview');
   await expect(overview.locator('h3')).toHaveText(['What changed', 'Decisions for you', 'Risks', 'Independent reviewers', 'How to check it yourself', 'Checks']);
-  await expect(overview).toContainText('Checked by: Parser test covers the word.');
+  await expect(overview).toContainText('Checked, the agent says, by: Parser test covers the word.');
   await expect(overview.locator('.cr-overview-section > .cr-said')).toHaveCount(0);
   await expect(overview.locator('.cr-ch-head > .cr-said')).toHaveCount(1);
-  await expect(overview.locator('.cr-risk-check .cr-said')).toHaveCount(2);
-  await expect(overview.locator('.cr-risk-check.warn')).toHaveText("Not checked in the agent's words");
+  await expect(overview.locator('.cr-risk-check .cr-said')).toHaveCount(0);
+  await expect(overview.locator('.cr-risk-check.warn')).toHaveText("Not checked");
   const acceptance = overview.locator('[data-section="acceptance"]');
   await expect(acceptance.locator('code')).toHaveText(['parser', 'Parser', 'parser', 'line three', 'word']);
   await expect(acceptance.locator('ol li')).toHaveText(['Open parser <img>', 'Read line three <img>']);
@@ -640,7 +648,7 @@ test('owner overview: decisions, risk checks, acceptance and persisted answers',
   await expect(overview).toContainText('The page does not run or verify these steps.');
   await page.locator('.cr-bar [data-verdict="approve"]').click();
   await expect(page.locator('[data-alert="decisions"]')).toContainText('1 decision not answered');
-  await page.locator('.cr-verdict .cr-seg [data-verdict="nits"]').click();
+  await pickVerdict(page, "nits");
   await expect(page.locator('[data-alert="decisions"]')).toContainText('1 decision not answered');
   await expect(page.locator('.cr-verdict .modal-actions .primary')).toBeEnabled();
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -662,7 +670,7 @@ test('owner overview: decisions, risk checks, acceptance and persisted answers',
 
 for (const [colorScheme, lang, label] of [
   ["light", "en", "Open findings: 1"],
-  ["dark", "ru", "Открытые замечания: 1"],
+  ["dark", "ru", "Открытые находки: 1"],
 ]) test(`the chapter rail fits a finding count badge in the ${colorScheme} theme`, async ({ page }) => {
   test.skip(!hasGit, "git is not installed");
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -707,7 +715,7 @@ test("independent reviewer findings at their lines, decisions, and approval warn
   const { id } = await d.must("POST", "/api/rounds", { project: d.project, spec: { ...SPEC, reviewers }, mode: "review", open: false });
   await page.goto(`${d.origin}/?lang=en#r=${id}`);
   const overview = page.locator(".cr-reviewers");
-  await expect(page.locator(".cr-bar")).toContainText("3 blocking");
+  await expect(page.locator('.cr-bar [data-stat="blockers"]')).toHaveText("Blocking findings: 3");
   await expect(overview).toContainText("Independent reviewers");
   await expect(overview).toContainText("Bugs and regressions");
   await expect(overview).toContainText("sonnet");
@@ -722,7 +730,7 @@ test("independent reviewer findings at their lines, decisions, and approval warn
   await expect(rest).toHaveAttribute("open", "");
   await expect(page.locator("#cr-ch-top .cr-open-findings")).toHaveText("1 open finding");
   await expect(f1).toBeFocused();
-  await expect(f1).toContainText("Open");
+  await expect(f1.locator(".cr-finding-state")).toHaveText("Waiting for you");
   await page.getByRole("button", { name: "Hide reviewer findings" }).click();
   await expect(f1).toBeHidden();
   await page.reload();
@@ -735,29 +743,29 @@ test("independent reviewer findings at their lines, decisions, and approval warn
     await route.continue();
   }, { times: 1 });
   try {
-    await f1.getByRole("button", { name: "Fix", exact: true }).click();
+    await f1.getByRole("button", { name: "To fix", exact: true }).click();
     await expect(f1.getByRole("button", { name: "Dismiss", exact: true })).toBeDisabled();
     await expect(overview.locator('[data-finding="f1"]').getByRole("button", { name: "Dismiss", exact: true })).toBeDisabled();
   } finally { releaseSave(); }
-  await expect(f1).toContainText("To fix");
+  await expect(f1.locator(".cr-finding-state")).toHaveText("To fix");
   await f2.getByRole("button", { name: "Dismiss", exact: true }).click();
   await f2.getByPlaceholder("Reason (optional)").fill("Out of scope");
   await f2.getByRole("button", { name: "Dismiss", exact: true }).click();
   await expect(f2).toContainText("Out of scope");
   await page.reload();
   await overview.getByRole("button", { name: "lib/a.mjs:3", exact: true }).click();
-  await expect(f1).toContainText("To fix");
+  await expect(f1.locator(".cr-finding-state")).toHaveText("To fix");
   await overview.getByRole("button", { name: "lib/a.mjs:50", exact: true }).click();
-  await expect(f2).toContainText("Dismissed");
-  await expect(page.locator(".cr-bar")).toContainText("2 blocking");
+  await expect(f2.locator(".cr-finding-state")).toHaveText("Dismissed");
+  await expect(page.locator('.cr-bar [data-stat="blockers"]')).toHaveText("Blocking findings: 2");
   await expect(page.locator("#cr-ch-top .cr-open-findings")).toBeHidden();
-  await expect(page.locator(".cr-bar .state small")).toContainText("1 to fix");
+  await expect(page.locator('.cr-bar [data-stat="said"]')).toHaveAttribute("title", /1 to fix/);
   await page.locator('.cr-bar [data-verdict="approve"]').click();
   const modal = page.locator(".cr-verdict");
   await expect(modal.locator('[data-alert="reviewer-blocking"]')).toContainText("2 blocking");
   await expect(modal.locator('[data-alert="reviewer-blocking"]')).toContainText("Line three");
   await expect(modal.locator('[data-alert="reviewer-skipped"]')).toContainText("Security and data");
-  await modal.locator('.cr-seg [data-verdict="nits"]').click();
+  await pickVerdict(page, "nits");
   await expect(modal.locator('[data-alert="reviewer-blocking"]')).toBeVisible();
   await modal.locator(".btn.primary").click();
   await expect.poll(async () => (await d.round(id)).result?.verdict).toBe("nits");
@@ -770,7 +778,7 @@ test("the overview explains why a team did not run", async ({ page }) => {
   await expect(page.locator(".cr-reviewers")).toContainText("Sub-agents are unavailable.");
   await page.locator('.cr-bar [data-verdict="approve"]').click();
   await expect(page.locator('.cr-verdict [data-alert="reviewer-none"]')).toContainText("Sub-agents are unavailable.");
-  await page.locator('.cr-verdict .cr-seg [data-verdict="nits"]').click();
+  await pickVerdict(page, "nits");
   await expect(page.locator('.cr-verdict [data-alert="reviewer-none"]')).toBeVisible();
 
   const { reviewers, ...spec } = SPEC;
@@ -887,7 +895,7 @@ test("independent decision saves finish before a verdict and both reach the resu
   const modal = page.getByRole("dialog");
   await expect(modal.locator('[data-verdict="return"]')).toHaveAttribute("aria-pressed", "true");
   await expect(modal.locator('[data-alert="empty"]')).toHaveCount(0);
-  await modal.locator('[data-verdict="nits"]').click();
+  await pickVerdict(page, "nits");
   await expect(modal.locator('[data-alert="decisionNo"]')).toBeVisible();
   await modal.locator(".modal-actions .primary").focus();
   await page.keyboard.press("Tab");
@@ -895,4 +903,43 @@ test("independent decision saves finish before a verdict and both reach the resu
   await modal.locator(".modal-actions .primary").click();
   await expect(page.locator(".done-view")).toBeVisible();
   expect((await d.round(id)).result.decisions.map(d => d.answer)).toEqual(["yes", "no"]);
+});
+
+test("a line takes a comment from the keyboard, and the bar leads with the verdict the state points to", async ({ page }) => {
+  test.skip(!hasGit, "git is not installed");
+  const opened = await d.must("POST", "/api/rounds", { project: d.project, spec: SPEC, mode: "review", open: false });
+  await page.goto(opened.url.replace("/#", "/?lang=en#"));
+  const bar = page.locator(".cr-bar");
+  // nothing said, no failed check: the bar leads with the approval
+  await expect(bar.locator('[data-verdict="approve"]')).toHaveClass(/\bprimary\b/);
+  await expect(bar.locator('[data-verdict="return"]')).not.toHaveClass(/\bprimary\b/);
+
+  // Tab stops on one line of a piece, the arrows walk its lines, Enter opens the box on the line in focus
+  const a = page.locator('#cr-ch-top .cr-hunk:has(.cr-path:text-is("lib/a.mjs"))');
+  await expect(a.locator('tr.cr-line[tabindex="0"]')).toHaveCount(1);
+  const first = a.locator("tr.cr-line").first();
+  await first.focus();
+  await page.keyboard.press("ArrowDown");
+  const second = a.locator("tr.cr-line").nth(1);
+  await expect(second).toBeFocused();
+  await expect(second).toHaveAttribute("tabindex", "0");
+  await expect(first).toHaveAttribute("tabindex", "-1");
+  await page.keyboard.press("Enter");
+  const box = page.locator(".cr-compose");
+  await expect(box.locator("textarea")).toBeFocused();
+  await box.locator("textarea").fill("Said without a mouse.");
+  await box.locator("textarea").press("ControlOrMeta+Enter");
+  await expect(a.locator(".cr-cm.fix .cr-cm-text")).toHaveText("Said without a mouse.");
+
+  // something to fix: the bar leads with the return, and its dialog confirms that verdict alone
+  await expect(bar.locator('[data-verdict="return"]')).toHaveClass(/\bprimary\b/);
+  await expect(bar.locator('[data-verdict="approve"]')).not.toHaveClass(/\bprimary\b/);
+  await bar.locator('[data-verdict="return"]').click();
+  const modal = page.locator(".cr-verdict");
+  await expect(modal.locator(".modal-title")).toHaveText("Return to the agent?");
+  await expect(modal.locator(".cr-seg")).toBeHidden();
+  await expect(modal.locator('[data-alert="empty"]')).toHaveCount(0);
+  await modal.locator(".cr-verdict-change").click();
+  await expect(modal.locator('.cr-seg [data-verdict="return"]')).toBeFocused();
+  await expect(modal.locator('.cr-seg [data-verdict="return"]')).toHaveAttribute("aria-pressed", "true");
 });

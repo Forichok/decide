@@ -97,7 +97,7 @@ export function mountVisual(round, env) {
   }
   const toggle = (task, op, key) => {
     const selected = s => Boolean((op === "check" ? s.checks : s.gaps)[task.id]);
-    const control = h("button.opt", { type: "button", onclick: async () => {
+    const control = h("button.opt.va-toggle", { type: "button", onclick: async () => {
       control.disabled = true;
       await save({ op, task: task.id, value: !selected(state) });
       control.disabled = false;
@@ -112,7 +112,7 @@ export function mountVisual(round, env) {
   function requestCapture(task) {
     const id = "visual-capture-" + spec.tasks.indexOf(task);
     const text = (word("requestText") + " " + task.title + ". " + (task.gap || "")).slice(0, 4000);
-    const request = h("button.chip", { type: "button", onclick: async () => {
+    const request = h("button.btn.va-request", { type: "button", onclick: async () => {
       request.disabled = true;
       try {
         await sendMessage(round.id, { id, text });
@@ -127,7 +127,7 @@ export function mountVisual(round, env) {
   function taskDecisions(task, mark) {
     const controls = new Map();
     const condition = h("p.quick-state", { hidden: true });
-    const row = h("div.opts.confirm.va-task-actions", { role: "group", "aria-label": task.title });
+    const row = h("div.opts.confirm.va-task-actions.va-decisions", { role: "group", "aria-label": task.title });
     const current = () => state.taskDecisions?.[task.id];
     async function record(value, note) {
       for (const b of controls.values()) b.disabled = true;
@@ -138,7 +138,7 @@ export function mountVisual(round, env) {
       const same = current()?.choice === choice;
       if (choice === "accept" || choice === "reject") return record(same ? null : choice);
       const prompt = t(choice === "conditional" ? "quick.yesHint" : "quick.laterHint");
-      const field = h("textarea.note", { rows: 3, maxlength: 4000, "aria-label": prompt, placeholder: prompt, "data-autofocus": true });
+      const field = h("textarea.note", { rows: 3, maxlength: 4000, id: "va-condition", "data-autofocus": true });
       field.value = same ? current().note : "";
       const submit = h("button.btn.primary", { type: "submit" }, t("quick.save"));
       const sync = () => { submit.disabled = !field.value.trim(); };
@@ -146,7 +146,8 @@ export function mountVisual(round, env) {
       sync();
       const clear = same && h("button.chip", { type: "button", onclick: () => commit(null) }, t("quick.undo"));
       const form = h("form.va-compose", { onsubmit: e => { e.preventDefault(); if (!submit.disabled) commit(choice); } },
-        h("h2.modal-title", {}, t(decisionLabels[choice])), field, h("div.modal-actions", {}, clear, button("cancel", () => close()), submit));
+        h("h2.modal-title", {}, t(decisionLabels[choice])), h("label.va-label", { for: "va-condition" }, prompt), field,
+        h("div.modal-actions", {}, clear, button("cancel", () => close()), submit));
       const close = openModal(form);
       async function commit(value) {
         submit.disabled = true;
@@ -189,10 +190,11 @@ export function mountVisual(round, env) {
       h("section.va-try", {}, h("h3", {}, word("try")), h("ol", {}, task.steps.map(step => h("li", {}, step))),
         h("p", {}, h("b", {}, word("expected") + " · "), task.expected),
         taskDecisions(task, gallery.mark),
+        // No scene to open is worth a line only where there is nothing else to look at.
         h("div.opts.confirm.va-task-actions", {}, url ? h("a.chip", { href: url, target: "_blank", rel: "noopener noreferrer" }, word("openScene")) :
-          h("span.va-meta", {}, word("sceneAbsent")), toggle(task, "check", "checked"))));
+          !task.evidence.length && h("span.va-meta", {}, word("sceneAbsent")), toggle(task, "check", "checked"))));
   }
-  const note = h("textarea.note", { rows: 2, maxlength: 4000, placeholder: word("note"), "aria-label": word("note") });
+  const note = h("textarea.note", { rows: 2, maxlength: 4000, id: "va-note" });
   const storageKey = "decide.visual.note." + round.id;
   try { note.value = sessionStorage.getItem(storageKey) || ""; } catch {}
   note.oninput = () => { try { sessionStorage.setItem(storageKey, note.value); } catch {} };
@@ -209,17 +211,53 @@ export function mountVisual(round, env) {
   }
   const approve = button("approve", () => submit("approve"), true);
   const back = button("return", () => submit("return"));
-  const outstanding = h("p.va-meta");
+  // What stands between the reader and an approval, by name: each line leads to its task.
+  const outstanding = h("ul.va-outstanding");
+  const progress = h("b");
+  const pills = h("div.cr-pills", { "aria-hidden": "true" });
+  const blocked = h("span.cr-stats");
+  const toVerdict = h("button.btn", { type: "button", onclick: () => finish() }, word("toVerdict"));
+  const bar = h("div.cr-bar.va-bar.glass", { role: "region", "aria-label": word("verdict") }, h("div.state", {}, pills, progress, blocked), h("div.acts", {}, toVerdict));
+  const goTask = task => {
+    const card = cards[spec.tasks.indexOf(task)];
+    card.setAttribute("tabindex", "-1");
+    card.scrollIntoView({ block: "start" });
+    card.focus({ preventScroll: true });
+  };
   renderers.push(s => {
-    const gap = spec.tasks.some(task => hasGap(task) && !s.gaps[task.id] && !s.checks[task.id]);
-    const manual = spec.tasks.some(task => task.manualOnly && !s.checks[task.id]);
-    const open = spec.replies?.some(r => s.resolutions[r.ref] !== "fixed");
-    const rejected = Object.values(s.taskDecisions || {}).some(d => d.choice === "reject" || d.choice === "later");
-    outstanding.textContent = [gap && word("needsGap"), manual && word("needsManual"), open && word("needsRecheck"), rejected && word("pendingDecisions")].filter(Boolean).join(" ");
-    approve.disabled = Boolean(sending || gap || manual || open || rejected);
+    const gap = spec.tasks.filter(task => hasGap(task) && !s.gaps[task.id] && !s.checks[task.id]);
+    const manual = spec.tasks.filter(task => task.manualOnly && !s.checks[task.id]);
+    const open = (spec.replies || []).filter(r => s.resolutions[r.ref] !== "fixed");
+    const rejected = spec.tasks.filter(task => ["reject", "later"].includes(s.taskDecisions?.[task.id]?.choice));
+    const line = (key, tasks) => tasks.map(task => h("li", {}, h("button.link-btn", { type: "button", onclick: () => goTask(task) }, `«${task.title}»`), " ", word(key)));
+    outstanding.replaceChildren(...line("needsGap", gap), ...line("needsManual", manual),
+      ...(open.length ? [h("li", {}, h("button.link-btn", { type: "button", onclick: () => document.querySelector(".va-replies")?.scrollIntoView({ block: "start" }) }, word("recheck")), word("needsRecheck").startsWith(":") ? "" : " ", word("needsRecheck"))] : []),
+      ...line("pendingDecisions", rejected));
+    outstanding.hidden = !outstanding.childElementCount;
+    approve.disabled = Boolean(sending || gap.length || manual.length || open.length || rejected.length);
     back.disabled = sending;
+    const decided = spec.tasks.filter(task => s.taskDecisions?.[task.id]);
+    pills.replaceChildren(...spec.tasks.map(task => h(`i${s.taskDecisions?.[task.id] ? ".done" : ""}`)));
+    progress.textContent = t("va.decided", decided.length, spec.tasks.length);
+    const stat = (level, text, onclick) => h(`button.cr-stat.${level}`, { type: "button", onclick }, text);
+    const next = spec.tasks.find(task => !s.taskDecisions?.[task.id]);
+    blocked.replaceChildren(...[
+      next && stat("low", t("va.nextTask", next.title), () => goTask(next)),
+      gap.length > 0 && stat("warn", t("va.barGap", gap.length), () => goTask(gap[0])),
+      manual.length > 0 && stat("warn", t("va.barManual", manual.length), () => goTask(manual[0])),
+      open.length > 0 && stat("warn", t("va.barRecheck", open.length), () => document.querySelector(".va-replies")?.scrollIntoView({ block: "start" })),
+      rejected.length > 0 && stat("danger", t("va.barRejected", rejected.length), () => goTask(rejected[0])),
+    ].filter(Boolean));
+    toVerdict.classList.toggle("primary", decided.length === spec.tasks.length);
   });
-  const verdict = h("section.va-verdict", {}, h("h2", {}, word("verdict")), note, outstanding, error, h("div.va-buttons", {}, approve, back));
+  const verdict = h("section.va-verdict", {}, h("h2", {}, word("verdict")), h("label.va-label", { for: "va-note" }, word("note")), note, outstanding, error, h("div.va-buttons", {}, approve, back));
+  function finish() {
+    verdict.scrollIntoView({ block: "center" });
+    note.focus({ preventScroll: true });
+  }
+  // The bar is the way to the verdict: with the verdict itself on screen it steps aside.
+  const seen = "IntersectionObserver" in window ? new IntersectionObserver(([entry]) => { bar.hidden = entry.isIntersecting; }, { threshold: 0.35 }) : null;
+  seen?.observe(verdict);
   const range = spec.range;
   const rev = (ref, sha) => h("span", {}, ref && !/^[0-9a-f]{40,64}$/i.test(ref) ? ref + " " : "", h("code", { title: sha }, sha.slice(0, 8)));
   function help() {
@@ -240,15 +278,15 @@ export function mountVisual(round, env) {
   $("#toc").replaceChildren();
   $("#main").replaceChildren(title, ...(spec.replies?.length || spec.previousNote ? [h("section.va-replies", {}, h("h2", {}, word("recheck")),
     spec.previousNote && h("p", {}, h("b", {}, word("previousNote") + " · "), spec.previousNote),
-    (spec.replies || []).map(r => recheck(r, spec.tasks, save, renderers)))] : []), ...cards, verdict);
+    (spec.replies || []).map(r => recheck(r, spec.tasks, save, renderers)))] : []), ...cards, verdict, bar);
   document.title = spec.title + " — decide";
   setVisual(state, seq);
   const refresh = async () => { try { const fresh = await getRound(round.id); setVisual(fresh.visual, fresh.seq); } catch {} };
   const off = onEvent("reconnect", refresh);
   holdReload("view", () => pending.size > 0 || sending || Boolean(document.querySelector(".va-compose textarea")?.value));
   return { id: round.id, mode: "visual", spec, setVisual, help, setDialog() {},
-    finish() { if (!modalOpen()) { verdict.scrollIntoView({ block: "center" }); note.focus({ preventScroll: true }); } },
-    stop() { $(".skip-link").textContent = t("a11y.skip"); active = false; off(); holdReload("view", () => false); for (const v of viewers) v.stop(); document.body.classList.remove("visual-mode"); } };
+    finish() { if (!modalOpen()) finish(); },
+    stop() { $(".skip-link").textContent = t("a11y.skip"); active = false; off(); seen?.disconnect(); holdReload("view", () => false); for (const v of viewers) v.stop(); document.body.classList.remove("visual-mode"); } };
 }
 
 // Delivery updates repaint Done. Retain the open capture and playhead for this settled round.

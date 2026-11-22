@@ -134,10 +134,14 @@ test("'none, suggest others' saves a flag and 'later' keeps a revisit text", asy
   expect(later.revisit).toBe("after the audit");
 });
 
-test("Own option and a note are saved with the answer", async ({ page }) => {
+test("Own option and a note sit in the row under the question, not behind More, and are saved with the answer", async ({ page }) => {
   const id = await d.open(rich());
   await openRound(page, d, id);
-  await openMoreActions(card(page, "mode"));
+  const row = card(page, "mode").locator(".action-row");
+  await expect(row.locator('[data-act="note"]')).toBeVisible();
+  await expect(row.locator('[data-act="other"]')).toBeVisible();
+  await expect(card(page, "mode").locator(".action-panel")).toBeHidden();
+  await expect(card(page, "mode").locator('.action-panel [data-act="file"]')).toHaveCount(1);
   await card(page, "mode").locator('[data-act="other"]').click();
   await card(page, "mode").locator(".other-input").fill("Mode C");
   await card(page, "mode").locator('[data-act="note"]').click();

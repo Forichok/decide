@@ -2,7 +2,7 @@ import { h } from "../dom.js";
 import { t } from "../i18n.js";
 import { openModal } from "../overlays.js";
 import { visualChoice } from "./choice.js";
-import { defaultImageLayout } from "./preference.js";
+import { defaultImageLayout, storedImageLayout } from "./preference.js";
 import { playback, seconds } from "./playback.js";
 
 const sides = ["before", "after"];
@@ -34,18 +34,36 @@ export function marker(mark, label) {
   return el;
 }
 
+// The place the remark is about, kept in sight above the words: the dialog covers the capture itself.
+function spot(asset, anchor) {
+  if (anchor.time != null || anchor.x == null || !asset?.image) return null;
+  const img = h("img", { src: asset.image, alt: "" });
+  const plane = h("div.va-plane", {}, img, marker(anchor, "+"));
+  const frame = h("div.va-spot", { "aria-hidden": "true" }, plane);
+  const centre = () => {
+    const y = (anchor.y + (anchor.h || 0) / 2) * plane.offsetHeight;
+    frame.scrollTop = Math.max(0, y - frame.clientHeight / 2);
+  };
+  img.addEventListener("load", centre);
+  requestAnimationFrame(centre);
+  return frame;
+}
+
 function compose(anchor, task, evidence, save, finished) {
-  const note = h("textarea.note", { rows: 3, maxlength: 4000, "aria-label": word("remark"), "data-autofocus": true });
+  const note = h("textarea.note", { rows: 3, maxlength: 4000, id: "va-remark", "data-autofocus": true });
   const submit = action("saveMark", async () => {
     if (!note.value.trim() || submit.disabled) return;
     submit.disabled = true;
     if (await save({ op: "mark", task: task.id, evidence: evidence.id, ...anchor, text: note.value.trim() })) close();
     else submit.disabled = false;
   });
+  submit.classList.add("primary");
   submit.disabled = true;
   note.oninput = () => { submit.disabled = !note.value.trim(); };
-  const close = openModal(h("div.va-compose", {}, h("h2.modal-title", {}, word("rightHere")),
+  const close = openModal(h("div.va-compose", {}, h("h2.modal-title", {}, word(anchor.time != null ? "remarkFrame" : "remarkShot")),
     h("p.va-meta", {}, [evidence.label, word(anchor.side), anchor.time != null ? seconds(anchor.time) : null].filter(Boolean).join(" · ")),
+    spot(evidence[anchor.side], anchor),
+    h("label.va-label", { for: "va-remark" }, word("remark")),
     note, h("div.modal-actions", {}, action("cancel", () => close()), submit)), { onClose: finished });
 }
 
@@ -56,28 +74,34 @@ export function evidenceViewer(task, evidence, range, save) {
   let kind = has("image") ? "image" : "video";
   const sameImages = sides.every(side => evidence[side]?.image);
   let wipe = sameImages && defaultImageLayout() === "wipe";
+  // Until the reader picks a layout, each capture takes the one that shows it at a readable size.
+  let chosen = storedImageLayout() !== null;
   let zoom = 1, expanded = "", marking = false, syncing = false;
   let marks = [], player;
   const view = h("div.va-compare");
   const hint = h("p.va-meta", { hidden: true }, word("placeHint"));
   const controls = h("div.va-controls");
   const choose = (key, fn) => action(key, () => {
+    // The point in the middle of the pane stays in the middle after the change. A pane that stood at an
+    // edge stays at that edge: one that showed the top of the capture still shows it.
     const visible = panes[expanded || "after"];
-    const x = (visible.scrollLeft + visible.clientWidth / 2) / (visible.scrollWidth || 1);
-    const y = (visible.scrollTop + visible.clientHeight / 2) / (visible.scrollHeight || 1);
+    const axis = (pos, size, full) => (pos <= 1 ? "start" : pos >= full - size - 1 ? "end" : (pos + size / 2) / (full || 1));
+    const x = axis(visible.scrollLeft, visible.clientWidth, visible.scrollWidth);
+    const y = axis(visible.scrollTop, visible.clientHeight, visible.scrollHeight);
+    const place = (at, size, full) => (at === "start" ? 0 : at === "end" ? full - size : at * full - size / 2);
     fn(); update();
     for (const pane of Object.values(panes)) {
       if (!pane.clientWidth) continue;
-      pane.scrollLeft = x * pane.scrollWidth - pane.clientWidth / 2;
-      pane.scrollTop = y * pane.scrollHeight - pane.clientHeight / 2;
+      pane.scrollLeft = place(x, pane.clientWidth, pane.scrollWidth);
+      pane.scrollTop = place(y, pane.clientHeight, pane.scrollHeight);
     }
   });
   const photos = choose("photo", () => { kind = "image"; player?.pause(); });
   const motion = choose("video", () => { kind = "video"; marking = false; });
-  const split = choose("split", () => { wipe = false; expanded = ""; });
-  const dividerMode = choose("wipe", () => { wipe = true; expanded = ""; });
-  const markButton = choose("rightHere", () => { marking = !marking; if (marking && wipe) wipe = false; });
-  const zoomControl = visualChoice(word("zoom"), [1, 1.5, 2, 3].map(n => [String(n), (n * 100) + "%"]), value => {
+  const split = choose("split", () => { wipe = false; expanded = ""; chosen = true; });
+  const dividerMode = choose("wipe", () => { wipe = true; expanded = ""; chosen = true; });
+  const markButton = choose("markProblem", () => { marking = !marking; if (marking && wipe) wipe = false; });
+  const zoomControl = visualChoice(word("zoom"), [1, 1.5, 2, 3].map(n => [String(n), n === 1 ? word("zoomFit") : (n * 100) + "%"]), value => {
     zoom = Number(value); update();
   }, "va-zoom");
   const divider = h("input.va-divider", { type: "range", min: 0, max: 100, value: 50, "aria-label": word("divider") });
@@ -100,7 +124,7 @@ export function evidenceViewer(task, evidence, range, save) {
     const plane = planes[side] = h("div.va-plane", {}, img, video, layer);
     if (img) {
       const sizeImage = () => plane.style.setProperty("--image-aspect", String(img.naturalWidth / img.naturalHeight));
-      img.addEventListener("load", sizeImage);
+      img.addEventListener("load", () => { sizeImage(); autoLayout(); });
       if (img.naturalHeight) sizeImage();
     }
     const status = h("p.va-empty", { hidden: true }, word("loadFailed"));
@@ -167,11 +191,12 @@ export function evidenceViewer(task, evidence, range, save) {
       plane.style.width = (kind === "image" ? zoom * 100 : 100) + "%";
       plane.classList.toggle("drawing", marking && Boolean(asset?.image));
       plane.tabIndex = marking && asset?.image ? 0 : -1;
-      if (plane.tabIndex === 0) { plane.setAttribute("role", "button"); plane.setAttribute("aria-label", word(side) + " · " + word("rightHere")); }
+      if (plane.tabIndex === 0) { plane.setAttribute("role", "button"); plane.setAttribute("aria-label", word(side) + " · " + word("markProblem")); }
       else { plane.removeAttribute("role"); plane.removeAttribute("aria-label"); }
       layers[side].hidden = kind !== "image";
       timeButtons[side].hidden = readOnly || kind !== "video" || !asset?.video;
       expandButtons[side].textContent = word(expanded === side ? "collapse" : "expand");
+      expandButtons[side].setAttribute("aria-pressed", String(expanded === side));
       expandButtons[side].setAttribute("aria-label", word(expanded === side ? "collapse" : "expand") + " · " + word(side));
     }
   }
@@ -185,6 +210,17 @@ export function evidenceViewer(task, evidence, range, save) {
       else Array.from(layers[m.side].children).find(el => el.textContent === String(i + 1))?.scrollIntoView({ block: "nearest", inline: "center" });
     } }, h("b", {}, i + 1), h("span", {}, m.text), h("small", {}, [word(m.side), m.time != null ? seconds(m.time) : ""].filter(Boolean).join(" · "))))));
   }
+  // Side by side is for captures that stay readable at half the pane; a wider one opens under the wipe.
+  function autoLayout() {
+    if (chosen || !sameImages || kind !== "image" || expanded || marking) return;
+    const width = view.clientWidth;
+    const natural = Math.max(...sides.map(side => planes[side].querySelector("img")?.naturalWidth || 0));
+    if (!width || !natural) return;
+    const next = (width - 8) / 2 < natural * 0.6;
+    if (next === wipe) return;
+    wipe = next; update();
+  }
+  if (sameImages && "ResizeObserver" in window) new ResizeObserver(autoLayout).observe(view);
   update(); setMarks([]);
   function markImage() {
     if (readOnly || !has("image")) return;

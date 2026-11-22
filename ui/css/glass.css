@@ -34,9 +34,14 @@ body::before {
 }
 
 /* floating pieces are a little more opaque so text stays readable over content */
-.bar,
-.modal {
+.bar {
   background: var(--glass-bg-strong);
+}
+/* a dialog is read, not looked through: solid, so its sticky action row is one surface with its body */
+.modal {
+  background: var(--surface-solid);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 /* inside a glass card, media and code are solid */

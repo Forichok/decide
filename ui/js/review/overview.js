@@ -63,7 +63,7 @@ export function renderOverview(s) {
   const risks = collectRisks(spec, rv.chapters).map((r) => {
     const n = number(r.chapter);
     const inner = [h(`span.badge.cr-${r.level}`, {}, t(`cr.risk.${r.level}`)), h("span.what", {}, h("span", { html: mdInline(r.what) }), r.why && h("span.why", { html: mdInline(r.why) })), n > 0 && h("span.go", {}, t("cr.goChapter", n))];
-    return h("li", {}, n > 0 ? h("button.cr-risk", { type: "button", onclick: () => Number.isInteger(r.place) ? s.goPlace(r.chapter, r.place) : s.go(`ch:${r.chapter}`) }, inner) : h("div.cr-risk", {}, inner), h(`p.cr-risk-check${r.checkedBy ? "" : ".warn"}`, {}, r.checkedBy ? t("cr.checkedBy", r.checkedBy) : t("cr.notChecked"), " ", h("small.cr-said", {}, t("cr.said"))));
+    return h("li", {}, n > 0 ? h("button.cr-risk", { type: "button", onclick: () => Number.isInteger(r.place) ? s.goPlace(r.chapter, r.place) : s.go(`ch:${r.chapter}`) }, inner) : h("div.cr-risk", {}, inner), h(`p.cr-risk-check${r.checkedBy ? "" : ".warn"}`, {}, r.checkedBy ? t("cr.checkedBy", r.checkedBy) : t("cr.notChecked")));
   });
   const checks = spec.checks.map((c) => {
     const st = checkState(c);
@@ -72,7 +72,7 @@ export function renderOverview(s) {
       {},
       h("td.st", {}, h(`span.cr-mark.${st}`, { title: t(`cr.check.${st}`) }, st === "ok" ? "✓" : st === "failed" ? "!" : "–")),
       h("td.cmd", {}, c.command, c.note && h("small", { html: mdInline(c.note) })),
-      h("td.xc", {}, st === "missing" ? t("cr.check.missing") : t("cr.exit", c.exit)),
+      h("td.xc", {}, st === "missing" ? t("cr.check.missing") : st === "failed" ? [t("cr.check.failed"), " · ", t("cr.exit", c.exit)] : t("cr.exit", c.exit)),
       h("td.dur", {}, seconds(c.seconds)),
     );
   });
@@ -124,14 +124,14 @@ export function renderRail(s) {
     {},
     h("h2", {}, t("cr.rail")),
     item("overview", "≡", t("cr.overview"), null, () => s.go("overview")),
-    spec.chapters.map((c, i) => item(`ch:${c.id}`, i + 1, mdInline(c.title), h("span.tail", {}, h("span.c"), h("span.cr-open-findings", { hidden: true, role: "img" }), h(`span.cr-dot.${c.risk}`)), () => s.go(`ch:${c.id}`))),
+    spec.chapters.map((c, i) => item(`ch:${c.id}`, i + 1, mdInline(c.title), h("span.tail", {}, h("span.c", { hidden: true, role: "img" }), h("span.cr-open-findings", { hidden: true, role: "img" }), h(`span.cr-dot.${c.risk}`)), () => s.go(`ch:${c.id}`))),
     folds > 0 && h("div.sep"),
     spec.mechanical.length > 0 && item("mech", "⋯", t("cr.railMech", rv.mechanical.reduce((n, m) => n + m.pieces, 0)), null, () => s.goFolds()),
     rv.rest.pieces > 0 && item("rest", "?", t("cr.railRest", rv.rest.pieces), null, () => s.goFolds("rest")),
     full,
     h("button.cr-files", { type: "button", onclick: () => s.openFiles() }, t("cr.fileList")),
     progress,
-    h(`p.cr-sorted${rv.sorted < rv.total ? ".short" : ""}`, {}, t("cr.sortedA"), " ", h("b", {}, t("cr.of", rv.sorted, rv.total)), " ", t("cr.sortedB")),
+    rv.sorted < rv.total && h("p.cr-sorted.short", {}, t("cr.sortedA"), " ", h("b", {}, t("cr.of", rv.sorted, rv.total)), " ", t("cr.sortedB")),
   );
   return {
     el,
@@ -139,10 +139,8 @@ export function renderRail(s) {
       const said = s.byChapter();
       const findings = s.openCounts();
       const c = coverageCounts(s);
-      progress.replaceChildren(
-        h("span", {}, t("cr.coverage.viewed", spec.chapters.filter((c) => Object.hasOwn(s.rv.read, c.id)).length, spec.chapters.length)),
-        h("span", {}, t("cr.coverage.short", c.opened, c.total, c.part)),
-      );
+      // How many chapters are read is on the bar and in the ticks above: here only what the screen has shown.
+      progress.replaceChildren(h("span", {}, t("cr.coverage.short", c.opened, c.total, c.part)));
       full.textContent = s.fullLoading ? t("cr.fullLoading", s.loaded.size, rv.total) : t(s.full ? "cr.fullOff" : "cr.fullOn");
       full.disabled = Boolean(s.fullLoading);
       full.setAttribute("aria-pressed", String(s.full));
@@ -161,30 +159,37 @@ export function renderRail(s) {
         badge.title = open ? t("cr.reviewers.openCountLabel", open) : "";
         badge.setAttribute("aria-label", badge.title);
         const n = said.get(id) || 0;
-        node.querySelector(".c").textContent = n || "";
-        node.querySelector(".c").title = n ? t("cr.comments", n) : "";
+        const mine = node.querySelector(".c");
+        mine.hidden = !n;
+        mine.textContent = n || "";
+        mine.title = n ? t("cr.comments", n) : "";
+        mine.setAttribute("aria-label", mine.title);
       }
     },
   };
 }
 
-// The bar: how far the reading went, what was said, and the three verdicts.
+// The bar: how far the reading went, what still stands in the way, and the three verdicts. The verdict
+// the state points to is the filled button; each thing in the way is its own short chip that leads to it,
+// so the line breaks between chips and never inside one.
 export function renderBar(s) {
   const pills = h("div.cr-pills", { "aria-hidden": "true" });
   const line = h("b");
-  const sub = h("small");
+  const stats = h("span.cr-stats");
+  const button = (v) => h("button.btn", { type: "button", dataset: { verdict: v }, onclick: () => s.verdict(v) }, t(`cr.v.${v}`));
+  const buttons = { return: button("return"), nits: button("nits"), approve: button("approve") };
   const el = h(
     "div.cr-bar.glass",
     { role: "region", "aria-label": t("cr.barLabel") },
-    h("div.state", {}, pills, line, sub),
-    h(
-      "div.acts",
-      {},
-      h("button.btn.ghost", { type: "button", dataset: { verdict: "return" }, onclick: () => s.verdict("return") }, t("cr.v.return")),
-      h("button.btn", { type: "button", dataset: { verdict: "nits" }, onclick: () => s.verdict("nits") }, t("cr.v.nits")),
-      h("button.btn.primary", { type: "button", dataset: { verdict: "approve" }, onclick: () => s.verdict("approve") }, t("cr.v.approve")),
-    ),
+    h("div.state", {}, pills, line, stats),
+    h("div.acts", {}, buttons.return, buttons.nits, buttons.approve),
   );
+  const toChecks = () => {
+    const checks = document.querySelector('.cr-overview [data-section="checks"]');
+    checks?.setAttribute("tabindex", "-1");
+    checks?.scrollIntoView({ behavior: "instant", block: "center" });
+    checks?.focus({ preventScroll: true });
+  };
   return {
     el,
     paint() {
@@ -194,22 +199,25 @@ export function renderBar(s) {
       line.textContent = t("cr.readOf", spec.chapters.filter(read).length, spec.chapters.length);
       const n = s.counts();
       const checks = s.checks();
-      const open = findingsOf(s).filter(f => !decisionOf(s, f));
       const blockers = blockingFindings(s);
-      const decisions = decisionsOf(s);
-      const answered = decisions.filter(d => answerOf(s, d) !== null).length;
-      const status = [];
-      if (open.length || blockers.length) {
-        const first = blockers[0] ?? open[0];
-        status.push(h("button.link-btn", { type: "button", onclick: () => s.goReviewers(first.id) },
-          t("cr.bar.findings", open.length, blockers.length)));
-      }
-      if (decisions.length) status.push(t("cr.bar.decisions", answered, decisions.length));
-      const said = n.fix + n.nit + n.question ? t("cr.said.some", n.fix + n.nit + n.question, [n.fix && t("cr.n.fix", n.fix), n.question && t("cr.n.question", n.question), n.nit && t("cr.n.nit", n.nit)].filter(Boolean).join(", ")) : "";
-      const red = [checks.failed && t("cr.n.failed", checks.failed), checks.missing && t("cr.n.missing", checks.missing)].filter(Boolean).join(", ");
-      if (said) status.push(said);
-      if (red || !checks.total) status.push(h("span.warn", {}, red ? t("cr.checksRed", red) : t("cr.checksNone")));
-      sub.replaceChildren(...status.flatMap((part, i) => i ? [" · ", part] : [part]));
+      const open = findingsOf(s).filter(f => !decisionOf(s, f) && f.severity !== "blocking");
+      const waiting = decisionsOf(s).filter(d => answerOf(s, d) === null);
+      const said = n.fix + n.nit + n.question;
+      // level: what it means for the verdict; low: left off a phone, the verdict dialog repeats it.
+      const stat = (kind, level, text, onclick, title) =>
+        h(`${onclick ? "button" : "span"}.cr-stat${level ? `.${level}` : ""}`, { dataset: { stat: kind }, ...(onclick ? { type: "button", onclick } : {}), ...(title ? { title } : {}) }, text);
+      stats.replaceChildren(...[
+        blockers.length > 0 && stat("blockers", "danger", t("cr.bar.blockers", blockers.length), () => s.goReviewers(blockers[0].id)),
+        checks.failed > 0 && stat("failed", "danger", t("cr.bar.failed", checks.failed), toChecks),
+        waiting.length > 0 && stat("decisions", "warn", t("cr.bar.decisions", waiting.length), () => s.goPlace(waiting[0].chapter, waiting[0].index)),
+        !checks.total && stat("nochecks", "warn", t("cr.checksNone"), toChecks),
+        open.length > 0 && stat("findings", "low", t("cr.bar.findings", open.length), () => s.goReviewers(open[0].id)),
+        checks.missing > 0 && stat("missing", "low", t("cr.bar.missing", checks.missing), toChecks),
+        said > 0 && stat("said", "low", t("cr.said.some", said), null,
+          [n.fix && t("cr.n.fix", n.fix), n.question && t("cr.n.question", n.question), n.nit && t("cr.n.nit", n.nit)].filter(Boolean).join(", ")),
+      ].filter(Boolean));
+      const lead = s.suggested();
+      for (const [v, b] of Object.entries(buttons)) b.classList.toggle("primary", v === lead);
     },
   };
 }

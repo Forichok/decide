@@ -124,8 +124,10 @@ kbd {
 .bar-actions { display: flex; gap: 8px; }
 .bar.complete .bar-done { animation: ready 2.4s var(--ease) infinite; }
 @keyframes ready { 50% { box-shadow: 0 0 0 6px var(--accent-soft); } }
+.bar-cancel .short { display: none; }
 @media (max-width: 620px) {
-  .bar-next, .bar-done kbd { display: none; }
+  .bar-next, .bar-done kbd, .bar-cancel .long { display: none; }
+  .bar-cancel .short { display: inline; }
   .bar-inner { padding-left: 14px; }
   /* no room for a hint beside the count: it gets a line of its own, whole */
   .bar-status .bar-hint { grid-row: 3; grid-column: 1 / -1; white-space: normal; line-height: 1.3; }
