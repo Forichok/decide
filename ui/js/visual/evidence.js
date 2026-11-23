@@ -214,7 +214,9 @@ export function evidenceViewer(task, evidence, range, save) {
   function autoLayout() {
     if (chosen || !sameImages || kind !== "image" || expanded || marking) return;
     const width = view.clientWidth;
-    const natural = Math.max(...sides.map(side => planes[side].querySelector("img")?.naturalWidth || 0));
+    // the capture's own CSS width ("390 × 844"), not its pixels: a phone shot taken at scale 2 is half as wide
+    const css = Number(String(evidence.viewport || "").match(/(\d{3,5})\s*[×x]\s*\d{3,5}/)?.[1]) || 0;
+    const natural = css || Math.max(...sides.map(side => planes[side].querySelector("img")?.naturalWidth || 0));
     if (!width || !natural) return;
     const next = (width - 8) / 2 < natural * 0.6;
     if (next === wipe) return;

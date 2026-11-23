@@ -931,6 +931,8 @@ test("a line takes a comment from the keyboard, and the bar leads with the verdi
   await box.locator("textarea").fill("Said without a mouse.");
   await box.locator("textarea").press("ControlOrMeta+Enter");
   await expect(a.locator(".cr-cm.fix .cr-cm-text")).toHaveText("Said without a mouse.");
+  // the box is gone: the line it was opened from has the focus again
+  await expect(second).toBeFocused();
 
   // something to fix: the bar leads with the return, and its dialog confirms that verdict alone
   await expect(bar.locator('[data-verdict="return"]')).toHaveClass(/\bprimary\b/);

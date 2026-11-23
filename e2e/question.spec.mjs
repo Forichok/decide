@@ -87,6 +87,9 @@ for (const count of [1, 2]) {
     await expect(rec).toBeHidden();
     await opt(page, "tabs", "admin").click();
     await openMoreActions(tabs);
+    // it picks an answer, so it waits among the ready answers and not under "No answer"
+    await expect(tabs.getByRole("group", { name: "Ready answers" }).locator('[data-act="rec"]')).toBeVisible();
+    await expect(tabs.getByRole("group", { name: "No answer" }).locator('[data-act="rec"]')).toHaveCount(0);
     await rec.click();
     await expect(tabs.locator('.opt[aria-checked="true"]')).toHaveCount(count);
     await expect(opt(page, "tabs", "home")).toHaveAttribute("aria-checked", "true");
