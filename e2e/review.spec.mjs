@@ -907,7 +907,8 @@ test("independent decision saves finish before a verdict and both reach the resu
 
 test("a line takes a comment from the keyboard, and the bar leads with the verdict the state points to", async ({ page }) => {
   test.skip(!hasGit, "git is not installed");
-  const opened = await d.must("POST", "/api/rounds", { project: d.project, spec: SPEC, mode: "review", open: false });
+  // pinned to the fixture commit: an earlier test commits "keep the digit" on top of the feature branch
+  const opened = await d.must("POST", "/api/rounds", { project: d.project, base: "main", head: repo.feature, spec: SPEC, mode: "review", open: false });
   await page.goto(opened.url.replace("/#", "/?lang=en#"));
   const bar = page.locator(".cr-bar");
   // nothing said, no failed check: the bar leads with the approval
