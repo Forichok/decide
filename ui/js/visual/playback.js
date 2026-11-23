@@ -8,7 +8,7 @@ export function sharedInterval(clips) {
   };
 }
 
-export const seconds = time => Number(time).toFixed(2) + " s";
+export const seconds = time => t("va.seconds", Number(time).toFixed(2));
 
 // The slider counts seconds relative to the shared action. Pins keep native clip time.
 export function playback(clips) {
@@ -36,9 +36,10 @@ export function playback(clips) {
     for (const c of clips) c.video.currentTime = time + absolute(c);
     position(time);
   }
+  // The reader sees time from the start of what both clips share; the slider keeps time around the action.
   function position(time) {
     track.value = String(time);
-    output.textContent = seconds(time);
+    output.textContent = seconds(Math.max(0, time - Number(track.min)));
     track.setAttribute("aria-valuetext", output.textContent);
   }
   function tick() {

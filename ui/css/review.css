@@ -68,7 +68,7 @@ button.cr-risk:hover { border-color: var(--line-strong); }
 .cr-risk .why { display: block; font-weight: 400; color: var(--tx-mut); font-size: 13.5px; }
 .cr-risk .go { color: var(--tx-mut); font-size: 13px; font-weight: 600; white-space: nowrap; }
 button.cr-risk:hover .go { color: var(--accent-tx); }
-@media (max-width: 620px) { .cr-risk { grid-template-columns: auto 1fr; } .cr-risk .go { grid-column: 2; } }
+@media (max-width: 620px) { .cr-risk { grid-template-columns: minmax(0, 1fr); gap: 6px; } .cr-risk .badge { justify-self: start; } }
 .badge.cr-high { background: var(--danger-soft); color: var(--danger); }
 .badge.cr-medium { background: var(--warn-soft); color: var(--warn); }
 .badge.cr-test { background: var(--info-soft); color: var(--info); }
@@ -100,8 +100,9 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 .cr-files { font-size: 12.5px; color: var(--tx-dim); overflow-wrap: anywhere; }
 .cr-ch-why { color: var(--tx-mut); margin: 14px 0 0; text-wrap: pretty; }
 .cr-watch { margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); color: var(--tx); font-size: 14px; }
-.cr-watch.high { background: var(--danger-soft); }
-.cr-watch.medium { background: var(--warn-soft); }
+.cr-watch { border-left: 3px solid var(--line-strong); }
+.cr-watch.high { border-left-color: var(--danger); }
+.cr-watch.medium { border-left-color: var(--warn); }
 .cr-watch b { font-weight: 650; }
 .cr-watch.high b { color: var(--danger); }
 .cr-watch.medium b { color: var(--warn); }
@@ -123,8 +124,8 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 .cr-others[open] > summary { border-bottom: 1px solid var(--line); border-radius: var(--r-md) var(--r-md) 0 0; }
 .cr-others > .cr-hunk { margin: 12px; }
 .cr-how { margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); color: var(--tx-mut); font-size: 14px; text-wrap: pretty; }
-.cr-full, .cr-files { display: block; width: calc(100% - 20px); margin: 14px 10px 0; padding: 7px 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: none; color: var(--tx-mut); font-size: 12.5px; font-weight: 620; cursor: pointer; }
-.cr-full:hover, .cr-files:hover { color: var(--tx); background: var(--surface-3); }
+.cr-full, button.cr-files { display: block; width: calc(100% - 20px); margin: 14px 10px 0; padding: 7px 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: none; color: var(--tx-mut); font-size: 12.5px; font-weight: 620; cursor: pointer; }
+.cr-full:hover, button.cr-files:hover { color: var(--tx); background: var(--surface-3); }
 .cr-full[aria-pressed="true"] { color: var(--accent-tx); border-color: var(--accent); }
 .cr-ch-foot { display: flex; align-items: center; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
 .cr-hint { color: var(--tx-dim); font-size: 13px; }
@@ -250,25 +251,60 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 .cr-fold-body > .cr-hunk:first-child, .cr-fold-body > .cr-wait:first-child { margin-top: 0; }
 @media (max-width: 620px) { .cr-fold-body { padding: 0 10px 12px; } }
 
-/* the verdict bar: stays at the bottom of the column */
+/* the verdict bar: stays at the bottom of the column. One row: the state takes what the buttons leave
+   and wraps inside itself, chip by chip. Close to opaque, so the diff under it does not read through. */
 .cr-bar {
   position: sticky; bottom: 16px; z-index: 5; margin-top: 36px; border-radius: 26px; padding: 12px 14px 12px 22px;
-  display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; background: var(--glass-bg-strong);
+  display: flex; align-items: center; gap: 12px 16px; background: color-mix(in srgb, var(--surface-solid) 94%, transparent);
 }
-.cr-bar .state { flex: 1 1 240px; min-width: 0; }
-.cr-bar .state b { font-weight: 680; }
-.cr-bar .state small { display: block; color: var(--tx-mut); font-size: 13px; }
-.cr-bar .state .warn { color: var(--warn); font-weight: 600; }
-.cr-pills { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+.cr-bar .state { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.cr-bar .state b { font-weight: 680; white-space: nowrap; }
+.cr-pills { display: flex; gap: 4px; flex: 1 0 100%; margin-bottom: 2px; }
 .cr-pills i { width: 34px; max-width: 8%; height: 5px; border-radius: 3px; background: var(--surface-3); }
 .cr-pills i.done { background: var(--ok); }
-.cr-bar .acts { display: flex; gap: 8px; flex-wrap: wrap; }
-@media (max-width: 620px) { .cr-bar { padding: 12px; border-radius: 20px; } .cr-bar .acts .btn { padding: 9px 13px; } }
+.cr-stats { display: contents; }
+.cr-stat { font: 600 13px/1.5 var(--font); color: var(--tx-mut); white-space: nowrap; padding: 0; border: 0; background: none; }
+button.cr-stat { cursor: pointer; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 3px; }
+button.cr-stat:hover { text-decoration-color: currentColor; }
+.cr-stat.danger { color: var(--danger); }
+.cr-stat.warn { color: var(--warn); }
+.cr-stat::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; vertical-align: 2px; background: currentColor; opacity: 0.55; }
+.cr-stat.danger::before, .cr-stat.warn::before { opacity: 1; }
+.cr-bar .acts { display: flex; gap: 8px; flex: none; }
+.cr-bar .acts .btn { white-space: nowrap; }
+@media (max-width: 760px) {
+  /* a phone: one line of state that scrolls sideways (its right edge fades to say so), then the verdicts */
+  .cr-bar { display: grid; gap: 4px; padding: 6px 10px 10px; border-radius: 20px; bottom: 8px; }
+  .cr-bar .cr-pills { display: none; }
+  .cr-bar .state {
+    flex-wrap: nowrap; align-items: center; gap: 0 14px; min-height: 40px; font-size: 13px; overflow-x: auto; scrollbar-width: none;
+    margin-right: -10px; padding-right: 28px;
+    -webkit-mask-image: linear-gradient(to left, transparent, #000 28px); mask-image: linear-gradient(to left, transparent, #000 28px);
+  }
+  .cr-bar .state::-webkit-scrollbar { display: none; }
+  .cr-stat { font-size: 12.5px; flex: none; }
+  .cr-bar .acts { display: grid; grid-template-columns: auto minmax(0, 1.5fr) auto; gap: 6px; }
+  .cr-bar .acts .btn { min-width: 0; min-height: 44px; padding: 6px 12px; font-size: 13.5px; line-height: 1.2; white-space: normal; }
+}
 
 /* the verdict dialog and the done screen */
 .cr-verdict p { margin: 12px 0 0; color: var(--tx-mut); }
-.cr-alert { margin-top: 12px; padding: 10px 14px; border-radius: 12px; background: var(--warn-soft); color: var(--tx); font-size: 14px; }
-.cr-alert b { color: var(--warn); }
+/* two voices: red stands against an approval, the quiet one is only worth knowing */
+.cr-alerts { display: grid; gap: 8px; margin-top: 14px; }
+.cr-alerts:empty { display: none; }
+.cr-alert { padding: 9px 14px; border-radius: 12px; background: var(--surface-2); border-left: 3px solid var(--warn); color: var(--tx); font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.cr-alert b { font-weight: 650; }
+.cr-alert.danger { background: var(--danger-soft); border-left-color: var(--danger); }
+.cr-alert.danger b { color: var(--danger); }
+.cr-verdict .cr-alert ul { margin: 6px 0 0; gap: 2px; font-size: 13.5px; }
+.cr-verdict .cr-alert-list li { display: block; }
+/* approving over a red warning is allowed, not invited */
+.cr-verdict .btn.primary.caution { background: none; color: var(--danger); box-shadow: inset 0 0 0 1.5px var(--danger); }
+.cr-alert-list code { font: 12.5px/1.5 var(--mono); overflow-wrap: anywhere; }
+.cr-verdict-change { display: inline-block; margin-top: 6px; font-size: 13.5px; }
+.cr-verdict-change[hidden], .cr-seg[hidden] { display: none; }
+.cr-note-label { display: block; margin-top: 16px; font-size: 13px; font-weight: 620; color: var(--tx-mut); }
+.cr-verdict .cr-note-label + textarea { margin-top: 6px; }
 .cr-verdict ul { margin: 14px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 14px; }
 .cr-verdict li { display: flex; gap: 8px; align-items: baseline; }
 .cr-verdict textarea { margin-top: 14px; }
@@ -292,7 +328,7 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 .cr-done-recovery { color: var(--tx-mut); font-size: 14px; line-height: 1.5; }
 
 /* Files stay a flat list, including in the narrow chapter menu. */
-.cr-files { text-align: left; margin-top: 8px; }
+button.cr-files { margin-top: 8px; }
 .cr-progress, .cr-mechanical-account { color: var(--tx-mut); font-size: 13px; line-height: 1.5; }
 .cr-mechanical-account { padding: 8px 16px; }
 .modal:has(.cr-file-list) { width: min(720px, 92vw); }
@@ -312,7 +348,7 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 .cr-overview-section { margin-block: 1.5rem; }
 .cr-risk-check { margin: .25rem 0 .8rem; padding-inline: .7rem; font-size: .85rem; }
 .cr-decision { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
-.cr-decision-question { flex: 1 1 18rem; font-weight: 600; }
+.cr-decision-question { flex: 0 1 auto; max-width: 62ch; font-weight: 600; }
 .cr-decision-buttons { display: inline-flex; gap: .4rem; }
 .cr-decision-buttons [aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
 .cr-overview-decision { margin-block: .8rem; }
@@ -333,16 +369,21 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 .cr-reviewer-list { display: grid; gap: 8px; padding: 0; margin: 8px 0; list-style: none; }
 .cr-reviewer, .cr-finding { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; overflow-wrap: anywhere; }
 .cr-reviewer.warn { color: var(--warn); background: var(--warn-soft); }
+.cr-reviewer.skipped { border-style: dashed; color: var(--tx-mut); font-size: 14px; }
+.cr-reviewer.skipped b { color: var(--tx); font-weight: 620; }
 .cr-reviewer-head, .cr-finding-acts, .cr-finding-form, .cr-finding-jumps { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
 .cr-reviewer-head { margin-bottom: 4px; }
 .cr-reviewer-mark.clean { color: var(--ok); }
 .cr-reviewer-mark.concerns, .cr-open-findings { color: var(--warn); }
 .cr-reviewer-mark.blocking { color: var(--danger); }
-.cr-finding { background: var(--surface-2); font: 14px/1.5 var(--font); }
+.cr-finding { background: var(--surface-2); font: 14px/1.5 var(--font); border-left: 3px solid var(--info); }
+.cr-finding.major { border-left-color: var(--warn); }
+.cr-finding.blocking { border-left-color: var(--danger); background: var(--danger-soft); }
+
 .cr-finding-severity { color: var(--info); }
 .cr-finding.major .cr-finding-severity { color: var(--warn); }
-.cr-finding.blocking .cr-finding-severity { color: var(--danger); }
-.cr-finding-state { color: var(--tx-mut); }
+.cr-finding.blocking .cr-finding-severity { background: var(--danger); color: var(--surface-solid); }
+.cr-finding-state { color: var(--tx-mut); font-size: 12.5px; }
 .cr-finding-anchor { display: block; color: var(--warn); }
 .cr-reviewers { scroll-margin-top: 16px; }
 .cr-finding-jump { font-family: var(--mono); text-align: left; }
@@ -353,10 +394,15 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 .cr-list:not(:empty) + .cr-findings:not(:empty), .cr-findings:not(:empty) + .cr-slot:not(:empty) { margin-top: 8px; }
 .cr-finding-toggle { margin-top: 4px; }
 .cr-open-findings { font-size: 12px; }
-.cr-rail-item .cr-open-findings {
-  min-width: 1.5em; padding: 0 4px; border-radius: 999px; background: var(--warn-soft);
-  font: 600 11px/1.6 var(--mono); text-align: center;
+/* two counts on a chapter's row, told apart by a mark: the reader's own notes and the reviewers' findings */
+.cr-rail-item .cr-open-findings, .cr-rail-item .c {
+  min-width: 1.5em; padding: 0 5px; border-radius: 999px; font: 600 12px/1.6 var(--mono); text-align: center; white-space: nowrap;
 }
+.cr-rail-item .cr-open-findings { background: var(--warn-soft); }
+.cr-rail-item .cr-open-findings::before { content: "! "; }
+.cr-rail-item .c { background: var(--surface-3); color: var(--tx-mut); }
+.cr-rail-item .c::before { content: "✎ "; }
+.cr-rail-item .c[hidden], .cr-rail-item .cr-open-findings[hidden] { display: none; }
 
 .cr-followup-range { color: var(--tx-mut); overflow-wrap: anywhere; }
 .cr-round-number { font-weight: 650; }
@@ -376,12 +422,43 @@ button.cr-risk:hover .go { color: var(--accent-tx); }
 .cr-decision-buttons { flex-wrap: wrap; min-width: 0; max-width: 100%; }
 .cr-decision-buttons .chip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 .cr-decision-question, .cr-meta code { overflow-wrap: anywhere; }
-.cr-bar .state .link-btn { font: inherit; }
+
+/* ---- reading comfort ---- */
+/* prose keeps a measure on a wide column; code and tables take the width */
+.cr-overview .cr-md, .cr-overview .cr-how, .cr-overview-section > p, .cr-ch-why, .cr-watch, .cr-skim, .cr-whole-note { max-width: 78ch; }
+.cr-risks, .cr-reviewer-list, .cr-checks-wrap, .cr-resolution-list { max-width: 920px; }
+/* a line of the diff reached by Tab and the arrows shows where it is, with the same "+" the pointer gets */
+.cr-diff tr.cr-line:focus { outline: none; }
+.cr-diff tr.cr-line:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cr-diff tr.cr-line:focus-visible td { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--accent) 9%, transparent); }
+.cr-diff tr.cr-line:focus-visible td.n:first-child::before {
+  content: "+"; position: absolute; left: 4px; top: 2px; width: 16px; height: 16px; border-radius: 5px;
+  background: var(--accent); color: var(--on-accent); font: 700 13px/16px var(--font); text-align: center;
+}
+/* the checks on a phone: the command gets the row, its outcome sits under it */
 @media (max-width: 620px) {
-  .cr-bar { display: grid; gap: 6px; padding: 8px 10px; bottom: 6px; }
-  .cr-bar .cr-pills { display: none; }
-  .cr-bar .state { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 8px; font-size: 12px; }
-  .cr-bar .state small { font-size: 12px; }
-  .cr-bar .acts { display: grid; grid-template-columns: 1fr 1.45fr 1fr; gap: 4px; }
-  .cr-bar .acts .btn { min-width: 0; min-height: 40px; padding: 4px; white-space: normal; font-size: 12px; }
+  .cr-checks, .cr-checks tbody { display: block; }
+  .cr-checks tr { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; column-gap: 8px; padding: 9px 12px; border-top: 1px solid var(--line); }
+  .cr-checks tr:first-child { border-top: 0; }
+  .cr-checks td { padding: 0; border: 0; }
+  .cr-checks .st { width: auto; grid-row: 1 / span 2; }
+  .cr-checks .cmd { grid-column: 2 / -1; }
+  .cr-checks .xc { grid-column: 2; text-align: left; white-space: normal; }
+  .cr-checks .dur { grid-column: 3; }
+  /* where a hunk sits: its own line, whole */
+  .cr-at { flex: 1 1 100%; order: 3; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+  .cr-tools { order: 4; margin-left: 0; justify-content: flex-start; }
+  /* the three verdicts in one row of the dialog */
+  .cr-verdict .cr-seg { display: grid; grid-template-columns: auto minmax(0, 1.5fr) auto; width: 100%; border-radius: 16px; }
+  .cr-verdict .cr-seg button { padding: 8px 8px; border-radius: 13px; line-height: 1.25; }
+}
+@media (min-width: 621px) and (max-width: 900px) { .cr-at { min-width: 0; flex-basis: 100%; order: 3; } .cr-tools { order: 4; } }
+/* ---- touch: the small tools of the review are 44px under the thumb ---- */
+@media (pointer: coarse) {
+  .cr-tool, .cr-seg button, .cr-cm-top button, .cr-places button, .cr-tests button, .cr-rail-item, .cr-full, button.cr-files,
+  .cr-fold > summary, .cr-others > summary, button.cr-stat, .cr-risk { min-height: 44px; }
+  .cr-bar .state { min-height: 44px; }
+  .cr-tool, .cr-cm-top button, button.cr-stat { display: inline-flex; align-items: center; }
+  .cr-seg button { padding-inline: 14px; }
+  .cr-finding-form input { min-height: 44px; }
 }

@@ -73,3 +73,17 @@ test("reduced motion shortens every transition", async ({ page }) => {
   const dur = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--dur").trim());
   expect(dur).toBe("0.01ms");
 });
+
+test("a round's header on a phone is one row inside the screen, and every control in it keeps a name", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await openRound(page, d, id);
+  const head = page.locator(".eyebrow");
+  const box = await head.boundingBox();
+  expect(box.height).toBeLessThan(64);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  for (const control of await head.locator("a:visible, button:visible").all()) {
+    const size = await control.boundingBox();
+    expect(size.x + size.width).toBeLessThanOrEqual(375);
+    await expect(control).toHaveAccessibleName(/\S/);
+  }
+});

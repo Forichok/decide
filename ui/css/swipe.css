@@ -254,8 +254,9 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
 /* Keys that don't fit on one line drop labels: first ← → (the side tiles show them), then all (the title keeps them). */
 .sw-keys.tight-1 .sw-key:is(.left, .right) span, .sw-keys.tight-2 .sw-key span { display: none; }
 .sw-keys.tight-1 .sw-key:is(.left, .right), .sw-keys.tight-2 .sw-key { padding: 8px; }
+/* A key is its glyph over its name: the name stays at every width that has room for seven of them. */
 .sw-key {
-  display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 7px 14px 7px 10px; border-radius: 999px;
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 78px; min-height: 48px; padding: 5px 10px 6px; border-radius: 16px; line-height: 1.15;
   border: 1px solid var(--card-edge); background: var(--card-bg);
   -webkit-backdrop-filter: var(--card-blur); backdrop-filter: var(--card-blur);
   color: var(--tx-mut); font-size: var(--step--1, 13px); cursor: pointer;
@@ -265,7 +266,7 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
 .sw-key:active { transform: scale(0.95); }
 .sw-key kbd { min-width: 24px; text-align: center; font-size: 13px; background: none; border: 0; padding: 0; color: inherit; }
 .sw-key-ic { display: none; }
-.sw-key-ic .i { width: 20px; height: 20px; }
+.sw-key-ic .i { width: 18px; height: 18px; }
 .sw-key.right { color: var(--on-accent, #fff); background: var(--accent); border-color: transparent; }
 .sw-key.right:hover { color: var(--on-accent, #fff); filter: brightness(1.05); }
 .sw-foot { display: flex; justify-content: center; }
@@ -322,10 +323,9 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
   .sw-stop kbd { display: none; }
   /* thumb keys: 48 px tall, the labels gone, the two answers wider than the rest */
   .sw-keys { flex-wrap: nowrap; gap: 6px; width: 100%; }
-  .sw-key { flex: 1 1 0; min-width: 44px; min-height: 48px; padding: 0; }
-  .sw-key.left, .sw-key.right { flex: 1.5 1 0; }
-  .sw-key span { display: none; }
-  .sw-key kbd { min-width: 0; font-size: 18px; }
+  .sw-key { flex: 1 1 0; min-width: 44px; min-height: 52px; padding: 4px 2px; }
+  .sw-key span { font-size: 12px; max-width: 100%; text-align: center; }
+  .sw-key kbd { min-width: 0; font-size: 16px; }
   .sw-card .sw-facets-toggle { min-height: 44px; }
   .sw-foot .btn, .sw-own { min-height: 44px; }
   .sw-end { padding: var(--space-5, 24px) var(--space-4, 16px); }
@@ -359,6 +359,23 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
 @media (hover: none) and (max-width: 900px) {
   .sw-key:not(.left, .right) kbd { display: none; }
   .sw-key:not(.left, .right) .sw-key-ic { display: grid; }
+}
+/* A phone under a thumb: the two answers are the tiles and the swipe itself, so the strip keeps the rest,
+   each with its name. A narrow window with a keyboard keeps all seven keys and drops the names. */
+@media (hover: none) and (max-width: 560px) {
+  .sw-key.left, .sw-key.right { display: none; }
+}
+@media (hover: hover) and (max-width: 560px) {
+  .sw-key span { display: none; }
+}
+@media (max-width: 900px) {
+  /* an answer tile on a phone: its key sits beside its name, not on a line of its own */
+  .sw-sides:not(:has(.with-media)) .sw-side-pick { grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: start; }
+  .sw-sides:not(:has(.with-media)) .sw-side-key { grid-row: 1; grid-column: 1; justify-self: start; margin: 0; }
+  .sw-sides:not(:has(.with-media)) .sw-side-label { grid-column: 2; }
+  .sw-sides:not(:has(.with-media)) .sw-side.rec .sw-side-label { padding-right: 20px; }
+  .sw-sides:not(:has(.with-media)) .sw-side-detail { grid-column: 1 / -1; }
+  .sw-sides:not(:has(.with-media)) .sw-side.right .sw-side-rec { left: auto; right: 12px; }
 }
 
 /* ---- fewer scrolls. A card that scrolls inside itself is the last resort, so the page gives the deck
@@ -420,3 +437,5 @@ body.swipe-mode .wrap { max-width: 1240px; padding: 0 var(--space-5, 20px); }
 @media (min-width: 901px) {
   .sw-brief { overflow-x: hidden; }
 }
+/* beside the deck the head already counts the answers: the card does not count what is left as well */
+@media (min-width: 901px) { .sw-top:has(.sw-count) ~ .sw-stack .sw-left-n { display: none; } }

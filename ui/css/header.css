@@ -41,6 +41,12 @@
 @media (max-width: 480px) {
   .eyebrow { gap: 6px; padding-left: 12px; }
   .eyebrow .gh { display: none; }
+  /* One row with the rounds button or a round's thread button has no room for the word: the mark alone
+     stays, the link keeps its name for a screen reader. */
+  .eyebrow:has(.inbox-btn:not([hidden])) .brand > span:not(.logo), .eyebrow:has(.round-thread-button) .brand > span:not(.logo) {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .eyebrow:has(.inbox-btn:not([hidden])) .brand, .eyebrow:has(.round-thread-button) .brand { min-width: 44px; min-height: 44px; justify-content: center; margin-left: -12px; }
 }
 h1.title {
   font-size: var(--step-4);

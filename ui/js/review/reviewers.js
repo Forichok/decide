@@ -49,14 +49,15 @@ export function renderReviewers(s) {
   const rows = ran.map(r => {
     const own = findings.filter(f => f.role === r.role);
     return h("li.cr-reviewer",
-      {}, h("div.cr-reviewer-head", {}, h("b", {}, roleTitle(s, r.role)), h("span.cr-hint", {}, r.model || t("cr.reviewers.defaultModel")),
+      {}, h("div.cr-reviewer-head", {}, h("b", {}, roleTitle(s, r.role)), r.model && h("span.cr-hint", {}, r.model),
         h(`span.badge.cr-reviewer-mark.${r.verdict}`, {}, t(`cr.reviewers.verdict.${r.verdict}`))),
       h("div", { html: mdInline(r.summary) }),
       h("small.cr-hint", {}, SEVERITIES.map(severity => t(`cr.reviewers.count.${severity}`, own.filter(f => f.severity === severity).length)).join(" · ")));
   });
-  for (const r of skipped) rows.push(h("li.cr-reviewer.warn", {},
-    h("div.cr-reviewer-head", {}, h("b", {}, roleTitle(s, r.role)), h("span", {}, r.model || t("cr.reviewers.defaultModel"))),
-    h("div", {}, t("cr.reviewers.skipped", r.why))));
+  // A reviewer left out on purpose is a fact, not an alarm: it sits quieter than any finding.
+  for (const r of skipped) rows.push(h("li.cr-reviewer.skipped", {},
+    h("div.cr-reviewer-head", {}, h("b", {}, roleTitle(s, r.role)), r.model && h("span.cr-hint", {}, r.model), h("span.badge", {}, t("cr.reviewers.skippedMark"))),
+    h("div", {}, r.why)));
   for (const role of missingRoles(s)) rows.push(h("li.cr-reviewer.warn", {},
     h("b", {}, roleTitle(s, role.id)), h("div", {}, t("cr.reviewers.missing"))));
   const empty = requirement ? (requirement.mode === "request"
@@ -130,7 +131,8 @@ export async function saveFinding(id, payload) {
   return res.json();
 }
 
-export function reviewerWarnings(s, close) {
+// part: "blocking" — the findings that stand against an approval; "process" — who did not review.
+export function reviewerWarnings(s, close, part) {
   const { skipped = [], none } = s.rv.reviewers ?? {};
   const blocking = blockingFindings(s);
   const groups = new Map();
@@ -145,16 +147,19 @@ export function reviewerWarnings(s, close) {
       : t(key === "rest" ? "cr.rest" : "cr.overview");
     return h("button.link-btn", {
       type: "button", onclick: () => { close(); findings[0].anchor ? s.goFinding(findings[0]) : s.goReviewers(); },
-    }, h("span", { html: mdInline(title) }), ` (${findings.length})`);
+    }, h("span", { html: `${mdInline(title)}\u00a0(${findings.length})` }));
   });
   if (groups.size > links.length) links.push(h("button.link-btn", {
     type: "button", onclick: () => { close(); s.goReviewers(); },
   }, t("cr.reviewers.moreGroups", groups.size - links.length)));
-  const alert = (kind, ...body) => h("div.cr-alert", { dataset: { alert: `reviewer-${kind}` } }, body);
+  const alert = (kind, level, ...body) => h(`div.cr-alert${level}`, { dataset: { alert: `reviewer-${kind}` } }, body);
+  const names = (roles) => roles.map(title => `«${title}»`).join(", ");
+  if (part === "blocking") return [
+    blocking.length && alert("blocking", ".danger", h("b", {}, t("cr.reviewers.blockingWarning", blocking.length)), h("div.cr-finding-jumps", {}, links)),
+  ].filter(Boolean);
   return [
-    blocking.length && alert("blocking", h("b", {}, t("cr.reviewers.blockingWarning", blocking.length)), h("div.cr-finding-jumps", {}, links)),
-    missingRoles(s).length && alert("missing", t("cr.reviewers.missingWarning", missingRoles(s).map(r => roleTitle(s, r.id)).join(", "))),
-    skipped.length && alert("skipped", t("cr.reviewers.skippedWarning", skipped.map(r => roleTitle(s, r.role)).join(", "))),
-    none && alert("none", t("cr.reviewers.none", none)),
+    missingRoles(s).length && alert("missing", "", t("cr.reviewers.missingWarning", names(missingRoles(s).map(r => roleTitle(s, r.id))))),
+    skipped.length && alert("skipped", "", t("cr.reviewers.skippedWarning", names(skipped.map(r => roleTitle(s, r.role))))),
+    none && alert("none", "", t("cr.reviewers.none", none)),
   ].filter(Boolean);
 }

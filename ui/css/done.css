@@ -12,7 +12,12 @@
 
 /* presence under the title of a round */
 .presence-note { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 16px; color: var(--tx-mut); font-size: var(--step-0, 14.5px); }
-.presence-note .pn-body { display: grid; gap: 8px; min-width: 0; flex: 1; }
+.presence-note .pn-body { min-width: 0; flex: 1; }
+.presence-note .pn-body[open] { display: grid; gap: 8px; }
+.presence-note summary { list-style: none; cursor: pointer; }
+.presence-note summary::-webkit-details-marker { display: none; }
+.pn-more { color: var(--accent-tx); text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+.presence-note summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 .presence-note p { margin: 0; }
 .pn-dot { width: 8px; height: 8px; flex: none; margin-top: 7px; border-radius: 50%; border: 1.5px solid var(--warn); background: transparent; }
 .presence-note.live .pn-dot { background: var(--ok); border-color: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
@@ -184,4 +189,12 @@ textarea.set-input { resize: vertical; }
   .set-section-heading .set-help { max-width: none; }
   .set-scopes { align-self: stretch; }
   .set-scopes button { flex: 1; }
+}
+
+/* under a thumb the settings' own controls are 44px too */
+@media (pointer: coarse) {
+  .set-back { min-height: 44px; padding-inline: 4px 10px; }
+  .set-advanced > summary, .set-role > summary, .sum-raw summary { min-height: 44px; display: flex; align-items: center; }
+  .presence-note summary { padding-block: 6px; }
+  .set-scopes button { min-height: 44px; }
 }

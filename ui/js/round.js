@@ -657,7 +657,8 @@ function renderBar(env, openCheck) {
       h(
         "div.bar-actions",
         {},
-        h("button.btn.ghost.bar-cancel", { type: "button", onclick: env.cancel }, t("bar.cancel")),
+        // A phone has room for one word; the button keeps its full name for a screen reader there.
+        h("button.btn.ghost.bar-cancel", { type: "button", "aria-label": t("bar.cancel"), onclick: env.cancel }, h("span.long", {}, t("bar.cancel")), h("span.short", {}, t("bar.cancelShort"))),
         h("button.btn.ghost.bar-next", { type: "button", title: t("bar.nextTitle"), html: `${t("bar.next")}${icon("down")}`, onclick: env.nextOpen }),
         h("button.btn.primary.bar-done", { type: "button", title: t("bar.doneTitle"), html: `${t("bar.done")}<kbd>${shortcut("⌘↵")}</kbd>`, onclick: env.submit }),
       ),

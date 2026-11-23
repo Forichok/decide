@@ -53,18 +53,18 @@ test("evidence labels sit beside the reason, the pros and the cons", async ({ pa
   await expect(opt(page, "db", "pg").locator(".ev.ev-estimate")).toHaveText("estimate");
 });
 
-test("the footer shows two controls and reveals the remaining actions on demand", async ({ page }) => {
+test("the footer shows the everyday controls and reveals the rare actions on demand", async ({ page }) => {
   const id = await d.open(rich(), { live: true });
   await openRound(page, d, id);
   const footer = card(page, "db").locator(".actions");
   const more = footer.getByRole("button", { name: "More actions" });
-  await expect(footer.getByRole("button")).toHaveText(["Ask the agent", "More actions"]);
+  await expect(footer.getByRole("button")).toHaveText(["Ask the agent", "Note", "Own option", "More actions"]);
   await opt(page, "db", "pg").click();
   await expect(opt(page, "db", "pg")).toHaveAttribute("aria-checked", "true");
   await more.press("Enter");
   await expect(more).toHaveAttribute("aria-expanded", "true");
   await expect(footer.getByRole("button")).toHaveText([
-    "Ask the agent", "More actions", "Yes, but…", "None, suggest others", "Later", "Note", "Own option", "File", "Agent decides", "Skip",
+    "Ask the agent", "Note", "Own option", "More actions", "Yes, but…", "None, suggest others", "Later", "File", "Agent decides", "Skip",
   ]);
   const skip = footer.getByRole("button", { name: "Skip", exact: true });
   await skip.click();
@@ -87,6 +87,9 @@ for (const count of [1, 2]) {
     await expect(rec).toBeHidden();
     await opt(page, "tabs", "admin").click();
     await openMoreActions(tabs);
+    // it picks an answer, so it waits among the ready answers and not under "No answer"
+    await expect(tabs.getByRole("group", { name: "Ready answers" }).locator('[data-act="rec"]')).toBeVisible();
+    await expect(tabs.getByRole("group", { name: "No answer" }).locator('[data-act="rec"]')).toHaveCount(0);
     await rec.click();
     await expect(tabs.locator('.opt[aria-checked="true"]')).toHaveCount(count);
     await expect(opt(page, "tabs", "home")).toHaveAttribute("aria-checked", "true");
@@ -134,10 +137,14 @@ test("'none, suggest others' saves a flag and 'later' keeps a revisit text", asy
   expect(later.revisit).toBe("after the audit");
 });
 
-test("Own option and a note are saved with the answer", async ({ page }) => {
+test("Own option and a note sit in the row under the question, not behind More, and are saved with the answer", async ({ page }) => {
   const id = await d.open(rich());
   await openRound(page, d, id);
-  await openMoreActions(card(page, "mode"));
+  const row = card(page, "mode").locator(".action-row");
+  await expect(row.locator('[data-act="note"]')).toBeVisible();
+  await expect(row.locator('[data-act="other"]')).toBeVisible();
+  await expect(card(page, "mode").locator(".action-panel")).toBeHidden();
+  await expect(card(page, "mode").locator('.action-panel [data-act="file"]')).toHaveCount(1);
   await card(page, "mode").locator('[data-act="other"]').click();
   await card(page, "mode").locator(".other-input").fill("Mode C");
   await card(page, "mode").locator('[data-act="note"]').click();

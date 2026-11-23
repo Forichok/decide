@@ -38,7 +38,7 @@ export function createDeck(s) {
 
   // The key strip stays on one line: while it wraps, it drops labels a step at a time.
   function fitKeys() {
-    const shown = [...keys.children].filter((k) => !k.hidden);
+    const shown = [...keys.children].filter((k) => !k.hidden && k.offsetParent);
     const wraps = () => new Set(shown.map((k) => k.offsetTop)).size > 1;
     keys.classList.remove("tight-1", "tight-2");
     if (wraps()) keys.classList.add("tight-1");

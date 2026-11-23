@@ -16,13 +16,15 @@ import { trackCoverage, showFiles, coverageWarning } from "./coverage.js";
 import { composer } from "./hunk.js";
 import { checkState, renderBar, renderOverview, renderRail, renderTitle } from "./overview.js";
 
-import { decisionOf, findingsOf, openCounts, ownerOf, reviewerWarnings, saveFinding, sortedFindings } from "./reviewers.js";
+import { blockingFindings, decisionOf, findingsOf, openCounts, ownerOf, reviewerWarnings, saveFinding, sortedFindings } from "./reviewers.js";
 import { markOf, paintResolutions, resolutionsOf, saveResolution } from "./resolved.js";
 import { answerOf, decisionsOf, paintDecisions, saveDecision } from "./decisions.js";
 
 const KEYS = [
   ["J  K", "cr.key.step"],
   ["R", "cr.key.read"],
+  ["↑  ↓", "cr.key.lines"],
+  ["↵", "cr.key.comment"],
   ["⌘↵", "cr.key.verdict"],
   ["Esc", "cr.key.esc"],
 ];
@@ -121,6 +123,13 @@ export function mountReview(round, env) {
     const findings = findingsOf(s).filter(f => decisionOf(s, f)?.decision === "fix").length;
     const negative = decisionsOf(s).filter(d => answerOf(s, d) === "no").length;
     return { fix: of("fix") + rejected + findings + negative, nit: of("nit"), question: of("question"), open: all.filter((c) => c.kind === "question" && !c.reply).length };
+  };
+  // The verdict the state points to: something to fix, an open blocking finding or a failed check means
+  // the change goes back; the reader may still pick another.
+  s.suggested = () => {
+    const n = s.counts();
+    if (n.fix || blockingFindings(s).length || s.checks().failed) return "return";
+    return n.nit ? "nits" : "approve";
   };
   s.checks = () => ({ failed: s.spec.checks.filter((c) => checkState(c) === "failed").length, missing: s.spec.checks.filter((c) => checkState(c) === "missing").length, total: s.spec.checks.length });
   // Chapter id → how many notes sit on its pieces.
@@ -301,14 +310,14 @@ export function mountReview(round, env) {
     const el = key ? stopEl(key) : document.getElementById("cr-folds");
     el?.scrollIntoView({ behavior: reduced.matches ? "auto" : "smooth", block: "start" });
   };
-  // The stop whose top passed the upper third of the screen is the one being read.
+  // The stop whose top passed the middle of the screen is the one being read.
   let ticking = false;
   const onScroll = () => {
     if (ticking) return;
     ticking = true;
     requestAnimationFrame(() => {
       ticking = false;
-      const line = innerHeight / 3;
+      const line = innerHeight / 2;
       const passed = stops().filter((el) => el.getBoundingClientRect().top <= line);
       const stop = passed.at(-1)?.dataset.stop || "overview";
       const now = stop === "rest" ? "rest" : stop.startsWith("mech:") ? "mech" : stop;
@@ -454,52 +463,67 @@ export function mountReview(round, env) {
       s.box?.scrollIntoView({ behavior: reduced.matches ? "auto" : "smooth", block: "center" });
       return s.box?.focusText();
     }
-    let verdict = first ?? suggested();
+    let verdict = first ?? s.suggested();
     const n = s.counts();
     const checks = s.checks();
     const unread = s.spec.chapters.filter((c) => !isRead(c.id));
+    const title = h("h2.modal-title");
     const text = h("p");
-    const alerts = h("div");
+    const alerts = h("div.cr-alerts");
     const confirm = h("button.btn.primary", { type: "button", "data-autofocus": focusNote ? null : true, onclick: () => submit() });
-    const note = h("textarea", { rows: 3, "data-autofocus": focusNote ? true : null, "aria-label": t("cr.noteLabel"), placeholder: t("cr.notePh") });
+    const note = h("textarea", { rows: 3, id: "cr-verdict-note", "data-autofocus": focusNote ? true : null, placeholder: t("cr.notePh") });
     note.value = s.note;
     note.addEventListener("input", () => {
       s.note = note.value;
       s.persist();
     });
+    // The bar's button already said which verdict: the dialog confirms it and offers the others on request.
     const seg = h(
       "div.cr-seg",
-      { role: "group", "aria-label": t("cr.verdictLabel") },
+      { role: "group", "aria-label": t("cr.verdictLabel"), hidden: Boolean(first) },
       ["return", "nits", "approve"].map((v) => h("button", { type: "button", dataset: { verdict: v }, onclick: () => pick(v) }, t(`cr.v.${v}`))),
     );
-    function decisionWarning(kind, places) {
+    const change = h("button.link-btn.cr-verdict-change", { type: "button", hidden: !first, onclick: () => {
+      seg.hidden = false;
+      change.hidden = true;
+      seg.querySelector('[aria-pressed="true"]')?.focus();
+    } }, t("cr.verdictChange"));
+    const alert = (kind, level, ...body) => h(`div.cr-alert${level === "danger" ? ".danger" : ""}`, { dataset: { alert: kind } }, body);
+    function decisionWarning(kind, level, places) {
       if (!places.length) return null;
-      return h("div.cr-alert", { dataset: { alert: kind } }, t(`cr.alert.${kind}`, places.length), " ", h("button.link-btn", { type: "button", onclick: () => { close(); s.goPlace(places[0].chapter, places[0].index); } }, t("cr.goPlace")));
+      return alert(kind, level, t(`cr.alert.${kind}`, places.length), " ", h("button.link-btn", { type: "button", onclick: () => { close(); s.goPlace(places[0].chapter, places[0].index); } }, t("cr.goPlace")));
     }
     function pick(v) {
       verdict = v;
       for (const b of seg.children) b.setAttribute("aria-pressed", String(b.dataset.verdict === v));
+      title.textContent = t(`cr.vTitle.${v}`);
       text.textContent = t(`cr.vText.${v}`);
-      confirm.textContent = t(`cr.vDo.${v}`);
       const approving = v !== "return";
       const unmarked = resolutionsOf(s).filter(row => markOf(s, row.ref) === null).length;
-      const red = [checks.failed && t("cr.n.failed", checks.failed), checks.missing && t("cr.n.missing", checks.missing)].filter(Boolean).join(", ");
+      const failed = s.spec.checks.filter((c) => checkState(c) === "failed");
+      // What stands against an approval comes first and in red; what is only worth knowing follows.
       alerts.replaceChildren(
         ...[
-          approving && unmarked > 0 && h("div.cr-alert", { dataset: { alert: "resolution" } }, t("cr.followup.unmarked", unmarked), " ",
+          ...(approving ? reviewerWarnings(s, close, "blocking") : []),
+          approving && failed.length > 0 && alert("checks", "danger", h("b", {}, t("cr.alert.failed", failed.length)), " ", t("cr.alert.failedText"),
+            h("ul.cr-alert-list", {}, failed.map((c) => h("li", {}, h("code", {}, c.command), " ", h("span.cr-hint", {}, t("cr.exit", c.exit)))))),
+          approving && n.fix > 0 && alert("fix", "danger", h("b", {}, t("cr.alert.fix", n.fix)), " ", t("cr.alert.fixText")),
+          approving && decisionWarning("decisionNo", "danger", decisionsOf(s).filter((d) => answerOf(s, d) === "no")),
+          approving && decisionWarning("decisions", "warn", decisionsOf(s).filter((d) => answerOf(s, d) === null)),
+          approving && unmarked > 0 && alert("resolution", "warn", t("cr.followup.unmarked", unmarked), " ",
             h("button.link-btn", { type: "button", onclick: () => { close(); overview.querySelector("#cr-resolutions").focus(); } }, t("cr.followup.seeReplies"))),
-          approving && decisionWarning("decisions", decisionsOf(s).filter((d) => answerOf(s, d) === null)),
-          approving && decisionWarning("decisionNo", decisionsOf(s).filter((d) => answerOf(s, d) === "no")),
-          ...(approving ? reviewerWarnings(s, close) : []),
+          approving && s.rv.newer && alert("newer", "warn", t("cr.alert.newer", s.rv.snapshot.head.slice(0, 7), s.rv.newer.head.slice(0, 7))),
+          approving && checks.missing > 0 && alert(failed.length ? "checks-missing" : "checks", "warn", h("b", {}, t("cr.alert.missing", checks.missing)), " ", t("cr.alert.missingText")),
+          approving && !checks.total && alert("checks", "warn", h("b", {}, t("cr.alert.noChecks")), " ", t("cr.alert.noChecksText")),
+          approving && unread.length > 0 && alert("unread", "warn", h("b", {}, t("cr.alert.unread", unread.length, s.spec.chapters.length)), " ", unread.map((c) => `«${c.title}»`).join(", ")),
           approving && coverageWarning(s, () => { close(); s.openFiles(); }),
-          approving && s.rv.newer && h("div.cr-alert", { dataset: { alert: "newer" } }, t("cr.alert.newer", s.rv.snapshot.head.slice(0, 7), s.rv.newer.head.slice(0, 7))),
-          approving && red && h("div.cr-alert", { dataset: { alert: "checks" } }, h("b", {}, t("cr.alert.checks")), " ", t("cr.alert.checksText", red)),
-          approving && !checks.total && h("div.cr-alert", { dataset: { alert: "checks" } }, h("b", {}, t("cr.alert.noChecks")), " ", t("cr.alert.noChecksText")),
-          approving && n.fix > 0 && h("div.cr-alert", { dataset: { alert: "fix" } }, h("b", {}, t("cr.alert.fix", n.fix)), " ", t("cr.alert.fixText")),
-          approving && unread.length > 0 && h("div.cr-alert", { dataset: { alert: "unread" } }, h("b", {}, t("cr.alert.unread", unread.length, s.spec.chapters.length)), " ", unread.map((c) => `«${c.title}»`).join(", ")),
-          v === "return" && !n.fix && !n.nit && !n.question && h("div.cr-alert", { dataset: { alert: "empty" } }, h("b", {}, t("cr.alert.empty")), " ", t("cr.alert.emptyText")),
+          ...(approving ? reviewerWarnings(s, close, "process") : []),
+          v === "return" && !n.fix && !n.nit && !n.question && alert("empty", "warn", h("b", {}, t("cr.alert.empty")), " ", t("cr.alert.emptyText")),
         ].filter(Boolean),
       );
+      const against = approving && alerts.querySelector(".cr-alert.danger");
+      confirm.classList.toggle("caution", Boolean(against));
+      confirm.textContent = t(against && v === "approve" ? "cr.vDo.anyway" : `cr.vDo.${v}`);
     }
     let busy = false;
     async function submit() {
@@ -532,30 +556,27 @@ export function mountReview(round, env) {
       h(
         "div.cr-verdict",
         {},
-        h("h2.modal-title", {}, t("cr.verdictTitle")),
+        title,
         h("p.cr-verdict-commit", {}, t("cr.commit", s.rv.snapshot.head.slice(0, 7), s.rv.snapshot.headRef || "HEAD")),
         seg,
         text,
+        change,
         alerts,
-        h(
+        // the tally of comments, when there is one: three zeros say what the line above already said
+        n.fix + n.nit + n.question > 0 && h(
           "ul",
           {},
           h("li", {}, h("span.cr-kind.fix", {}, t("cr.kind.fix")), n.fix),
           h("li", {}, h("span.cr-kind.nit", {}, t("cr.kind.nit")), n.nit),
           h("li", {}, h("span.cr-kind.question", {}, t("cr.kind.question")), n.question, n.open > 0 && h("span.cr-hint", {}, t("cr.openQuestions", n.open))),
         ),
+        h("label.cr-note-label", { for: "cr-verdict-note" }, t("cr.noteLabel")),
         note,
         h("div.modal-actions", {}, h("button.btn.ghost", { type: "button", onclick: () => close() }, t("cr.cancel")), confirm),
       ),
     );
     pick(verdict);
   };
-  // ⌘↵ on the page: the verdict the comments point to, to be confirmed.
-  const suggested = () => {
-    const n = s.counts();
-    return n.fix ? "return" : n.nit ? "nits" : "approve";
-  };
-
   // ---- keys: J/K and R come through main.js; Esc here closes an empty box
   const onKey = (e) => {
     if (e.key === "Escape" && !chapterMenu.hidden && !modalOpen()) {

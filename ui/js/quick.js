@@ -16,8 +16,8 @@ export const hasQuick = (q) => CHOICE.has(q.type);
 // What each button asks for. `needs` is what the text must hold before it saves.
 const SPEC = {
   yes: { icon: "check", label: "quick.yes", title: "quick.yesTitle", hint: "quick.yesHint", field: "condition", needsText: true },
-  none: { icon: "plus", label: "quick.none", title: "quick.noneTitle", hint: "quick.noneHint", field: "note", needsText: false },
-  later: { icon: "skip", label: "quick.later", title: "quick.laterTitle", hint: "quick.laterHint", field: "revisit", needsText: true },
+  none: { icon: "swap", label: "quick.none", title: "quick.noneTitle", hint: "quick.noneHint", field: "note", needsText: false },
+  later: { icon: "clock", label: "quick.later", title: "quick.laterTitle", hint: "quick.laterHint", field: "revisit", needsText: true },
 };
 
 // TODO(store): ctx.set keeps the draft through the old save path; once round.js routes it through
@@ -55,7 +55,7 @@ export function renderQuick(q, ctx) {
     }
   });
 
-  const buttons = h("div.quick", { role: "group", "aria-label": t("quick.group") });
+  const buttons = h("div.quick", { role: "group", "aria-label": t("quick.group") }, h("span.action-cap", { "aria-hidden": "true" }, t("quick.group")));
   for (const mode of MODES) {
     buttons.append(
       h("button.chip.ghost.quick-btn", {

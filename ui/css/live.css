@@ -4,6 +4,8 @@
 .btn.sm { padding: 7px 12px; border-radius: 10px; font-size: 13px; gap: 6px; }
 .btn.sm .i { width: 14px; height: 14px; }
 .btn:disabled { opacity: 0.45; cursor: default; transform: none; }
+/* A filled button that cannot be pressed loses its colour: a pale accent still reads as "press me". */
+.btn.primary:disabled { opacity: 1; background: var(--surface-3); color: var(--tx-dim); border-color: var(--line); box-shadow: none; }
 .chip.static.live { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
 .chip.static.away { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
 

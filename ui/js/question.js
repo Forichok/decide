@@ -87,23 +87,34 @@ function badges(q) {
 }
 
 function renderActions(q, ctx, quick) {
-  const tools = h(
+  // What a reader reaches for on any question stays in the row: ask, a note, an option of their own.
+  // The rare ones (a file, the ready answers, the ways to leave it unanswered) wait behind "More".
+  const note = h("button.chip.ghost", { type: "button", dataset: { act: "note" }, html: `${icon("note")}${t("chip.note")}`, title: t("chip.noteTitle"), onclick: () => ctx.openNote(q.id) });
+  const other = q.allowOther && h("button.chip.ghost", { type: "button", dataset: { act: "other" }, html: `${icon("plus")}${t("chip.other")}`, onclick: () => ctx.openOther(q.id) });
+  const tools = !ctx.offline && h(
     "div.action-group",
-    {},
-    h("button.chip.ghost", { type: "button", dataset: { act: "note" }, html: `${icon("note")}${t("chip.note")}`, title: t("chip.noteTitle"), onclick: () => ctx.openNote(q.id) }),
-    q.allowOther &&
-      h("button.chip.ghost", { type: "button", dataset: { act: "other" }, html: `${icon("plus")}${t("chip.other")}`, onclick: () => ctx.openOther(q.id) }),
-    !ctx.offline && h("button.chip.ghost", { type: "button", dataset: { act: "file" }, html: `${icon("clip")}${t("chip.file")}`, title: t("chip.fileTitle"), onclick: () => ctx.pickFile(q.id) }),
+    { role: "group", "aria-label": t("act.capAdd") },
+    h("span.action-cap", { "aria-hidden": "true" }, t("act.capAdd")),
+    h("button.chip.ghost", { type: "button", dataset: { act: "file" }, html: `${icon("clip")}${t("chip.file")}`, title: t("chip.fileTitle"), onclick: () => ctx.pickFile(q.id) }),
   );
+  // "As recommended" picks an answer: it sits with the ready answers, never under "No answer".
   const showRec = (!quick || q.type === "multi") && recommendedIds(q).length > 0;
+  const rec = showRec && h("button.chip.ghost.rec-act", { type: "button", dataset: { act: "rec" }, html: `${icon("star")}${t("chip.rec")}`, title: t("chip.recTitle"), onclick: () => ctx.applyRecommended(q.id) });
+  if (rec && quick) quick.insertBefore(rec, quick.children[1] || null);
+  const ready = rec && !quick && h(
+    "div.action-group",
+    { role: "group", "aria-label": t("quick.group") },
+    h("span.action-cap", { "aria-hidden": "true" }, t("quick.group")),
+    rec,
+  );
   const flags = h(
     "div.action-group",
-    {},
-    showRec && h("button.chip.ghost.rec-act", { type: "button", dataset: { act: "rec" }, html: `${icon("star")}${t("chip.rec")}`, title: t("chip.recTitle"), onclick: () => ctx.applyRecommended(q.id) }),
+    { role: "group", "aria-label": t("act.capPass") },
+    h("span.action-cap", { "aria-hidden": "true" }, t("act.capPass")),
     !q.mine && renderFlag(q, ctx, "delegate", "hand", "D"),
     renderFlag(q, ctx, "skip", "skip", "S"),
   );
-  const panel = h("div.action-panel", { id: `qa-${q.id}`, hidden: true }, quick, tools, flags);
+  const panel = h("div.action-panel", { id: `qa-${q.id}`, hidden: true }, quick || ready, tools, flags);
   const more = h("button.chip.ghost.action-more", {
     type: "button",
     "aria-expanded": "false",
@@ -118,6 +129,8 @@ function renderActions(q, ctx, quick) {
       "div.action-row",
       {},
       renderFlag(q, ctx, "explain", "help", "E"),
+      note,
+      other,
       more,
       h("span.action-status"),
     ),

@@ -78,8 +78,8 @@ test('Russian review coverage uses pieces with the right plural forms', async ()
     assert.doesNotMatch(String(value), /фрагмент/i, key);
   }
   for (const [n, word] of [[1, 'куска'], [2, 'кусков'], [5, 'кусков'], [11, 'кусков'], [21, 'куска'], [22, 'кусков']]) {
-    assert.equal(ru['cr.coverage'](0, n, 0, n), `Открыто 0 из ${n} ${word} · частично 0 · не открыто ${n}`);
-    assert.equal(ru['cr.coverage.short'](0, n, 0), `Открыто 0 из ${n} ${word}`);
-    assert.equal(ru['cr.coverage.short'](0, n, 1), `Открыто 0 из ${n} ${word}, частично 1`);
+    assert.equal(ru['cr.coverage'](0, n, 0, n), `Показано 0 из ${n} ${word} · частично 0 · не показано ${n}`);
+    assert.equal(ru['cr.coverage.short'](0, n, 0), `Показано кусков: 0 из ${n}`);
+    assert.equal(ru['cr.coverage.short'](0, n, 1), `Показано кусков: 0 из ${n}, частично 1`);
   }
 });

@@ -75,10 +75,12 @@ function paintPresenceNote(box, listening) {
   const line = pasteLine(roundIdOnPage());
   box.replaceChildren(
     h("span.pn-dot"),
+    // One line says what is true; the line to paste is one click away, for the few who want to hurry the agent.
     h(
-      "div.pn-body",
+      "details.pn-body",
       {},
-      h("p", {}, t("listen.away")),
+      h("summary", {}, h("span", {}, t("listen.away")), " ", h("span.pn-more", {}, t("listen.hurry"))),
+      h("p", {}, t("listen.hurryText")),
       h("div.paste-line", {}, h("code", {}, line), h("button.link-btn", { type: "button", onclick: () => navigator.clipboard?.writeText(line).catch(() => {}) }, t("listen.copy"))),
     ),
   );

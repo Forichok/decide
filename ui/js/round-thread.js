@@ -16,7 +16,7 @@ const visible = () => document.visibilityState === 'visible' && document.hasFocu
 export function roundThreadButton(id) {
   const button = h('button.chip.ghost.round-thread-button', {
     type: 'button', 'aria-haspopup': 'dialog', 'aria-expanded': 'false', onclick: () => open(s),
-  }, h('span', {}, t('thread.button')), h('span.round-thread-unread', { hidden: true, 'aria-hidden': 'true' }));
+  }, h('span.round-thread-ic', { 'aria-hidden': 'true', html: icon('chat') }), h('span.round-thread-word', {}, t('thread.button')), h('span.round-thread-unread', { hidden: true, 'aria-hidden': 'true' }));
   const s = { id, button, thread: [], listening: false, status: 'pending', panel: null, loaded: false, version: 0 };
   active = s;
   refresh(s);

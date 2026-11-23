@@ -923,7 +923,7 @@ test("typeLines names every type and every media kind once", async () => {
 test("npm run docs is the generator and is the only script this task added", () => {
   const pkg = JSON.parse(readFileSync(path.join(pluginDir, "package.json"), "utf8"));
   assert.equal(pkg.scripts.docs, "node lib/registry/docs.mjs --write");
-  assert.equal(pkg.version, "3.2.1");
+  assert.equal(pkg.version, "3.2.2");
 });
 
 test("nothing in the engine switches on a media kind outside the registry", () => {
@@ -1315,19 +1315,19 @@ test('review overview explains the change before asking for decisions', async (c
   const tree = walkEl(renderOverview(s));
   assert.deepEqual(tree.filter((e) => e.dataset?.section).map((e) => e.dataset.section), ['summary', 'decisions', 'risks', 'reviewers', 'acceptance', 'checks']);
   const text = (e) => e.text ?? (e.children ?? []).map(text).join('');
-  assert.ok(tree.some((e) => text(e).includes('Checked by: Totals test')));
-  await context.test('section headings have no attribution bar; header and risk badges remain', () => {
+  assert.ok(tree.some((e) => text(e).includes('Checked, the agent says, by: Totals test')));
+  await context.test('the overview says once whose words it is: in its header, not on every section or risk', () => {
     const sections = tree.filter((e) => e.dataset?.section);
     assert.equal(sections.flatMap((e) => e.children).filter((e) => e.className === 'cr-said').length, 0);
-    assert.equal(tree.filter((e) => e.className === 'cr-said').length, 3);
+    assert.equal(tree.filter((e) => e.className === 'cr-said').length, 1);
   });
-  await context.test('unchecked risk uses the badge for attribution in both languages', async () => {
+  await context.test('an unchecked risk says so plainly in both languages', async () => {
     for (const [file, expected] of [['en', 'Not checked'], ['ru', 'Не проверено']]) {
       const { default: words } = await load(`ui/js/lang/${file}.js`);
       assert.equal(words['cr.notChecked'], expected);
     }
     const unchecked = tree.find((e) => e.className === 'cr-risk-check warn');
-    assert.equal(text(unchecked), "Not checked in the agent's words");
+    assert.equal(text(unchecked), 'Not checked');
   });
   await context.test('acceptance renders inline code and escapes spec HTML in every field', () => {
     const acceptance = { changed: '`review` <img>', where: '`screen` <img>', steps: ['`open` <img>', '`read` <img>'], expect: '`word` <img>' };

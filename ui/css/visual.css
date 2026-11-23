@@ -25,10 +25,10 @@ body.visual-mode .toc { display: none; }
 .va-meta, .va-side figcaption small, .va-recheck-frame small { margin: 0; color: var(--tx-mut); font-size: 13px; }
 .va-evidence-head { margin-bottom: 10px; }
 .va-controls { justify-content: space-between; row-gap: 6px; margin: 8px 0; }
-.va-controls .btn, .va-side .btn { font-size: 12px; padding: 5px 9px; min-height: 32px; }
+.va-controls .btn, .va-side .btn { font-size: 12.5px; padding: 5px 10px; min-height: 32px; }
 .va-buttons:empty { display: none; }
 .va-buttons button[aria-pressed=true] { background: var(--accent-soft); color: var(--accent-tx); border-color: var(--accent-line); }
-.va-zoom { display: inline-flex; align-items: center; gap: 4px; color: var(--tx-mut); font-size: 12px; }
+.va-zoom { display: inline-flex; align-items: center; gap: 4px; color: var(--tx-mut); font-size: 12.5px; }
 .va-compare { display: grid; position: relative; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; --cut: 50%; }
 .va-compare.one, .va-compare.wipe { grid-template-columns: minmax(0, 1fr); }
 .va-side, .va-recheck-frame { min-width: 0; margin: 0; }
@@ -54,7 +54,7 @@ body.visual-mode .toc { display: none; }
 .va-empty, .va-unmatched { padding: 10px; margin: 0; color: var(--tx-mut); font-size: 13px; }
 .va-player { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
 .va-seek { flex: 1; min-width: 84px; }
-.va-player output { min-width: 55px; font: 12px var(--mono); }
+.va-player output { min-width: 55px; font: 12.5px var(--mono); }
 .va-try, .va-gap, .va-recheck { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 20px; }
 .va-try ol { padding-left: 1.4em; margin: 8px 0; }
 .va-try p, .va-gap p, .va-recheck p { margin: 6px 0 12px; }
@@ -69,12 +69,12 @@ body.visual-mode .toc { display: none; }
 .va-mark-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; text-align: start; width: 100%; border: 0; border-top: 1px solid var(--line-strong); background: transparent; cursor: pointer; padding: 7px 0; }
 .va-mark-row b { color: var(--accent-tx); }
 .va-mark-row small { color: var(--tx-mut); }
-.va-verdict textarea, .va-compose textarea { width: 100%; margin: 14px 0 8px; }
+.va-verdict textarea, .va-compose textarea { width: 100%; margin: 6px 0 8px; }
 .va-verdict .va-buttons { margin-top: 12px; }
 .va-recheck-frame figcaption { font-size: 13px; font-weight: 640; margin-bottom: 4px; }
 .va-recheck-frame .va-plane { overflow: hidden; }
 .va-error { color: var(--danger); }
-.va-error:empty, .va-verdict .va-meta:empty { display: none; }
+.va-error:empty { display: none; }
 @media (max-width: 620px) {
   body.visual-mode .layout { padding-inline: 10px; }
   .va-task, .va-verdict, .va-replies { padding: 14px; }
@@ -86,7 +86,6 @@ body.visual-mode .toc { display: none; }
   }
   .va-compare.wipe .va-side figcaption { display: flex; min-height: 37px; align-items: center; }
   .va-side figcaption button { grid-column: 1 / -1; }
-  .va-side figcaption code { font-size: 10px; }
   .va-side figcaption button { margin: 0; }
   .va-controls { justify-content: start; }
   .va-buttons { gap: 5px; }
@@ -101,3 +100,55 @@ body.visual-mode .toc { display: none; }
 
 .va-completed { margin-block: 16px; }
 .va-completed > summary { font-weight: 620; cursor: pointer; }
+
+/* One answer of four is a round mark; a tick that stands on its own is a square one. */
+.opts.va-decisions .mark { border-radius: 50%; }
+.opt.va-toggle .mark { border-radius: 6px; }
+.va-task-actions .va-request { font-size: var(--step-0); }
+.va-label { display: block; margin-top: 14px; font-size: 13px; font-weight: 620; color: var(--tx-mut); }
+.va-verdict h2 + .va-label { margin-top: 12px; }
+
+/* what stands between the reader and an approval: one line per task, each a way to it */
+.va-outstanding { list-style: none; margin: 10px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--warn-soft); color: var(--tx); font-size: 14px; line-height: 1.5; }
+.va-outstanding li + li { margin-top: 4px; }
+.va-outstanding .link-btn { font-weight: 640; text-align: start; }
+
+/* the place a remark is about, above its words */
+.va-spot { max-height: min(34vh, 260px); overflow: auto; margin-top: 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface-2); scrollbar-width: thin; }
+.va-spot .va-plane { pointer-events: none; }
+
+/* the way to the verdict stays at hand; it leaves when the verdict itself is on screen */
+.va-bar { margin-top: 18px; }
+.va-bar[hidden] { display: none; }
+.va-task:focus { outline: none; }
+.va-task:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.va-task { scroll-margin-top: 12px; }
+.va-expand[aria-pressed=true], .va-side figcaption button[aria-pressed=true] { background: var(--accent-soft); color: var(--accent-tx); border-color: var(--accent-line); }
+
+@media (max-width: 620px) {
+  /* the two halves of "what changed" read one under the other; the controls keep to two rows */
+  .va-changes { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .va-controls { gap: 6px; }
+  /* the word "Zoom" stays for a screen reader; the control already says what it holds */
+  .va-zoom > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .va-task-title { display: block; }
+  .va-spot { max-height: 30vh; }
+}
+@media (max-width: 760px) {
+  /* one row on a phone: the state scrolls sideways, the way to the verdict stays put */
+  .cr-bar.va-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 12px; }
+  .va-bar .state { flex: 1 1 0; margin-right: 0; }
+  .va-bar .acts { display: block; flex: none; }
+  .va-bar .acts .btn { white-space: nowrap; }
+}
+@media (pointer: coarse) {
+  .va-controls .btn, .va-side .btn, .va-zoom .set-choice-trigger, .va-picker .set-choice-trigger, .va-player .btn { min-height: 44px; }
+  .va-controls .btn, .va-side .btn { padding-inline: 12px; }
+  .va-seek { min-height: 44px; }
+  .va-divider { height: 44px; margin-top: -10px; }
+  .va-info summary, .va-completed > summary { min-height: 44px; display: flex; align-items: center; }
+  .va-check { min-height: 44px; }
+  .va-mark-row { min-height: 44px; align-items: center; }
+  .va-outstanding { padding-block: 4px; }
+  .va-outstanding li + li { margin-top: 0; }
+}

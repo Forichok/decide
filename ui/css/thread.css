@@ -2,6 +2,7 @@
 .round-thread-button { position: relative; flex-shrink: 0; gap: 8px; }
 .round-thread-unread { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .round-thread-unread[hidden] { display: none; }
+.round-thread-ic { display: none; }
 .modal:has(.round-thread-panel) { padding: 0; overflow: hidden; }
 .round-thread-panel { display: flex; flex-direction: column; max-height: 84dvh; min-height: min(560px, 80dvh); }
 .round-thread-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px 8px; }
@@ -36,7 +37,18 @@
   .eyebrow:has(.round-thread-button) { flex-wrap: wrap; border-radius: var(--r-lg); }
   .round-thread-head, .round-thread-presence, .round-thread-log, .round-thread-composer { padding-inline: 16px; }
   .round-thread-button { max-width: 150px; white-space: normal; line-height: 1.2; }
+  .round-thread-word { white-space: normal; }
   .round-thread-send > span { max-width: 180px; }
+}
+@media (max-width: 480px) {
+  /* A phone keeps the header of a round on one row: the mark without the word, the thread as its icon,
+     and the theme left to the settings. Each keeps its name for a screen reader. */
+  .eyebrow:has(.round-thread-button):not(:has(.cr-chapters-nav)) { flex-wrap: nowrap; border-radius: 999px; }
+  .eyebrow:has(.round-thread-button) .theme { display: none; }
+  .round-thread-button { max-width: none; min-width: 44px; justify-content: center; padding-inline: 10px; gap: 4px; }
+  .round-thread-ic { display: grid; }
+  .round-thread-ic .i { width: 18px; height: 18px; }
+  .round-thread-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 
 .cr-thread-hint { margin: 16px 0 0; font-size: 13px; }
